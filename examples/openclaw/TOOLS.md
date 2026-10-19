@@ -25,4 +25,12 @@ devuelve la propuesta y los pasos de edición externa. No cambies flags del
 servidor desde la conversación. No inventes nutrición para saltar un bloqueo
 de planificación.
 
+Desde 0.1.1 (cambio incompatible para clientes 0.x), `bring_sync_list`,
+`clear_shopping_list`, `delete_shopping_list` y `clear_mealplan_week` usan
+`confirm=False` por defecto: primero muestra la previsualización sin cambios.
+Solo repite con `confirm=True` después de que el usuario acepte explícitamente.
+Bring! rechaza nombres desconocidos y devuelve los nombres disponibles.
+Las estimaciones de Mercadona suman precios de paquetes completos, no el coste
+proporcional de las cantidades usadas.
+
 Consulta el [inventario completo](../../README.md) para las 52 herramientas.

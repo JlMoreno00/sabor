@@ -412,8 +412,8 @@ def bring_get_lists() -> dict[str, Any]:
 
 
 @mcp.tool()
-def bring_sync_list(list_name: str, items: list[str]) -> dict[str, Any]:
-    """Vacia una lista de Bring! y anade los ingredientes semanales con iconos automaticos."""
+def bring_sync_list(list_name: str, items: list[str], confirm: bool = False) -> dict[str, Any]:
+    """Preview list replacement; pass confirm=True after approval to remove and add items."""
     try:
         _bring_ensure_auth()
         r = _bring_req("GET", f"/bringusers/{_bring_auth['uuid']}/lists")
@@ -424,12 +424,19 @@ def bring_sync_list(list_name: str, items: list[str]) -> dict[str, Any]:
             (l for l in all_lists if l.get("name", "").lower() == list_name.lower()),
             None,
         )
-        target = match or all_lists[0]
+        if match is None:
+            return {"ok": False, "error": f"Unknown list: {list_name}",
+                    "available_lists": [l.get("name") for l in all_lists]}
+        target = match
         list_uuid = target["listUuid"]
         used_name = target.get("name", list_uuid)
         # Clear current list
         current = _bring_req("GET", f"/v2/bringlists/{list_uuid}").json()
         purchase = current.get("purchase", [])
+        if not confirm:
+            return {"ok": True, "preview": True, "list_name": used_name,
+                    "items_to_remove": purchase, "items_to_add": items,
+                    "remove_count": len(purchase), "add_count": len(items)}
         if purchase:
             changes = [
                 {

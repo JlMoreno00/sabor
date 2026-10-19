@@ -128,8 +128,16 @@ Sabor exposes **52 tools**. Use your client's tool discovery for argument schema
 - Read [operations](docs/operations.md) and [backup/restore](docs/backup-restore.md)
   before changing a running deployment. Never run `docker compose down -v`.
 - Ask for user confirmation before mutations. Where provided, use explicit
-  `apply` / `publish` flags or `dry_run` previews. Not every mutation has a
-  server-side confirmation flag; tool access is authority to change data.
+  `apply` / `publish` flags or `dry_run` previews. Since 0.1.1,
+  `bring_sync_list`, `clear_shopping_list`, `delete_shopping_list` and
+  `clear_mealplan_week` preview by default. Review the preview, ask the user,
+  then repeat with `confirm=True` only after approval. This is breaking for
+  0.x callers that previously expected immediate deletion or replacement.
+  Other mutations still require client-side user approval; tool access is authority.
+- Mercadona estimates match whole ingredient words after stripping leading
+  amounts and units. `total_full_package_cost` sums full package prices, not
+  quantities used (`cost_basis: full_package_price`); `total_estimated_cost`
+  remains as a compatibility alias.
 - Nutrition is off by default; auto-on-import, auto-publication and estimate
   publication are also off. Back up before schema-affecting changes. Readiness
   tools work while disabled; recipe-backed scheduling is gated by nutrition.

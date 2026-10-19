@@ -174,8 +174,8 @@ def delete_mealplan_entry(entry_id: str) -> dict[str, Any]:
 
 
 @mcp.tool()
-def clear_mealplan_week(start_date: str, end_date: str) -> dict[str, Any]:
-    """Elimina TODAS las entradas del calendario en un rango de fechas."""
+def clear_mealplan_week(start_date: str, end_date: str, confirm: bool = False) -> dict[str, Any]:
+    """Preview entries removed in a date range; pass confirm=True to clear them."""
     if err := mealie._check_mealie():
         return err
     try:
@@ -188,6 +188,9 @@ def clear_mealplan_week(start_date: str, end_date: str) -> dict[str, Any]:
         if not (200 <= r.status_code < 300):
             return {"ok": False, "status": r.status_code, "body": r.text[:500]}
         entries = r.json().get("items") or []
+        if not confirm:
+            return {"ok": True, "preview": True, "items_to_remove": entries,
+                    "count": len(entries), "range": f"{start_date} -> {end_date}"}
         if not entries:
             return {
                 "ok": True,

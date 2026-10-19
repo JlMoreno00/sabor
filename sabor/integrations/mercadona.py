@@ -1,6 +1,7 @@
 """Mercadona catalog cache and price tools."""
 
 import os
+import re
 import time
 import unicodedata
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -42,6 +43,25 @@ def _mercadona_relevance_score(product_name_norm: str, query_norm: str) -> int:
     if query_norm in product_name_norm:
         return 0
     return -1
+
+
+def _mercadona_cost_query(text: str) -> str:
+    """Strip leading amounts/units and connector words for cost matching."""
+    words = re.findall(r"\w+(?:[.,/]\d+)?", _mercadona_normalize(text))
+    prefixes = {"un", "una", "uno", "dos", "g", "gr", "gramos", "gramo",
+                "kg", "kilogramo", "kilogramos", "ml", "l", "litro", "litros",
+                "mililitro", "mililitros", "de"}
+    while words and (words[0] in prefixes or words[0][0].isdigit()):
+        words.pop(0)
+    return " ".join(w for w in words if w not in {"de", "del"})
+
+
+def _mercadona_cost_score(product: str, query: str) -> int:
+    """Require every query token to be a whole product-name word."""
+    words = query.split()
+    if not words or not set(words).issubset(set(re.findall(r"\w+", product))):
+        return -1
+    return _mercadona_relevance_score(product, query)
 
 
 def _mercadona_get(path: str) -> dict:
@@ -250,12 +270,12 @@ def mercadona_estimate_recipe_cost(ingredients: list[str]) -> dict[str, Any]:
     not_found: list[str] = []
 
     for ingredient in ingredients:
-        q_norm = _mercadona_normalize(ingredient.strip())
+        q_norm = _mercadona_cost_query(ingredient)
         best_score = -1
         best_product = None
         for product in _mercadona_catalog:
             name_norm = _mercadona_normalize(product.get("name", ""))
-            score = _mercadona_relevance_score(name_norm, q_norm)
+            score = _mercadona_cost_score(name_norm, q_norm)
             if score > best_score:
                 best_score = score
                 best_product = product
@@ -292,6 +312,9 @@ def mercadona_estimate_recipe_cost(ingredients: list[str]) -> dict[str, Any]:
         "ok": True,
         "breakdown": breakdown,
         "total_estimated_cost": round(total_cost, 2),
+        "total_full_package_cost": round(total_cost, 2),
+        "cost_basis": "full_package_price",
+        "note": "Sum of full package prices, not the cost of quantities used.",
         "not_found": not_found,
         "currency": "EUR",
     }

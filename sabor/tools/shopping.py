@@ -58,11 +58,22 @@ def create_shopping_list(name: str) -> dict[str, Any]:
 
 
 @mcp.tool()
-def delete_shopping_list(list_id: str) -> dict[str, Any]:
-    """Elimina permanentemente una lista de compra por su ID."""
+def delete_shopping_list(list_id: str, confirm: bool = False) -> dict[str, Any]:
+    """Preview deletion of a shopping list; pass confirm=True to delete it permanently."""
     if err := mealie._check_mealie():
         return err
     try:
+        if not confirm:
+            r = requests.get(
+                f"{config.MEALIE_BASE_URL}/api/households/shopping/lists/{list_id}",
+                headers=mealie._mealie_headers(), timeout=30,
+            )
+            if not 200 <= r.status_code < 300:
+                return {"ok": False, "status": r.status_code, "body": r.text[:500]}
+            data = r.json()
+            items = data.get("listItems") or []
+            return {"ok": True, "preview": True, "list_id": list_id,
+                    "name": data.get("name"), "items_to_remove": items, "count": len(items)}
         r = requests.delete(
             f"{config.MEALIE_BASE_URL}/api/households/shopping/lists/{list_id}",
             headers=mealie._mealie_headers(),
@@ -99,8 +110,8 @@ def add_items_to_shopping_list(list_id: str, items: list[str]) -> dict[str, Any]
 
 
 @mcp.tool()
-def clear_shopping_list(list_id: str) -> dict[str, Any]:
-    """Elimina todos los items de una lista de compra (vaciado completo)."""
+def clear_shopping_list(list_id: str, confirm: bool = False) -> dict[str, Any]:
+    """Preview removal of all shopping items; pass confirm=True to clear the list."""
     if err := mealie._check_mealie():
         return err
     try:
@@ -112,6 +123,9 @@ def clear_shopping_list(list_id: str) -> dict[str, Any]:
         if not (200 <= r.status_code < 300):
             return {"ok": False, "status": r.status_code, "body": r.text[:500]}
         items = r.json().get("listItems") or []
+        if not confirm:
+            return {"ok": True, "preview": True, "list_id": list_id,
+                    "items_to_remove": items, "count": len(items)}
         if not items:
             return {"ok": True, "deleted": 0, "message": "Lista ya estaba vacia"}
         item_ids = [it["id"] for it in items if it.get("id")]
