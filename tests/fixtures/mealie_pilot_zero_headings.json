@@ -1,0 +1,47 @@
+{
+  "id": "pollo-pilot-heading-regression",
+  "slug": "pollo-pilot-heading-regression",
+  "recipeServings": 1,
+  "recipeIngredient": [
+    {
+      "id": "pilot-position-0",
+      "title": "Pollo",
+      "quantity": 0.0,
+      "unit": null,
+      "food": null,
+      "originalText": "Pollo"
+    },
+    {
+      "id": "pilot-position-10",
+      "title": "Arroz",
+      "quantity": 0.0,
+      "unit": null,
+      "food": null,
+      "originalText": "Arroz"
+    },
+    {
+      "id": "pilot-position-17",
+      "title": "Setas",
+      "quantity": 0.0,
+      "unit": null,
+      "food": null,
+      "originalText": "Setas"
+    },
+    {
+      "id": "untitled-zero",
+      "title": "",
+      "quantity": 0.0,
+      "unit": null,
+      "food": null,
+      "originalText": "sal al gusto"
+    },
+    {
+      "id": "tomato-row",
+      "title": "Ingredientes principales",
+      "quantity": 100.0,
+      "unit": {"id": "gram", "name": "gramo", "abbreviation": "g"},
+      "food": {"id": "f", "name": "tomate"},
+      "originalText": "100 g tomate"
+    }
+  ]
+}

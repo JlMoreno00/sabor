@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "catalog_version": "2026.08.2",
+  "locale": "es-ES",
+  "source": "mealie-es-ES-seeder",
+  "description": "Foods are managed by Mealie's official es-ES dataset. Sabor does not duplicate or overwrite that catalog.",
+  "items": []
+}

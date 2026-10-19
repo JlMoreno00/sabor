@@ -1,0 +1,237 @@
+{
+  "manifest_version": "1.0",
+  "name": "sabor",
+  "version": "0.1.0",
+  "description": "Unified cooking MCP server — Mealie recipes, Spoonacular search, recipe scraping, video analysis, user preferences, Bring! shopping lists",
+  "transport": "streamable-http",
+  "port": 8080,
+  "health": {
+    "endpoint": "/mcp",
+    "interval": "30s",
+    "timeout": "5s",
+    "retries": 3
+  },
+  "mcp_endpoint": "/mcp",
+  "tool_count": 52,
+  "runtime": "python",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": "."
+  },
+  "env_vars": [
+    {
+      "name": "SABOR_HOST",
+      "description": "sabor host",
+      "required": false,
+      "secret": false,
+      "default": "0.0.0.0"
+    },
+    {
+      "name": "SABOR_PORT",
+      "description": "sabor port",
+      "required": false,
+      "secret": false,
+      "default": "8080"
+    },
+    {
+      "name": "SABOR_HOST_PORT",
+      "description": "sabor host port",
+      "required": false,
+      "secret": false,
+      "default": "9170"
+    },
+    {
+      "name": "MEALIE_BASE_URL",
+      "description": "Mealie instance URL",
+      "required": true,
+      "secret": false,
+      "default": "http://host.docker.internal:9925"
+    },
+    {
+      "name": "MEALIE_API_TOKEN",
+      "description": "Mealie API bearer token",
+      "required": true,
+      "secret": true
+    },
+    {
+      "name": "SPOONACULAR_API_KEY",
+      "description": "Spoonacular API key",
+      "required": false,
+      "secret": true
+    },
+    {
+      "name": "GEMINI_API_KEY",
+      "description": "Google Gemini API key for video recipes",
+      "required": false,
+      "secret": true
+    },
+    {
+      "name": "VIDEO_RECIPE_GEMINI_MODEL",
+      "description": "video recipe gemini model",
+      "required": false,
+      "secret": false,
+      "default": "gemini-2.5-flash-lite"
+    },
+    {
+      "name": "VIDEO_RECIPE_WORKDIR",
+      "description": "video recipe workdir",
+      "required": false,
+      "secret": false,
+      "default": "/tmp/video-recipe-mcp"
+    },
+    {
+      "name": "BRING_EMAIL",
+      "description": "Bring! app email",
+      "required": false,
+      "secret": true
+    },
+    {
+      "name": "BRING_PASSWORD",
+      "description": "Bring! app password",
+      "required": false,
+      "secret": true
+    },
+    {
+      "name": "BRING_CATALOG_DIR",
+      "description": "bring catalog dir",
+      "required": false,
+      "secret": false
+    },
+    {
+      "name": "MERCADONA_WAREHOUSE",
+      "description": "Mercadona warehouse code (e.g. mad1, bcn1)",
+      "required": false,
+      "secret": false,
+      "default": "mad1"
+    },
+    {
+      "name": "MEMORY_FILE",
+      "description": "memory file",
+      "required": false,
+      "secret": false,
+      "default": "/data/MEMORY.md"
+    },
+    {
+      "name": "SABOR_NORMALIZE_IMPORTS",
+      "description": "sabor normalize imports",
+      "required": false,
+      "secret": false,
+      "default": "true"
+    },
+    {
+      "name": "SABOR_INGREDIENT_PARSER",
+      "description": "sabor ingredient parser",
+      "required": false,
+      "secret": false,
+      "default": "openai"
+    },
+    {
+      "name": "SABOR_NORMALIZE_CONFIDENCE",
+      "description": "sabor normalize confidence",
+      "required": false,
+      "secret": false,
+      "default": "0.75"
+    },
+    {
+      "name": "SABOR_NUTRITION_ENABLED",
+      "description": "sabor nutrition enabled",
+      "required": false,
+      "secret": false,
+      "default": "false"
+    },
+    {
+      "name": "SABOR_NUTRITION_DB",
+      "description": "sabor nutrition db",
+      "required": false,
+      "secret": false,
+      "default": "/data/nutrition.db"
+    },
+    {
+      "name": "SABOR_NUTRITION_PROVIDER",
+      "description": "sabor nutrition provider",
+      "required": false,
+      "secret": false,
+      "default": "spoonacular"
+    },
+    {
+      "name": "SABOR_NUTRITION_MIN_PROFILE_CONFIDENCE",
+      "description": "sabor nutrition min profile confidence",
+      "required": false,
+      "secret": false,
+      "default": "0.80"
+    },
+    {
+      "name": "SABOR_NUTRITION_MIN_PUBLISH_COVERAGE",
+      "description": "sabor nutrition min publish coverage",
+      "required": false,
+      "secret": false,
+      "default": "0.90"
+    },
+    {
+      "name": "SABOR_NUTRITION_MIN_PUBLISH_CONFIDENCE",
+      "description": "sabor nutrition min publish confidence",
+      "required": false,
+      "secret": false,
+      "default": "0.80"
+    },
+    {
+      "name": "SABOR_NUTRITION_PUBLISH_ESTIMATES",
+      "description": "sabor nutrition publish estimates",
+      "required": false,
+      "secret": false,
+      "default": "false"
+    },
+    {
+      "name": "SABOR_NUTRITION_PROFILE_TTL_DAYS",
+      "description": "sabor nutrition profile ttl days",
+      "required": false,
+      "secret": false,
+      "default": "180"
+    },
+    {
+      "name": "SABOR_NUTRITION_NOT_FOUND_TTL_DAYS",
+      "description": "sabor nutrition not found ttl days",
+      "required": false,
+      "secret": false,
+      "default": "30"
+    },
+    {
+      "name": "SABOR_NUTRITION_SOURCE_LANGUAGE",
+      "description": "sabor nutrition source language",
+      "required": false,
+      "secret": false,
+      "default": "es"
+    },
+    {
+      "name": "SABOR_NUTRITION_DEFAULT_CUP_ML",
+      "description": "sabor nutrition default cup ml",
+      "required": false,
+      "secret": false,
+      "default": "240"
+    },
+    {
+      "name": "SABOR_NUTRITION_AUTO_ON_IMPORT",
+      "description": "sabor nutrition auto on import",
+      "required": false,
+      "secret": false,
+      "default": "false"
+    },
+    {
+      "name": "SABOR_NUTRITION_AUTO_PUBLISH",
+      "description": "sabor nutrition auto publish",
+      "required": false,
+      "secret": false,
+      "default": "false"
+    }
+  ],
+  "volumes": [
+    {
+      "name": "sabor_data",
+      "mount_path": "/data",
+      "description": "Persistent memory and data"
+    }
+  ],
+  "maintainer": "JL Moreno",
+  "created_at": "2025-03-16",
+  "updated_at": "2026-10-19"
+}

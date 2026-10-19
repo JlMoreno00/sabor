@@ -1,0 +1,18 @@
+# Standalone Sabor service. Configuration comes from .env (copy .env.example).
+# Deployment-specific settings (container name, extra networks, environment
+# overrides) belong in docker-compose.override.yml, which Compose loads
+# automatically and Git ignores. See docker-compose.override.example.yml.
+services:
+  sabor:
+    build: .
+    ports:
+      - "127.0.0.1:${SABOR_HOST_PORT:-9170}:8080"
+    env_file: .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - sabor_data:/data
+    restart: unless-stopped
+
+volumes:
+  sabor_data:

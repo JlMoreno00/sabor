@@ -1,0 +1,18 @@
+# Example deployment override: copy to docker-compose.override.yml (ignored by
+# Git). This example joins Sabor to an existing Mealie Compose network so
+# MEALIE_BASE_URL can use the Mealie service name, and pins the settings of a
+# reviewed production rollout. Adjust names to your own stack.
+services:
+  sabor:
+    container_name: sabor-mcp
+    environment:
+      MEALIE_BASE_URL: "http://mealie:9000"
+      SABOR_NUTRITION_ENABLED: "true"
+    networks:
+      - default
+      - mealie-network
+
+networks:
+  mealie-network:
+    external: true
+    name: mealie_default

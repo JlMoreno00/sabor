@@ -1,0 +1,60 @@
+# Secrets and local environment
+.env
+.env.*
+!.env.example
+
+# Python artifacts
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Runtime data
+MEMORY.md
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+
+# Logs and downloaded media (repository root/runtime directories only)
+/logs/
+/*.log
+/video-recipe/
+/video-downloads/
+/downloads/videos/
+/*.mp4
+/*.m4v
+/*.mov
+/*.webm
+/*.mkv
+
+# Local backups and temporary files
+*.bak
+*.bak-*
+*.tmp
+*.swp
+/backups/
+/dumps/
+/*.tar
+/*.tar.gz
+/*.tgz
+/*.zip
+/*.7z
+/*.sql
+/*.sql.gz
+/*.dump
+/*.dump.gz
+
+# Local agent metadata
+.atl/
+.codegraph/
+
+# IDE and OS metadata
+.idea/
+.vscode/
+.DS_Store
+
+# Local deployment override
+docker-compose.override.yml

@@ -1,0 +1,31 @@
+{
+  "id": "heading-en",
+  "slug": "heading-en",
+  "recipeServings": 1,
+  "recipeIngredient": [
+    {
+      "id": "heading-en-row",
+      "title": "Sauce",
+      "quantity": 0.0,
+      "unit": null,
+      "food": null,
+      "originalText": "Sauce"
+    },
+    {
+      "id": "salt-en-row",
+      "title": "",
+      "quantity": null,
+      "unit": null,
+      "food": null,
+      "originalText": "salt to taste"
+    },
+    {
+      "id": "tomato-en-row",
+      "title": "Main ingredients",
+      "quantity": 100,
+      "unit": {"id": "gram", "name": "gram", "abbreviation": "g"},
+      "food": {"id": "f", "name": "tomato"},
+      "originalText": "100 g tomato"
+    }
+  ]
+}
