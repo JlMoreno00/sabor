@@ -226,6 +226,35 @@ configuration. Discovery reports configured, not healthy; it performs no network
 probe. Verify integrations with read-only
 tools through an MCP client and never use mutation tools as health checks.
 
+## Mercadona pricing warm-up and cache
+
+Configured Mercadona pricing starts one daemon catalog worker after context
+construction. Cold calls return `rate_limited` with message “Mercadona catalog
+is loading; retry in a few minutes” and `data.retry_after_seconds=120`; they do
+not wait for the crawl. This code describes temporary provider readiness, not
+missing configuration. Do not repeatedly restart the service to test pricing.
+
+The worker reuses a keep-alive session, spaces subcategory requests by 0.5 s,
+and retries 403/429/timeouts at most three attempts (2 s then 4 s backoff).
+More than three consecutive blocked subcategories aborts the refresh. Failed
+refreshes retain the previous snapshot and impose a 120 s retry cooldown;
+a later pricing call can start another worker. At most 10% failed subcategories
+are accepted with `catalog_partial`; expired snapshots carry `stale_catalog`.
+
+When `/data` is writable, `/data/mercadona-catalog-<warehouse>.json` persists
+`warehouse`, Unix-seconds `loaded_at`, boolean `partial`, and `catalog` (product
+ID to raw product object). A sibling `.json.tmp` is written before atomic rename.
+The default TTL is 24 hours. Startup accepts fresh or stale validated snapshots;
+stale data serves immediately while refreshing. Garbled caches are ignored and
+cache write failures leave in-memory pricing usable. No writable directory means
+memory-only caching. Keep the normal persistent data volume across restarts.
+
+Smoke once after deployment: check discovery, call one pricing search, accept a
+warming envelope if cold, wait a few minutes, then repeat that same search and
+one returned product quote. Inspect uncertainty and cache timestamp without
+publishing product data. Restart once only after successful warm-up to verify
+cache reuse; do not trigger multiple fresh crawls from the datacenter IP.
+
 ## Disabled-First Nutrition Rollout
 
 The safe sequence is deliberately staged:

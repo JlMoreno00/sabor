@@ -3,11 +3,15 @@
 Provenance format: mercadona:<warehouse>:tienda.mercadona.es-catalog.
 Product summaries and quotes share the last successful catalog observation.
 """
+import json
+import math
+import os
+from pathlib import Path
 import time
 import warnings
 from datetime import datetime, timezone
 from decimal import Decimal
-from threading import RLock
+from threading import RLock, Thread
 from typing import Any, Literal
 
 import requests
@@ -19,6 +23,10 @@ from sabor.pricing.provider import PriceQuote, Product, ProductQuery, RetailCont
 from sabor.pricing.quantities import package_from_mercadona
 
 
+class CatalogWarming(RuntimeError):
+    pass
+
+
 class MercadonaPricing:
     id = 'mercadona'
     operations = frozenset({'search_products', 'get_quote'})
@@ -28,7 +36,13 @@ class MercadonaPricing:
     MAX_FAILED_SUBCATEGORY_RATIO = Decimal('0.10')
 
     def __init__(self, warehouse='mad1', session=None, ttl_seconds=86400, clock=time.time,
-                 retry_delay=1.0, request_delay=0.05):
+                 retry_delay=2.0, request_delay=0.5, sleep=time.sleep,
+                 cache_path=None, max_consecutive_blocks=3):
+        self.sleep = sleep
+        self.cache_path = Path(cache_path) if cache_path else None
+        self.max_consecutive_blocks = max_consecutive_blocks
+        self._thread = None
+        self._next_refresh = 0
         self.warehouse = warehouse
         self.retry_delay = retry_delay
         self.request_delay = request_delay
@@ -40,6 +54,7 @@ class MercadonaPricing:
         self._loaded_at: float | None = None
         self._lock = RLock()
         self._provenance = f'mercadona:{warehouse}:tienda.mercadona.es-catalog'
+        self._load_cache()
 
     def _validate(self, store):
         if (store.provider != self.id or store.location_id not in (None, self.warehouse)
@@ -81,12 +96,18 @@ class MercadonaPricing:
                 if not isinstance(sub, dict) or not isinstance(sub.get('id'), (str, int)):
                     raise ValueError('Invalid category id')
                 subcategories.append(sub['id'])
-        failed = 0
-        for sub_id in subcategories:
+        failed = consecutive = 0
+        for index, sub_id in enumerate(subcategories):
+            if index and self.request_delay:
+                self.sleep(self.request_delay)
             try:
                 collect(self._get_subcategory(sub_id))
+                consecutive = 0
             except (requests.RequestException, OSError, ValueError):
                 failed += 1
+                consecutive = consecutive + 1 if self._blocked else 0
+                if consecutive > self.max_consecutive_blocks:
+                    raise ValueError('Catalog crawl blocked')
         if subcategories and Decimal(failed) / Decimal(len(subcategories)) > self.MAX_FAILED_SUBCATEGORY_RATIO:
             raise ValueError('Too many unavailable catalog subcategories')
         if not catalog:
@@ -95,36 +116,85 @@ class MercadonaPricing:
         return catalog
 
     def _get_subcategory(self, sub_id):
-        """Fetch one subcategory, retrying once after a 403/429 rate-limit answer."""
-        if self.request_delay:
-            time.sleep(self.request_delay)
+        self._blocked = False
+        for attempt in range(3):
+            try:
+                return self._get(f'/categories/{sub_id}/')
+            except (requests.HTTPError, requests.Timeout) as exc:
+                self._blocked = (isinstance(exc, requests.Timeout) or
+                                 getattr(exc.response, 'status_code', None) in (403, 429))
+                if not self._blocked or attempt == 2:
+                    raise
+                self.sleep(self.retry_delay * 2 ** attempt)
+
+    def _load_cache(self):
+        if self.cache_path is None:
+            return
         try:
-            return self._get(f'/categories/{sub_id}/')
-        except requests.HTTPError as exc:
-            status = getattr(exc.response, 'status_code', None)
-            if status not in (403, 429):
-                raise
-            if self.retry_delay:
-                time.sleep(self.retry_delay)
-            return self._get(f'/categories/{sub_id}/')
+            data = json.loads(self.cache_path.read_text())
+            stamp, catalog = data['loaded_at'], data['catalog']
+            if (data['warehouse'] != self.warehouse or type(stamp) not in (int, float)
+                    or not math.isfinite(stamp) or not 0 <= stamp <= self.clock()
+                    or type(data.get('partial')) is not bool
+                    or not isinstance(catalog, dict) or not catalog
+                    or any(not isinstance(k, str) or not isinstance(v, dict)
+                           or str(v.get('id')) != k for k, v in catalog.items())):
+                return
+            self._catalog, self._loaded_at = catalog, stamp
+            self._partial = data['partial']
+        except (OSError, ValueError, KeyError, TypeError):
+            pass
+
+    def _save_cache(self):
+        if self.cache_path is None:
+            return
+        temporary = self.cache_path.with_suffix('.json.tmp')
+        try:
+            temporary.write_text(json.dumps(dict(warehouse=self.warehouse,
+                loaded_at=self._loaded_at, partial=self._partial, catalog=self._catalog)))
+            os.replace(temporary, self.cache_path)
+        except OSError:
+            pass
+
+    def start_background_refresh(self):
+        with self._lock:
+            if ((self._thread is not None and self._thread.is_alive())
+                    or self.clock() < self._next_refresh
+                    or (self._loaded_at is not None and
+                        self.clock() - self._loaded_at < self.ttl_seconds)):
+                return
+            self._thread = Thread(target=self._background_refresh, daemon=True)
+            self._thread.start()
+
+    def _background_refresh(self):
+        try:
+            self._refresh()
+        except RuntimeError:
+            pass
+
+    def _refresh(self):
+        if self._loaded_at is not None and self.clock() - self._loaded_at < self.ttl_seconds:
+            return
+        try:
+            catalog = self._fetch()
+        except (requests.RequestException, OSError, ValueError, TypeError, AttributeError, KeyError):
+            with self._lock:
+                self._next_refresh = self.clock() + 120
+            if self._catalog is None:
+                raise RuntimeError('Mercadona catalog unavailable') from None
+            warnings.warn('Using stale Mercadona catalog after refresh failure', RuntimeWarning)
+            return
+        with self._lock:
+            self._catalog, self._loaded_at = catalog, self.clock()
+            self._partial = getattr(self, '_fetched_partial', False)
+            self._save_cache()
 
     def _snapshot(self):
+        self.start_background_refresh()
         with self._lock:
-            stale = False
-            if self._loaded_at is None or self.clock() - self._loaded_at >= self.ttl_seconds:
-                try:
-                    catalog = self._fetch()
-                    loaded_at = self.clock()
-                except (requests.RequestException, OSError, ValueError, TypeError, AttributeError, KeyError):
-                    if self._catalog is None:
-                        raise RuntimeError('Mercadona catalog unavailable') from None
-                    warnings.warn('Using stale Mercadona catalog after refresh failure', RuntimeWarning,
-                                  stacklevel=3)
-                    stale = True
-                else:
-                    self._catalog, self._loaded_at = catalog, loaded_at
-                    self._partial = getattr(self, '_fetched_partial', False)
-            assert self._catalog is not None and self._loaded_at is not None
+            if self._catalog is None or self._loaded_at is None:
+                raise CatalogWarming('Mercadona catalog is loading; retry in a few minutes')
+            stale = self.clock() - self._loaded_at >= self.ttl_seconds
             return self._catalog, datetime.fromtimestamp(self._loaded_at, timezone.utc), stale
 
     def _quote(self, pid, product, observed, stale):

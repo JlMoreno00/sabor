@@ -16,6 +16,9 @@
   and image commit-only import kinds. Documented plan → list → cost → sync flow.
 
 ### Changed
+- Mercadona catalog warm-up runs in one background worker with paced requests,
+  bounded backoff and optional atomic `/data` cache; pricing calls never crawl
+  synchronously. Stale snapshots remain usable with `stale_catalog`.
 - License changed from MIT to GNU AGPL-3.0-only starting with 0.3.0. Releases
   up to 0.2.x remain MIT; contributions use inbound = outbound licensing.
 - Bring transport/authentication/cache and Mercadona catalog cache are
@@ -38,6 +41,9 @@
   changes during apply still cannot be made atomic across systems.
 
 ### Known limitations
+- Cold Mercadona pricing returns `rate_limited` with a 120-second retry hint
+  while warming. Datacenter anti-bot blocks may delay availability; partial
+  catalogs tolerate at most 10% failed subcategories (`catalog_partial`).
 - Single-tenant self-hosting only: legacy services, nutrition-after-import,
   video tagging and Gemini helpers retain global reads. AppContext and isolated
   Bring state do not establish shared-process multi-tenant safety.

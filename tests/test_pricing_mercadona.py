@@ -4,7 +4,7 @@ import unittest
 from dataclasses import asdict
 from datetime import datetime, timezone
 from decimal import Decimal
-from unittest.mock import Mock
+from unittest.mock import Mock, patch, mock_open
 from typing import Any
 
 import requests
@@ -30,7 +30,7 @@ class MercadonaTests(unittest.TestCase):
         self.session.get.side_effect = self.fetch
         self.store = RetailContext('mercadona')
         self.provider = MercadonaPricing(session=self.session, ttl_seconds=10,
-                                         clock=lambda: self.now, request_delay=0)
+                                         clock=lambda: self.now, request_delay=0, sleep=Mock())
 
     def fetch(self, url, **kwargs):
         response = Mock()
@@ -40,6 +40,7 @@ class MercadonaTests(unittest.TestCase):
         return response
 
     def quote(self, pid='oil'):
+        self.provider._refresh()
         return self.provider.get_quote(pid, self.store)
 
     def test_ttl_refresh(self):
@@ -61,6 +62,7 @@ class MercadonaTests(unittest.TestCase):
         self.assertIn('stale_catalog', quote.uncertainty_reasons)
 
     def test_whole_word_search_and_quantity_prefix(self):
+        self.provider._refresh()
         products = self.provider.search_products(ProductQuery('100 g de sal'), self.store)
         self.assertEqual([p.id for p in products], ['salt'])
 
@@ -80,7 +82,7 @@ class MercadonaTests(unittest.TestCase):
             with self.subTest(unit=unit):
                 self.products = [item(unit_size=500, size_format=unit,
                                       reference_price='3', reference_format=unit)]
-                self.provider = MercadonaPricing(session=self.session)
+                self.provider = MercadonaPricing(session=self.session, sleep=Mock())
                 quote = self.quote()
                 self.assertEqual(quote.package_quantity, Decimal(500) if unit == 'ud' else Decimal('.5'))
                 self.assertEqual(quote.package_unit, canonical)
@@ -113,7 +115,7 @@ class MercadonaTests(unittest.TestCase):
                    {'unit_price': {}}, {'unit_price': '-1'}]:
             with self.subTest(pi=pi):
                 self.products = [dict(id='oil', display_name=[], price_instructions=pi), None]
-                self.provider = MercadonaPricing(session=self.session)
+                self.provider = MercadonaPricing(session=self.session, sleep=Mock())
                 quote = self.quote()
                 self.assertIsNone(quote.package_price)
                 self.assertIn('unknown', quote.uncertainty_reasons)
@@ -122,6 +124,7 @@ class MercadonaTests(unittest.TestCase):
         self.quote()
         self.products = [item(unit_price='22')]
         other = MercadonaPricing(warehouse='other', session=self.session)
+        other._refresh()
         self.assertEqual(other.get_quote('oil', RetailContext('mercadona')).package_price, Decimal(22))
         self.assertEqual(self.quote().package_price, Decimal('17.25'))
 
@@ -205,6 +208,61 @@ class MercadonaTests(unittest.TestCase):
         self.session.get.side_effect = partial
         with self.assertWarns(RuntimeWarning):
             self.assertEqual(self.quote().observed_at, first.observed_at)
+
+    def test_warming_is_nonblocking(self):
+        from sabor.pricing.mercadona import CatalogWarming
+        with patch.object(self.provider, 'start_background_refresh') as start:
+            with self.assertRaises(CatalogWarming):
+                self.provider.get_quote('oil', self.store)
+            start.assert_called_once()
+        self.session.get.assert_not_called()
+        self.provider._refresh()
+        self.assertEqual(self.quote().package_price, Decimal('17.25'))
+
+    def test_pacing_backoff_and_early_stop(self):
+        seen = self.many_subcategories(set(range(2, 22)))
+        self.provider.request_delay = .5
+        self.provider.retry_delay = 2
+        self.provider.sleep = Mock()
+        with self.assertRaises(RuntimeError):
+            self.quote()
+        self.assertEqual(list(seen.values()), [3, 3, 3, 3])
+        self.assertEqual([c.args[0] for c in self.provider.sleep.call_args_list],
+                         [2, 4, .5, 2, 4, .5, 2, 4, .5, 2, 4])
+
+    def test_cache_roundtrip_atomic_ttl_and_garbled(self):
+        import json
+        from pathlib import Path
+        self.provider.cache_path = Path('/cache/catalog.json')
+        with patch.object(Path, 'write_text') as write, patch('sabor.pricing.mercadona.os.replace') as rename:
+            self.provider._refresh()
+        payload = write.call_args.args[0]
+        rename.assert_called_once_with(Path('/cache/catalog.json.tmp'), Path('/cache/catalog.json'))
+        with patch.object(Path, 'read_text', return_value=payload):
+            other = MercadonaPricing(cache_path='/cache/catalog.json', clock=lambda: self.now,
+                                      ttl_seconds=10, sleep=Mock())
+        with patch.object(other, 'start_background_refresh'):
+            self.assertNotIn('stale_catalog', other.get_quote('oil', self.store).uncertainty_reasons)
+            self.now += 10
+            self.assertIn('stale_catalog', other.get_quote('oil', self.store).uncertainty_reasons)
+        for invalid in ('garbled', '[]', json.dumps({'loaded_at': 'bad'})):
+            with patch.object(Path, 'read_text', return_value=invalid):
+                other = MercadonaPricing(cache_path='/cache/catalog.json')
+            self.assertIsNone(other._catalog)
+
+    def test_timeout_backoff(self):
+        self.provider.sleep = Mock()
+        self.provider._get = Mock(side_effect=[requests.Timeout(), requests.Timeout(), {}])
+        self.assertEqual(self.provider._get_subcategory(2), {})
+        self.assertEqual([c.args[0] for c in self.provider.sleep.call_args_list], [2, 4])
+
+    def test_start_idempotent(self):
+        with patch('sabor.pricing.mercadona.Thread') as thread:
+            thread.return_value.is_alive.return_value = True
+            self.provider.start_background_refresh()
+            self.provider.start_background_refresh()
+            thread.assert_called_once()
+            self.assertTrue(thread.call_args.kwargs['daemon'])
 
     def test_unknown_product(self):
         with self.assertRaises(LookupError):

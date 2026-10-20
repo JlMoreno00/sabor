@@ -40,6 +40,15 @@ class PricingToolTests(unittest.TestCase):
         assert tool is not None
         return asyncio.run(tool.run(arguments))
 
+    def test_warming_envelope(self):
+        from sabor.pricing.mercadona import CatalogWarming
+        with patch.object(self.provider, 'get_quote', side_effect=CatalogWarming):
+            result = self.call('get_product_price', product_id='rice')
+        self.assertEqual(result['error']['code'], 'rate_limited')
+        self.assertEqual(result['data']['retry_after_seconds'], 120)
+        self.assertEqual(result['error']['message'],
+                         'Mercadona catalog is loading; retry in a few minutes')
+
     def test_default_provider_and_decimal_serialization(self):
         result = self.call('get_product_price', product_id='rice')
         self.assertTrue(result['ok'])

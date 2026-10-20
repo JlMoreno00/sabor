@@ -10,6 +10,7 @@ from sabor.core.toolsets import tool
 from sabor.core.envelope import ok, fail
 from sabor.core import errors
 from sabor.store import StoreError, store_error_envelope
+from .mercadona import CatalogWarming
 from .provider import RetailContext, ProductQuery
 from .engine import estimate, present_money
 
@@ -63,6 +64,9 @@ def _run(ctx, store, operation, argument, overrides=None):
         else:
             data = _public(pricing.get_quote(argument, retail))
         return ok(data)
+    except CatalogWarming:
+        return fail('rate_limited', 'Mercadona catalog is loading; retry in a few minutes',
+                    pricing.id, data={'retry_after_seconds': 120})
     except StoreError as exc:
         return store_error_envelope(exc)
     except ValueError:
