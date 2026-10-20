@@ -1,7 +1,7 @@
 {
   "manifest_version": "1.0",
   "name": "sabor",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "description": "Unified cooking MCP server — Mealie recipes, Spoonacular search, recipe scraping, video analysis, user preferences, Bring! shopping lists",
   "transport": "streamable-http",
   "port": 8080,

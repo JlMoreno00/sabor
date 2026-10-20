@@ -11,6 +11,10 @@ from sabor.core.toolsets import catalog, bind_context
 from sabor.core.legacy import legacy_envelope
 
 _registered = WeakKeyDictionary()
+# Contexts per registered server, so the runtime entrypoint can start side
+# effects (such as catalog warm-up) that registration itself must not trigger.
+_contexts = WeakKeyDictionary()
+VERSION = "0.3.0"
 
 from mcp.server.fastmcp import FastMCP
 
@@ -39,6 +43,15 @@ TOOL_MODULES = (
 )
 
 
+def _mercadona_cache_path(warehouse: str) -> str | None:
+    """Persist the catalog on the data volume when it is writable."""
+    try:
+        writable = os.access("/data", os.W_OK)
+    except OSError:
+        writable = False
+    return f"/data/mercadona-catalog-{warehouse}.json" if writable else None
+
+
 def register_tools(server=None, env=None) -> None:
     """Freeze configuration and register each selected tool once per server."""
     server = mcp if server is None else server
@@ -51,7 +64,11 @@ def register_tools(server=None, env=None) -> None:
     from sabor.pricing.mercadona import MercadonaPricing
     from sabor.integrations.mercadona import MERCADONA_WAREHOUSE
     context = build_context(settings, store_factory=mealie_store_factory if settings.mealie_configured else None,
-                        pricing_factories=(lambda s: MercadonaPricing(warehouse=MERCADONA_WAREHOUSE),) if settings.mercadona_enabled else (), import_factories=((OpenAIImportProvider,) if settings.llm_configured else ())
+                        pricing_factories=(lambda s: MercadonaPricing(
+                            warehouse=MERCADONA_WAREHOUSE,
+                            cache_path=_mercadona_cache_path(MERCADONA_WAREHOUSE)),)
+                        if settings.mercadona_enabled else (),
+                        import_factories=((OpenAIImportProvider,) if settings.llm_configured else ())
                         + ((GeminiNativeVideo,) if settings.gemini_configured else ()),
                         sync_factories=(BringSyncProvider,) if settings.bring_email and settings.bring_password else ())
     registry = context.registry
@@ -74,15 +91,26 @@ def register_tools(server=None, env=None) -> None:
 
     def sabor_capabilities() -> dict:
         """Describe configured toolsets and the actual registered tool surface."""
-        result = describe(context, names, "0.2.0")
+        result = describe(context, names, VERSION)
         result["data"]["warnings"].extend(skipped)
         return result
 
     server.add_tool(sabor_capabilities)
     _registered[server] = registry
+    _contexts[server] = context
+
+
+def start_runtime_services(server=None) -> None:
+    """Start background work for a registered server (network I/O; runtime only)."""
+    context = _contexts.get(mcp if server is None else server)
+    for provider in (context.pricing if context is not None else ()):
+        start = getattr(provider, "start_background_refresh", None)
+        if callable(start):
+            start()
 
 
 def main() -> None:
     """Run the original Streamable HTTP entrypoint."""
     register_tools()
+    start_runtime_services()
     mcp.run(transport="streamable-http")
