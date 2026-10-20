@@ -74,7 +74,9 @@ def load_settings(env: Mapping[str, str]) -> Settings:
         raise ConfigError('Invalid SABOR_VIDEO_PROVIDER')
     return Settings(requested, mealie, get('MEALIE_API_TOKEN'), llm,
                     get('SABOR_LLM_MODEL'), get('SABOR_LLM_API_KEY'),
-                    get('GEMINI_API_KEY'), get('VIDEO_RECIPE_GEMINI_MODEL'), provider,
+                    get('GEMINI_API_KEY'),
+                    # 0.1.x default kept so existing Gemini deployments keep video import.
+                    get('VIDEO_RECIPE_GEMINI_MODEL') or 'gemini-2.5-flash-lite', provider,
                     get('BRING_EMAIL'), get('BRING_PASSWORD'), get('SPOONACULAR_API_KEY'),
                     get('SABOR_MERCADONA_ENABLED').lower() == 'true',
                     get('SABOR_NUTRITION_ENABLED').lower() == 'true', get('MEMORY_FILE', 'MEMORY.md'))

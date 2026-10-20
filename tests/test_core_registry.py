@@ -55,6 +55,13 @@ class RegistryTests(unittest.TestCase):
             with self.subTest(expected=expected):
                 self.assertEqual(registry(env).video_provider, expected)
 
+    def test_gemini_model_keeps_0_1_default(self):
+        settings = load_settings({'GEMINI_API_KEY': 'secret'})
+        self.assertEqual(settings.video_recipe_gemini_model, 'gemini-2.5-flash-lite')
+        self.assertTrue(settings.gemini_configured)
+        self.assertEqual(load_settings({'GEMINI_API_KEY': 's', 'VIDEO_RECIPE_GEMINI_MODEL': 'g'})
+                         .video_recipe_gemini_model, 'g')
+
     def test_explicit_unconfigured_video(self):
         self.assertIsNone(registry({'SABOR_VIDEO_PROVIDER': 'gemini_native'}).video_provider)
 
