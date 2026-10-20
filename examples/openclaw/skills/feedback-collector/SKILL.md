@@ -22,7 +22,7 @@ Si falla una escritura, informa qué parte se guardó y cuál no. No afirmes
 sincronización completa ni repitas automáticamente un comentario duplicable.
 Nunca publiques el perfil privado en un chat grupal.
 
-## Disponibilidad y resultados (0.2)
+## Disponibilidad y resultados (0.3)
 
 Antes de usar Sabor llama `sabor_capabilities()` y comprueba
 `data.registered_tools`. Desenvuelve `data` cuando `ok=true`; con `ok=false`
@@ -33,7 +33,19 @@ explica la limitación sin afirmar que guardaste nada.
 
 Para escrituras con preview: muestra → pregunta → confirma con `confirm=True`
 o `dry_run=False`, según el esquema. Otros guardados también requieren permiso.
-Para enviar compra a Bring!, construye primero una lista Mealie con
-`add_to_shopping_list`, descubre destinos y previsualiza `sync_shopping_list`;
-solo confirma después de aprobación. Nunca sincronices cadenas sueltas como
-fuente alternativa a Mealie.
+Para enviar compra a Bring!, construye primero una lista Mealie aprobada con
+`add_to_shopping_list` y relee los artículos. Si está registrado, llama
+`estimate_cost(source={"kind":"shopping_list","list_id":id}, store={"provider":"mercadona"})`:
+muestra consumo frente a paquetes a comprar, cobertura e incertidumbre. Los
+precios ausentes no son cero; decimales como cadenas. Un cambio por presupuesto
+requiere aprobación nueva. Pricing necesita `pricing` y el flag Mercadona; no
+cambies configuración desde el chat ni confundas coste con autorización de compra.
+
+Descubre destinos y previsualiza `sync_shopping_list`; muestra acciones,
+conflictos y `preview_digest`, pregunta y confirma con `confirm=True` y el mismo
+`preview_digest`. Si devuelve `conflict`, no reintentes ciegamente: revisa
+`data.preview`, resuelve y pide nueva aprobación. Conflictos bloquean escrituras.
+Replace requiere preview propio y puede vaciar el destino Bring. Sin digest no
+se vincula al preview anterior. Reconcilia resultados parciales; no hay rollback
+ni atomicidad entre sistemas. Nunca sincronices cadenas sueltas como alternativa
+a la lista Mealie. Es orquestación del agente, no una herramienta compuesta.

@@ -36,6 +36,58 @@ The executable runtime, `.env.example`, and `mcp-manifest.json` all use
 | `MERCADONA_WAREHOUSE` | `mad1` | Mercadona tools | Public warehouse code |
 | `MEMORY_FILE` | `/data/MEMORY.md` | Preference memory | Contains user data; back up and protect it |
 
+## Store and instance deployment (0.3)
+
+Mealie is the only shipped RecipeStore. Registered tools use an AppContext with
+instance-owned Mealie session, Mercadona catalog cache and Bring transport/auth
+state. Discovery's `capabilities.recipe_store` lists operations; the old
+`data.mealie.configured` field is deprecated. Native URL import supports preview
+and commit; image is commit-only. Configuration discovery does not probe health.
+
+Run independent households in separate processes/containers with distinct
+credentials and data volumes. Shared-process multi-tenant hosting is not
+supported: legacy services, nutrition-after-import, video tagging, Gemini helpers
+and direct-call compatibility paths retain global configuration dependencies.
+Future store adapters are not available by setting an invented backend variable.
+
+## Pricing operations
+
+Add `pricing` to `SABOR_TOOLSETS` and set `SABOR_MERCADONA_ENABLED=true`.
+The default toolset list stays `core,import,shopping_sync`; `legacy_pricing`
+keeps only price drops/new arrivals. Inline estimates need no Mealie; recipe,
+calendar and shopping-list sources require a store. `store` means retail context,
+with provider/location/currency, not a recipe backend. Mercadona uses the startup
+warehouse (default `mad1`) and EUR; incompatible contexts fail. Open Prices is
+not shipped. Catalog cache refresh failures may yield explicitly stale quotes;
+the unofficial API provides no availability guarantee.
+
+Search products and inspect package/unit quotes before selecting overrides.
+Read `complete`, coverage, excluded rows, uncertainty and provenance. Consumption
+and procurement are different partial subtotals: the latter aggregates before
+rounding packages up. Decimal JSON values are strings; missing/all-unknown prices
+are null, never zero. No purchases or pantry subtraction occur. See the
+[pricing contract](../README.md#quantity-aware-pricing) for source shapes/bounds.
+
+## Sync with approved digests
+
+1. Obtain approval for plan/list writes, populate the source list, reread it and
+   call `estimate_cost`. Show both cost bases and uncertainty; budget changes
+   need new approval. This workflow is orchestration, not a composite transaction.
+2. Discover the exact Bring target and preview `sync_shopping_list` (append by
+   default). Show additions, removals, conflicts and returned `preview_digest`.
+3. Ask, then repeat with `confirm=True` and that `preview_digest`. On `conflict`,
+   inspect `data.preview`, resolve conflicts and obtain a fresh approval. Never
+   silently change mode or target; nonempty conflicts always block writes.
+4. Replace requires its own preview and can clear all target purchase entries,
+   including for an empty source. Do not infer managed-only Bring ownership.
+
+Omitting the digest preserves current-snapshot checks within the confirmed call,
+not approval of the earlier preview. Digests are scoped to the application;
+refresh after restart. Concurrent remote edits during apply are not atomic.
+Inspect per-action/partial outcomes and reconcile before retrying uncertain
+mutations; there is no distributed rollback. Cost `source_digest` is not a sync
+authorization token. Todoist remains planned for 0.3.1.
+
 ### Import Normalization Variables
 
 | Variable | Default | Effect |

@@ -1,4 +1,4 @@
-# Herramientas de Sabor 0.2
+# Herramientas de Sabor 0.3
 
 Servidor `sabor`, Streamable HTTP, `http://127.0.0.1:9170/mcp` desde el host.
 Primero llama `sabor_capabilities()` y usa solo `data.registered_tools`.
@@ -18,18 +18,31 @@ Los resultados satisfactorios están en `data`; si `ok=false`, revisa
    `add_to_shopping_list(list_id=id, mealplan_start=inicio, mealplan_end=fin, servings_multiplier=1.0)`.
    Alternativas exclusivas: `items=[...]` o `recipe_slugs=[...]`.
    El multiplicador escala el rendimiento nativo; no deduzcas comensales.
-5. Revisa `get_shopping_list_items`, descubre `get_shopping_sync_targets` y
-   previsualiza `sync_shopping_list(mealie_list_id=id, target={"provider":"bring","list_id":destino}, mode="append")`.
-   **Construye primero la lista en Mealie.** Muestra acciones y avisos → pregunta
-   → repite con `confirm=True`. Replace puede vaciar el destino; append no elimina.
-   Nunca sustituyas un destino desconocido por la primera lista.
+5. Relee `get_shopping_list_items` y calcula
+   `estimate_cost(source={"kind":"shopping_list","list_id":id}, store={"provider":"mercadona"})`.
+   Muestra consumo proporcional y compra de paquetes, cobertura e incertidumbre.
+   Los decimales son cadenas; precios desconocidos no son cero. Si cambia el
+   presupuesto, propone cambios y pide nueva aprobación; no compres nada.
+6. Descubre `get_shopping_sync_targets` y previsualiza
+   `sync_shopping_list(mealie_list_id=id, target={"provider":"bring","list_id":destino}, mode="append")`.
+   **Construye primero la lista en Mealie.** Muestra acciones, conflictos y
+   `preview_digest` → pregunta → repite con `confirm=True` y el `preview_digest`
+   aprobado. Si hay `conflict`, revisa `data.preview`, resuelve y vuelve a pedir
+   aprobación: cero escrituras ante conflictos o digest obsoleto. No cambies a
+   replace automáticamente; requiere preview propio y puede vaciar el destino.
+   Append no elimina. Nunca sustituyas un destino desconocido por la primera lista.
+
+Plan → lista → coste → sync es orquestación del agente, no una herramienta
+compuesta ni una transacción. Sin digest solo se comprueba el estado durante la
+llamada confirmada, no el preview anterior. No hay atomicidad ante cambios
+remotos durante apply; reconcilia resultados parciales antes de reintentar.
 
 También previsualizan `update_recipe`, `remove_shopping_list_items`,
 `clear_shopping_list`, `delete_shopping_list` y `clear_mealplan_week`:
 preview → preguntar → `confirm=True`. Las demás escrituras necesitan igualmente
 aprobación aunque no tengan flag.
 
-Memoria, Spoonacular, Mercadona, nutrición y catálogo son **legacy opt-in**:
+Memoria, Spoonacular, promociones Mercadona, nutrición y catálogo son **legacy opt-in**:
 el operador debe seleccionar explícitamente los conjuntos `legacy_memory`,
 `legacy_spoonacular`, `legacy_pricing`, `legacy_nutrition`, `legacy_catalog`
 en `SABOR_TOOLSETS` y configurar sus proveedores. No cambies configuración desde
@@ -37,7 +50,11 @@ la conversación ni asumas que una credencial habilita herramientas.
 
 Nutrición conserva los flags `apply`, `publish`, `execute`.
 `nutrition_correct_recipe` no escribe ni con `apply=True`; pide edición externa.
-Mercadona calcula paquetes completos, no el coste proporcional consumido.
+Pricing requiere `pricing` en `SABOR_TOOLSETS` y `SABOR_MERCADONA_ENABLED=true`.
+`search_pricing_products` busca candidatos y `get_product_price` lee precios de
+paquete/unidad; `estimate_cost` separa consumo de compra. `legacy_pricing` solo
+conserva bajadas de precio y novedades. Open Prices y Todoist no están disponibles
+en 0.3.0. Consulta discovery; no inventes adaptadores.
 Para feedback usa `save_feedback` solo si está registrado; comentarios e historial
 Mealie usan `add_recipe_comment` y `log_cooking_event`.
 

@@ -20,10 +20,11 @@ orchestration and optional evidence that Mealie does not model.
 
 ## Process Shape
 
-`sabor_mcp.py` is the composition root and remains intentionally broad: it
-defines FastMCP tools, integration adapters, import normalization, local memory,
-and nutrition tool guards. The `nutrition/` package isolates the more complex
-nutrition domain:
+`sabor_mcp.py` starts the server; `sabor/server.py` assembles settings,
+AppContext and registered tool closures. `sabor/store/` owns typed RecipeStore
+DTOs and the Mealie adapter/mixins; `sabor/pricing/` owns quote DTOs, the
+Mercadona adapter and Decimal costing. The `nutrition/` package isolates the
+more complex legacy nutrition domain:
 
 | Module | Responsibility |
 |---|---|
@@ -53,7 +54,7 @@ Gemini's documented automatic deletion after 48 hours, or until an operator
 removes it through the provider. A failed upload initialization/finalization may
 also leave provider-side state that Sabor cannot identify for cleanup.
 
-## Capability registry and public envelopes (0.2)
+## Capability registry and public envelopes (0.3)
 
 `core/config.py` validates settings; `core/registry.py` builds immutable provider
 metadata; `server.py` collects decorated functions, intersects requested toolsets
@@ -61,18 +62,57 @@ with readiness, applies per-tool requirements and registers discovery once.
 There are no startup credential probes. Legacy modules remain imported by the
 server; selection is not a plugin-loading/security sandbox.
 
-Import adapters implement extraction/preview; the unified importer owns Mealie
-commits. Native URL/image paths are orchestrated directly. Gemini-native uses
+Import adapters implement extraction/preview; the unified importer commits via
+the instance store. Native URL/image services remain optional Mealie extensions.
+Discovery advertises URL preview/commit and image commit-only, not image preview. Gemini-native uses
 whole-video audio/vision; OpenAI-compatible uses frames and captions. Selection
 is explicit or Gemini-first when configured. Sync adapters implement
 targets/plan/apply; the orchestrator reads Mealie, resolves a unique target,
-previews and confirms a rebuilt current plan. Bring! is the only sync provider.
+previews and confirms a rebuilt current plan. Bring! is the only sync provider;
+Todoist is planned for 0.3.1.
 
 Public success is `{ok:true,data:{...}}`; errors use
 `{ok:false,error:{code,message,provider}}` with optional safe partial outcomes.
 Legacy registration wrappers preserve signatures while adapting envelopes.
 No raw upstream bodies, exception text or secrets belong in errors/logs.
 Discovery intentionally omits model IDs as well as credentials/private URLs.
+
+## Store, context and pricing boundaries
+
+RecipeStore preserves structured ingredients, source IDs, checked state and
+recipe occurrences rather than flattening upstream data. Mealie is the only
+production implementation; a fake store exercises the port, not delivery of a
+Tandoor/KitchenOwl/light backend. Registered core tools keep existing public
+signatures and use instance stores. `AppContext` binds immutable settings,
+registry, store and pricing services without startup I/O. Discovery exposes
+`recipe_store`/`pricing` operations; the old Mealie summary is deprecated.
+
+Mealie sessions, Bring transport/auth/cache and Mercadona caches are instance-
+owned. This is single-tenant self-hosting, not a multi-tenant security boundary:
+legacy nutrition/memory/catalog, nutrition-after-import, video tagging, Gemini
+helpers and direct-call compatibility paths still depend on global configuration.
+Separate household processes/volumes remain necessary. Selection is not sandboxing.
+
+Pricing tools resolve a tagged source (items, recipe, shopping_list or mealplan)
+through the store when needed. The engine conservatively parses quantities,
+converts compatible dimensions, matches candidates and aggregates Decimal costs.
+Consumption uses proportional unit prices; procurement rounds package counts up
+only after grouping product/location/currency demand. JSON decimals are strings.
+Coverage, excluded rows and uncertainty accompany partial subtotals; unknowns
+never become free ingredients. Mercadona is the only shipped provider; Open
+Prices remains deferred. No pantry accounting, checkout or recipe mutation occurs.
+
+## Sync approval boundary
+
+`preview_digest` hashes the source, target snapshot, actions and provider scope
+for the selected mode. Preview → show → ask → confirm with that digest is the
+recommended orchestration. Confirmation rebuilds/rechecks; stale digests or any
+conflicts yield `conflict`, a fresh `data.preview` and zero writes. A replace
+preview needs its own approval; Bring replace can clear all target purchase
+entries, not just Sabor-created ones. Without a digest only current-call snapshot
+checks apply (`digest_checked=false`). Remote apply is not atomic; inspect partial
+outcomes and reconcile uncertain writes before retrying. Cost `source_digest`
+includes quote observations and is unrelated to sync authorization.
 
 ## Structured Creation and Normalization Flow
 

@@ -1,10 +1,76 @@
 # Changelog
 
-## [Unreleased]
+## [0.3.0] - 2026-10-20
+
+### Added
+- RecipeStore abstraction and per-application AppContext; Mealie remains the
+  first production store. Core tools use the injected store with existing MCP
+  signatures and structured data preserved.
+- Opt-in `pricing`: `search_pricing_products`, `get_product_price`, `estimate_cost`.
+  Mercadona quotes include package/unit bases, provenance and uncertainty;
+  Decimal-string consumption and procurement subtotals distinguish quantities
+  consumed from whole packages purchased. Missing prices are never zero.
+- Sync `preview_digest` binds approval to source/target/actions and instance
+  scope; stale previews return a fresh preview and perform zero writes.
+- Discovery lists recipe-store/pricing operations and native URL preview/commit
+  and image commit-only import kinds. Documented plan → list → cost → sync flow.
 
 ### Changed
 - License changed from MIT to GNU AGPL-3.0-only starting with 0.3.0. Releases
-  up to 0.2.x remain available under MIT.
+  up to 0.2.x remain MIT; contributions use inbound = outbound licensing.
+- Bring transport/authentication/cache and Mercadona catalog cache are
+  instance-owned. Sync reads the injected recipe store.
+- Registered recipe creation again runs conservative normalization with instance
+  settings/session; nutrition-after-import hook parity is retained. Unified
+  imports use store creation/native import services; they still do not run the
+  normalization/nutrition hooks.
+- Discovery's `data.mealie.configured` remains for compatibility but is deprecated
+  in favor of `data.capabilities.recipe_store`.
+
+### Removed
+- Four retailer-specific pricing tools, without aliases (migration below).
+  There are now 50 application tools plus always-on discovery.
+
+### Security
+- Any sync conflicts block confirmed apply with zero writes. Append conflicts
+  never silently authorize replace; replace requires its own approved preview.
+- Digest confirmation rejects changed plans and cross-instance previews; remote
+  changes during apply still cannot be made atomic across systems.
+
+### Known limitations
+- Single-tenant self-hosting only: legacy services, nutrition-after-import,
+  video tagging and Gemini helpers retain global reads. AppContext and isolated
+  Bring state do not establish shared-process multi-tenant safety.
+- Mercadona is the only shipped pricing provider (unofficial API); Open Prices
+  is deferred. Todoist is planned for 0.3.1. Other recipe stores are not shipped.
+- No pantry subtraction, density/piece-weight guessing, purchases or distributed
+  rollback. Unknown quantities/prices remain excluded or uncertain. Cost
+  `source_digest` includes quote observations, not only source identity.
+- Sync without `preview_digest` retains current-snapshot compatibility behavior,
+  not binding to a prior approval. Image import has no read-only preview.
+
+### Migration from 0.2.x
+
+Breaking 0.x change: update callers and refresh MCP discovery after restarting.
+Pin 0.2.x if callers cannot migrate; do not interpret old package totals as
+quantity-consumption costs. Back up Sabor data and Mealie independently.
+
+| Removed tool | Replacement |
+|---|---|
+| `mercadona_search_products` | `search_pricing_products(query=..., store={"provider":"mercadona"})` |
+| `mercadona_get_product_price` | `get_product_price(product_id=..., store={"provider":"mercadona"})` |
+| `mercadona_estimate_recipe_cost` | `estimate_cost(source={"kind":"recipe","slug":slug}, store={"provider":"mercadona"})`, or inline structured items preserving ingredient text |
+| `mercadona_estimate_shopping_list_cost` | `estimate_cost(source={"kind":"shopping_list","list_id":id}, store={"provider":"mercadona"})`, or inline structured items |
+
+To keep pricing, set `SABOR_MERCADONA_ENABLED=true` and **add `pricing`** to
+`SABOR_TOOLSETS`. Defaults remain `core,import,shopping_sync`; credentials alone
+never select the new tools. `legacy_pricing` retains only
+`mercadona_get_price_drops` and `mercadona_get_new_arrivals` with their existing
+arguments. Keep it explicitly selected if those promotion tools are needed.
+Use decimal strings for numeric pricing operands, inspect coverage/uncertainty,
+and replace preview → confirm sync calls with preview → show → approval →
+`confirm=True, preview_digest=<approved digest>`. A `conflict` requires a newly
+reviewed preview, not a blind retry. Existing core and import signatures remain.
 
 ## [0.2.0] - 2026-10-20
 
@@ -86,8 +152,6 @@ existing nutrition flags. No selection restores the removed names or old result
 shape. Update structured recipe consumers, list parameter names and approval
 flows using the [current reference](README.md).
 
-
-## [Unreleased]
 
 ## [0.1.1] - 2026-10-19
 
