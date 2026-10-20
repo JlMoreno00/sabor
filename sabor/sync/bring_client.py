@@ -8,7 +8,6 @@ import time
 from pathlib import Path
 from typing import Any
 import requests
-import sabor.config as config
 
 # BRING! — Catalog & Auth Helpers
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -191,8 +190,7 @@ def _load_bring_catalog(lang: str) -> dict[str, str]:
     return {}
 
 
-_CAT_ES = _load_bring_catalog("es-ES")
-_CAT_EN = _load_bring_catalog("en-US")
+
 
 
 def _remove_accents(text: str) -> str:
@@ -221,14 +219,15 @@ def _remove_accents(text: str) -> str:
     return text
 
 
-def _catalog_match(food_name: str) -> str | None:
+def _catalog_match(food_name: str, catalogs=None) -> str | None:
+    catalogs = catalogs if catalogs is not None else (_load_bring_catalog('es-ES'), _load_bring_catalog('en-US'))
     norm = food_name.lower().strip()
     norm_no_acc = _remove_accents(norm)
     if norm in _MANUAL_ALIASES:
         return _MANUAL_ALIASES[norm]
     if norm_no_acc in _MANUAL_ALIASES:
         return _MANUAL_ALIASES[norm_no_acc]
-    for cat in (_CAT_ES, _CAT_EN):
+    for cat in catalogs:
         if norm in cat:
             return cat[norm]
         if norm_no_acc in cat:
@@ -251,7 +250,7 @@ def _catalog_match(food_name: str) -> str | None:
             return max(candidates)[1]
     food_words = set(re.findall(r"\b\w{3,}\b", norm))
     best_score, best_name = 0, None
-    for cat in (_CAT_ES, _CAT_EN):
+    for cat in catalogs:
         for k, v in cat.items():
             cat_words = set(re.findall(r"\b\w{3,}\b", k))
             if not cat_words:
@@ -262,71 +261,74 @@ def _catalog_match(food_name: str) -> str | None:
     return best_name
 
 
-# Bring! auth cache
-_bring_auth: dict[str, Any] = {}
+class BringClient:
+    """Credentials, session, tokens and catalogs belong to one provider."""
+    def __init__(self, settings, session=None):
+        self.email, self.password = settings.bring_email, settings.bring_password
+        self.client_id = "cof4Nc6D8saplXjE3h3HXqHH8m7VU2i1Gs0g85Sp"  # gitleaks:allow
+        self.session = session if session is not None else requests.Session()
+        self.auth = {}
+        self.catalogs = (_load_bring_catalog("es-ES"), _load_bring_catalog("en-US"))
+
+    def _bring_login_headers(self) -> dict[str, str]:
+        return {
+            "X-BRING-API-KEY": self.client_id,
+            "X-BRING-CLIENT": "webApp",
+            "X-BRING-APPLICATION": "bring",
+            "Content-Type": "application/x-www-form-urlencoded",
+        }
 
 
-def _bring_login_headers() -> dict[str, str]:
-    return {
-        "X-BRING-API-KEY": config.BRING_PUBLIC_CLIENT_ID,
-        "X-BRING-CLIENT": "webApp",
-        "X-BRING-APPLICATION": "bring",
-        "Content-Type": "application/x-www-form-urlencoded",
-    }
+    def _bring_authed_headers(self) -> dict[str, str]:
+        return {
+            "X-BRING-API-KEY": self.client_id,
+            "X-BRING-CLIENT": "webApp",
+            "X-BRING-APPLICATION": "bring",
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self.auth['access_token']}",
+            "X-BRING-USER-UUID": self.auth["uuid"],
+        }
 
 
-def _bring_authed_headers() -> dict[str, str]:
-    return {
-        "X-BRING-API-KEY": config.BRING_PUBLIC_CLIENT_ID,
-        "X-BRING-CLIENT": "webApp",
-        "X-BRING-APPLICATION": "bring",
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {_bring_auth['access_token']}",
-        "X-BRING-USER-UUID": _bring_auth["uuid"],
-    }
+    def _bring_login(self) -> None:
+        r = self.session.post(
+            "https://api.getbring.com/rest/v2/bringauth",
+            headers=self._bring_login_headers(),
+            data={"email": self.email, "password": self.password},
+            timeout=30,
+        )
+        r.raise_for_status()
+        d = r.json()
+        self.auth["uuid"] = d["uuid"]
+        self.auth["access_token"] = d["access_token"]
+        self.auth["expires_at"] = time.time() + d.get("expires_in", 3600) - 60
 
 
-def _bring_login() -> None:
-    r = requests.post(
-        "https://api.getbring.com/rest/v2/bringauth",
-        headers=_bring_login_headers(),
-        data={"email": config.BRING_EMAIL, "password": config.BRING_PASSWORD},
-        timeout=30,
-    )
-    r.raise_for_status()
-    d = r.json()
-    _bring_auth["uuid"] = d["uuid"]
-    _bring_auth["access_token"] = d["access_token"]
-    _bring_auth["expires_at"] = time.time() + d.get("expires_in", 3600) - 60
+    def _bring_ensure_auth(self) -> None:
+        if not self.auth or time.time() > self.auth.get("expires_at", 0):
+            self._bring_login()
 
 
-def _bring_ensure_auth() -> None:
-    if not _bring_auth or time.time() > _bring_auth.get("expires_at", 0):
-        _bring_login()
-
-
-def _bring_req(method: str, path: str, **kwargs) -> requests.Response:
-    _bring_ensure_auth()
-    r = requests.request(
-        method,
-        f"https://api.getbring.com/rest{path}",
-        headers=_bring_authed_headers(),
-        timeout=30,
-        **kwargs,
-    )
-    if r.status_code == 401:
-        _bring_login()
-        r = requests.request(
+    def _bring_req(self, method: str, path: str, **kwargs) -> requests.Response:
+        self._bring_ensure_auth()
+        r = self.session.request(
             method,
             f"https://api.getbring.com/rest{path}",
-            headers=_bring_authed_headers(),
+            headers=self._bring_authed_headers(),
             timeout=30,
             **kwargs,
         )
-    r.raise_for_status()
-    return r
-
-
+        if r.status_code == 401:
+            self._bring_login()
+            r = self.session.request(
+                method,
+                f"https://api.getbring.com/rest{path}",
+                headers=self._bring_authed_headers(),
+                timeout=30,
+                **kwargs,
+            )
+        r.raise_for_status()
+        return r
 
 def _clean_food_name(name: str) -> str:
     name = name.strip()

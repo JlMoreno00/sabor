@@ -1,27 +1,29 @@
 """Bring transport and read-only mapping; no ingredient parser writes."""
+from uuid import uuid4
 from typing import Any, Mapping, Literal
 from urllib.parse import quote
 
 import sabor.sync.bring_client as bring
 from sabor.core import errors
-from sabor.core.envelope import ok
+from sabor.core.envelope import ok, fail
 
 
-class BringSyncProvider:
+class BringSyncProvider(bring.BringClient):
     id = 'bring'
 
-    def __init__(self, settings=None):
-        pass  # Credentials and refresh remain owned by the existing transport.
+    def __init__(self, settings, session=None):
+        super().__init__(settings, session)
+        self.scope = uuid4().hex
 
     def targets(self) -> list[Mapping[str, Any]]:
-        bring._bring_ensure_auth()
-        rows = bring._bring_req('GET', f"/bringusers/{bring._bring_auth['uuid']}/lists").json()['lists']
+        self._bring_ensure_auth()
+        rows = self._bring_req('GET', f"/bringusers/{self.auth['uuid']}/lists").json()['lists']
         return [{'provider': self.id, 'list_id': row['listUuid'], 'name': row['name']} for row in rows]
 
     def plan(self, source: Mapping[str, Any], target: Mapping[str, Any],
              mode: Literal['append', 'replace']) -> Mapping[str, Any]:
         path = f"/v2/bringlists/{quote(target['list_id'], safe='')}"
-        purchase = bring._bring_req('GET', path).json()['purchase']
+        purchase = self._bring_req('GET', path).json()['purchase']
         current = {(row.get('itemId') or row['name']).casefold(): row for row in purchase}
         mapped, skipped, warnings, conflicts = {}, [], [], []
         for row in source['items']:
@@ -33,7 +35,7 @@ class BringSyncProvider:
             name = bring._clean_food_name(food or raw)
             if not name:
                 raise ValueError('Missing source representation')
-            item_id = bring._catalog_match(name) or name
+            item_id = bring._catalog_match(name, self.catalogs) or name
             qty = row.get('quantity')
             qty_str = (str(int(qty)) if qty == int(qty) else str(round(qty, 3))) if qty else ''
             spec = ' '.join(filter(None, [qty_str, (row.get('unit') or {}).get('name')])).strip()
@@ -62,18 +64,20 @@ class BringSyncProvider:
                                   **dict.fromkeys(('accuracy', 'altitude', 'latitude', 'longitude'), '0.0')})
         removals = [{'itemId': row.get('itemId') or row['name'], 'spec': '', 'operation': 'TO_RECENTLY'}
                     for row in purchase] if mode == 'replace' else []
-        return {'source': source, 'target': target, 'mode': mode, 'add': additions, 'remove': removals,
+        return {'source': source, 'target': target, 'target_snapshot': purchase, 'provider_scope': self.scope, 'mode': mode, 'add': additions, 'remove': removals,
                 'skipped': skipped, 'conflicts': conflicts, 'warnings': warnings,
                 'counts': {'add': len(additions), 'remove': len(removals), 'skipped': len(skipped)},
                 'confirmation': 'Confirmation applies to the current snapshot; no cross-system transaction.'}
 
     def apply(self, plan: Mapping[str, Any]) -> Mapping[str, Any]:
+        if plan['conflicts']:
+            return fail('conflict', 'Resolve conflicts with a new preview.', self.id, {'preview': plan})
         completed = []
         actions = plan['remove'] + plan['add']
         for index, action in enumerate(actions):
             change = {k: v for k, v in action.items() if k != 'source_ids'}
             try:
-                bring._bring_req('PUT', f"/v2/bringlists/{quote(plan['target']['list_id'], safe='')}/items",
+                self._bring_req('PUT', f"/v2/bringlists/{quote(plan['target']['list_id'], safe='')}/items",
                                  json={'changes': [change], 'sender': 'Sabor'})
                 completed.append(change)
             except Exception:

@@ -3,18 +3,21 @@ import unittest
 from unittest.mock import patch, Mock
 
 from sabor.sync import tools
+from sabor.sync.bring import BringSyncProvider
+from sabor.store import ShoppingItem, ShoppingSnapshot, NamedRef
 
 
 class ShoppingSyncTests(unittest.TestCase):
     def setUp(self):
-        self.req = patch('sabor.sync.bring_client._bring_req').start()
-        patch('sabor.sync.bring_client._bring_ensure_auth').start()
-        patch.dict('sabor.sync.bring_client._bring_auth', {'uuid': 'user'}).start()
-        self.read = patch('sabor.sync.tools.shopping_items._read').start()
+        self.req = patch.object(BringSyncProvider, '_bring_req').start()
+        patch.object(BringSyncProvider, '_bring_ensure_auth', lambda self: self.auth.update(uuid='user')).start()
+        self.read = patch('sabor.store.mealie.MealieRecipeStore.get_shopping_items').start()
         self.addCleanup(patch.stopall)
         self.items = [{'id': 's1', 'food': {'name': 'Milk'}, 'quantity': 2,
                        'unit': {'name': 'litre'}, 'checked': False}]
-        self.read.side_effect = lambda _: {'ok': True, 'data': self.items.copy()}
+        self.read.side_effect = lambda _: ShoppingSnapshot('source', tuple(ShoppingItem(**{
+            **row, 'food': NamedRef('', row['food']['name']),
+            'unit': NamedRef('', row['unit']['name'])}) for row in self.items))
         self.lists = [{'listUuid': 'b1', 'name': 'Home'}]
         self.purchase = []
         self.req.side_effect = self.http
@@ -108,6 +111,21 @@ class ShoppingSyncTests(unittest.TestCase):
         self.assertIn('3 litre', data['add'][0]['spec'])
 
     def test_changed_confirmation_requires_preview(self):
-        self.read.side_effect = [{'ok': True, 'data': self.items}, {'ok': True, 'data': []}]
+        self.read.side_effect = [self.read('source'), ShoppingSnapshot('source', ())]
         self.assertEqual(self.sync(confirm=True)['error']['code'], 'conflict')
         self.assertTrue(all(c.args[0] == 'GET' for c in self.req.call_args_list))
+
+    def test_conflicting_confirm_blocks_all_writes(self):
+        self.purchase = [{'itemId': 'Milk', 'spec': '1 litre'}]
+        self.items.append({**self.items[0], 'id': 's2', 'food': {'name': 'Bread'}})
+        self.assertEqual(self.sync(confirm=True)['error']['code'], 'conflict')
+        self.assertTrue(all(c.args[0] == 'GET' for c in self.req.call_args_list))
+
+    def test_target_change_and_replace_digest_are_not_authorized(self):
+        digest = self.sync()['data']['preview_digest']
+        self.purchase = [{'itemId': 'Bread', 'spec': ''}]
+        self.assertEqual(self.sync(confirm=True, preview_digest=digest)['error']['code'], 'conflict')
+        self.assertEqual(self.sync(mode='replace', confirm=True, preview_digest=digest)['error']['code'], 'conflict')
+        self.assertTrue(all(c.args[0] == 'GET' for c in self.req.call_args_list))
+        digest = self.sync(mode='replace')['data']['preview_digest']
+        self.assertTrue(self.sync(mode='replace', confirm=True, preview_digest=digest)['ok'])
