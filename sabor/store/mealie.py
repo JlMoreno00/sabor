@@ -4,6 +4,8 @@ Write/calendar/list support is added in subsequent bounded migration slices.
 """
 import requests
 from typing import Any, cast
+from dataclasses import dataclass
+from copy import deepcopy
 
 from sabor.core import errors
 from sabor.store import (Ingredient, Instruction, NamedRef, Page, Recipe,
@@ -23,11 +25,28 @@ def _items(value):
     return [_object(row) for row in rows]
 
 
+@dataclass(frozen=True)
+class _MealieRef(NamedRef):
+    # Taxonomy/ingredient metadata is public recipe data, not transport state.
+    public_fields: dict | None = None
+
+    def to_public(self):
+        return deepcopy(self.public_fields)
+
+
+@dataclass(frozen=True)
+class _MealieSuggestion(Suggestion):
+    public_fields: dict | None = None
+
+    def to_public(self):
+        return deepcopy(self.public_fields)
+
+
 def _ref(value):
     if value is None:
         return None
     value = _object(value)
-    return NamedRef(value.get("id"), value.get("name"))
+    return _MealieRef(value.get("id"), value.get("name"), deepcopy(value))
 
 
 def _refs(value):
@@ -35,7 +54,7 @@ def _refs(value):
         return None
     if not isinstance(value, list):
         raise ValueError("Expected references")
-    return tuple(NamedRef(_object(row).get("id"), row.get("name")) for row in value)
+    return tuple(cast(NamedRef, _ref(_object(row))) for row in value)
 
 
 def _summary(value):
@@ -44,7 +63,7 @@ def _summary(value):
 
 class MealieRecipeStore:
     id = "mealie"
-    operations = frozenset(("search_recipes", "get_recipe", "suggest_recipes"))
+    operations: frozenset[str] = frozenset(("search_recipes", "get_recipe", "suggest_recipes"))
 
     def __init__(self, base_url, token, session=None):
         self.base_url = base_url.rstrip("/")
@@ -158,9 +177,14 @@ class MealieRecipeStore:
             params["tools"] = list(q.tools)
 
         def suggestions(source):
-            return [Suggestion(**_summary(_object(row.get("recipe"))),
-                               missingFoods=_refs(row.get("missingFoods")),
-                               missingTools=_refs(row.get("missingTools")))
-                    for row in _items(source)]
+            rows = []
+            for row in _items(source):
+                public = _summary(_object(row.get("recipe")))
+                public.update({key: deepcopy(row[key]) for key in
+                               ("missingFoods", "missingTools") if key in row})
+                rows.append(_MealieSuggestion(**_summary(row["recipe"]),
+                            missingFoods=_refs(row.get("missingFoods")),
+                            missingTools=_refs(row.get("missingTools")), public_fields=public))
+            return rows
 
         return self._read("/suggestions", suggestions, params=params)

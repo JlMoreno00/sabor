@@ -1,6 +1,10 @@
 """Offline tests for the bounded Mealie read-adapter slice."""
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
+import asyncio
+import inspect
+import json
+from typing import Any
 import requests
 
 from sabor.store import RecipeSearch, StoreError, SuggestionQuery
@@ -99,3 +103,64 @@ class MealieReads(unittest.TestCase):
         self.assertNotEqual(other._headers, third._headers)
         other.session.close()
         third.session.close()
+
+
+class RecipeRouting(unittest.TestCase):
+    def test_old_projection_parity(self):
+        from sabor.tools import recipes as r
+        # Frozen pre-routing projections, evaluated against the same HTTP fixtures.
+        source: dict[str, Any] = dict(id="r", name="Soup", slug="soup", tags=[{"name": "hot", "extra": 1}],
+                      recipeIngredient=[dict(quantity=2, unit={"name": "g", "fraction": True},
+                                             food={"id": "f", "name": "salt", "aliases": ["sal"]})],
+                      recipeInstructions=[dict(text="Cook", ignored=True)])
+        old_recipe = {key: source.get(key) for key in (
+            "id", "name", "slug", "description", "recipeYield", "recipeServings",
+            "totalTime", "prepTime", "cookTime", "tags", "recipeCategory")}
+        for field, keys in (("recipeIngredient", ("quantity", "unit", "food", "note", "display",
+                                                 "originalText", "referenceId", "title", "heading")),
+                            ("recipeInstructions", ("id", "title", "text"))):
+            old_recipe[field] = [{key: row.get(key) for key in keys} for row in source[field]]
+        summary = dict(id="r", name="Soup", slug="soup")
+        search = dict(items=[source], total=1, page=1, per_page=25, total_pages=1)
+        suggestions = {"items": [{"recipe": source, "missingFoods": None},
+                                 {"recipe": source, "missingTools": [{"name": "pot", "extra": 2}]}]}
+        cases = [(r.get_recipe, ("soup",), source, old_recipe),
+                 (r.search_recipes, (), search, {**search, "items": [summary]}),
+                 (r.suggest_recipes, ([],), suggestions,
+                  {"items": [{**summary, "missingFoods": None},
+                             {**summary, "missingTools": [{"name": "pot", "extra": 2}]}]})]
+        with patch.object(r.config, "MEALIE_API_TOKEN", "test"), patch.object(r.requests, "get") as get:
+            get.return_value.status_code = 200
+            for fn, args, fixture, expected in cases:
+                get.return_value.json.return_value = fixture
+                self.assertEqual(json.dumps(fn(*args)), json.dumps({"ok": True, "data": expected}))
+
+    def test_two_servers_bind_distinct_stores_and_identical_schemas(self):
+        from mcp.server.fastmcp import FastMCP
+        from sabor.server import register_tools
+        from sabor.tools import recipes as r
+        servers = [FastMCP("one"), FastMCP("two")]
+        for server, name in zip(servers, ("one", "two")):
+            register_tools(server, {"SABOR_TOOLSETS": "core", "MEALIE_BASE_URL": f"https://{name}.invalid",
+                                    "MEALIE_API_TOKEN": f"{name}-token"})
+        response = Mock(status_code=200)
+        response.json.return_value = {"slug": "soup"}
+        with patch("requests.Session.get", return_value=response) as get, \
+                patch("sabor.core.context.default_context", side_effect=AssertionError("global fallback")):
+            for server in (*servers, servers[0]):
+                tool = server._tool_manager.get_tool("get_recipe")
+                assert tool is not None
+                self.assertEqual(inspect.signature(tool.fn), inspect.signature(r.get_recipe))
+                self.assertEqual(tool.fn.__doc__, r.get_recipe.__doc__)
+                asyncio.run(server.call_tool("get_recipe", {"slug": "soup"}))
+            self.assertEqual([call.args[0] for call in get.call_args_list],
+                             ["https://one.invalid/api/recipes/soup", "https://two.invalid/api/recipes/soup",
+                              "https://one.invalid/api/recipes/soup"])
+            self.assertEqual([call.kwargs["headers"]["Authorization"] for call in get.call_args_list],
+                             ["Bearer one-token", "Bearer two-token", "Bearer one-token"])
+        for name in ("get_recipe", "search_recipes", "suggest_recipes"):
+            tools = [server._tool_manager.get_tool(name) for server in servers]
+            assert all(tool is not None for tool in tools)
+            schemas = [tool.parameters for tool in tools if tool is not None]
+            self.assertEqual(schemas[0], schemas[1])
+            self.assertNotIn("ctx", schemas[0]["properties"])

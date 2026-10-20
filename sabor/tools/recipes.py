@@ -2,6 +2,8 @@
 
 import json
 from typing import Any
+from dataclasses import fields, is_dataclass
+from sabor.store import RecipeSearch, SuggestionQuery, StoreError, store_error_envelope
 import requests
 import sabor.config as config
 import sabor.integrations.mealie as mealie
@@ -44,7 +46,38 @@ def _summary(item):
     return {key: item.get(key) for key in ("id", "name", "slug")}
 
 
-@tool("core", requires=mealie_ready)
+def _tuple(value):
+    return None if value is None else tuple(value)
+
+
+def _defer(operation, argument) -> Any:
+    """Internal context callback consumed by the tool decorator, not MCP data."""
+    return lambda ctx: _store_read(ctx, operation, argument)
+
+
+def _public(value):
+    if hasattr(value, "to_public"):
+        return value.to_public()
+    if is_dataclass(value):
+        return {field.name: _public(getattr(value, field.name)) for field in fields(value)}
+    if isinstance(value, (tuple, list)):
+        return [_public(row) for row in value]
+    return value
+
+
+def _store_read(ctx, operation, argument):
+    if ctx.store is None:
+        return fail("provider_unconfigured", "Mealie is not configured.", "mealie")
+    try:
+        data = _public(getattr(ctx.store, operation)(argument))
+        if operation == "suggest_recipes":
+            data = {"items": data}
+        return ok(data)
+    except StoreError as exc:
+        return store_error_envelope(exc)
+
+
+@tool("core", requires=mealie_ready, uses_context=True)
 def search_recipes(
     query: str = "", page: int = 1, per_page: int = 25,
     tag_ids: list[str] | None = None, category_ids: list[str] | None = None,
@@ -57,56 +90,15 @@ def search_recipes(
             or not 1 <= per_page <= 100 or sort != "name"
             or direction not in ("asc", "desc")):
         return fail("invalid_argument", "Invalid pagination or sorting arguments.")
-    if err := _configured():
-        return err
-    params: dict[str, Any] = dict(search=query, page=page, perPage=per_page,
-                  orderBy=sort, orderDirection=direction)
-    for name, value in (("tags", tag_ids), ("categories", category_ids),
-                        ("foods", food_ids), ("tools", tool_ids),
-                        ("cookbook", cookbook_id)):
-        if value is not None:
-            params[name] = value
-    for name in ("Tags", "Categories", "Foods", "Tools"):
-        params[f"requireAll{name}"] = require_all
-    try:
-        response, err = _request(requests.get, "", params=params)
-        if err:
-            return err
-        data = _object(response.json())
-        items = [_summary(item) for item in _items(data)]
-        metadata = {key: data.get(key) for key in
-                    ("total", "page", "per_page", "total_pages")}
-        if any(type(value) is not int for value in metadata.values()):
-            raise ValueError("Invalid pagination")
-        return ok(dict(items=items, **metadata))
-    except Exception as exc:
-        return errors.from_exception(exc, "mealie")
+    filters = RecipeSearch(query, page, per_page, _tuple(tag_ids), _tuple(category_ids),
+                           _tuple(food_ids), _tuple(tool_ids), cookbook_id, require_all, sort, direction)
+    return _defer("search_recipes", filters)
 
 
-@tool("core", requires=mealie_ready)
+@tool("core", requires=mealie_ready, uses_context=True)
 def get_recipe(slug: str) -> dict[str, Any]:
     """Read structured ingredients, instructions, taxonomy and times; unknowns stay null."""
-    if err := _configured():
-        return err
-    try:
-        response, err = _request(requests.get, f"/{slug}")
-        if err:
-            return err
-        source = _object(response.json())
-        data = {key: source.get(key) for key in (
-            "id", "name", "slug", "description", "recipeYield", "recipeServings",
-            "totalTime", "prepTime", "cookTime", "tags", "recipeCategory")}
-        for field, keys in (
-            ("recipeIngredient", ("quantity", "unit", "food", "note", "display",
-                                  "originalText", "referenceId", "title", "heading")),
-            ("recipeInstructions", ("id", "title", "text")),
-        ):
-            values = source.get(field)
-            data[field] = None if values is None else [
-                {key: _object(value).get(key) for key in keys} for value in values]
-        return ok(data)
-    except Exception as exc:
-        return errors.from_exception(exc, "mealie")
+    return _defer("get_recipe", slug)
 
 
 _PATCH_FIELDS = frozenset((
@@ -142,7 +134,7 @@ def update_recipe(slug: str, patch: dict, confirm: bool = False) -> dict[str, An
         return errors.from_exception(exc, "mealie")
 
 
-@tool("core", requires=mealie_ready)
+@tool("core", requires=mealie_ready, uses_context=True)
 def suggest_recipes(
     foods: list[str], tools: list[str] | None = None,
     max_missing_foods: int = 2, max_missing_tools: int = 0,
@@ -154,27 +146,9 @@ def suggest_recipes(
                 for value in (max_missing_foods, max_missing_tools)) or
             type(limit) is not int or limit < 1):
         return fail("invalid_argument", "Invalid suggestion arguments.")
-    if err := _configured():
-        return err
-    params = dict(foods=foods, maxMissingFoods=max_missing_foods,
-                  maxMissingTools=max_missing_tools, limit=limit,
-                  includeFoodsOnHand=include_foods_on_hand)
-    if tools is not None:
-        params["tools"] = tools
-    try:
-        response, err = _request(requests.get, "/suggestions", params=params)
-        if err:
-            return err
-        items = []
-        for item in _items(response.json()):
-            summary = _summary(_object(item.get("recipe")))
-            for key in ("missingFoods", "missingTools"):
-                if key in item:
-                    summary[key] = item[key]
-            items.append(summary)
-        return ok(dict(items=items))
-    except Exception as exc:
-        return errors.from_exception(exc, "mealie")
+    query = SuggestionQuery(tuple(foods), _tuple(tools), max_missing_foods, max_missing_tools,
+                            limit, include_foods_on_hand)
+    return _defer("suggest_recipes", query)
 
 
 @tool("core")
