@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+- License changed from MIT to GNU AGPL-3.0-only starting with 0.3.0. Releases
+  up to 0.2.x remain available under MIT.
+
 ## [0.2.0] - 2026-10-20
 
 ### Added

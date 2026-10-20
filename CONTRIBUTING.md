@@ -117,3 +117,8 @@ and rollback boundaries.
 - [ ] No secrets, user data, databases, backups, or generated artifacts are included.
 - [ ] Configuration and operational documentation match the implementation.
 - [ ] Commit messages follow Conventional Commits and each commit is a work unit.
+
+## Licensing of Contributions
+
+Sabor is licensed under the GNU AGPL-3.0-only. By submitting a contribution you
+agree that it is licensed under the same terms (inbound = outbound).
