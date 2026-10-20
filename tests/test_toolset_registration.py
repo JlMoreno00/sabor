@@ -29,7 +29,7 @@ class RegistrationTests(unittest.TestCase):
         env = {**MEALIE, **GEMINI, **BRING, 'SPOONACULAR_API_KEY': 'secret-spoon',
                'SABOR_MERCADONA_ENABLED': 'true', 'SABOR_TOOLSETS': ','.join(TOOLSETS)}
         tools, discovery = self.register(env)
-        self.assertEqual(len(tools), 60)
+        self.assertEqual(len(tools), 62)
         encoded = json.dumps(discovery)
         for key in (*MEALIE, *GEMINI, *BRING, 'SPOONACULAR_API_KEY'):
             self.assertNotIn(env[key], encoded)

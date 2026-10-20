@@ -12,7 +12,7 @@
     "retries": 3
   },
   "mcp_endpoint": "/mcp",
-  "tool_count": 59,
+  "tool_count": 61,
   "runtime": "python",
   "build": {
     "dockerfile": "Dockerfile",

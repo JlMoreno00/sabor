@@ -27,7 +27,7 @@ TOOL_MODULES = (
     "sabor.integrations.mealie",
     "sabor.tools.recipes", "sabor.importing.tools",
     "sabor.tools.shopping",
-    "sabor.tools.shopping_items",
+    "sabor.tools.shopping_items", "sabor.sync.tools",
     "sabor.tools.mealplan",
     "sabor.tools.tags",
     "sabor.tools.comments",
@@ -48,7 +48,9 @@ def register_tools(server=None, env=None) -> None:
         return
     settings = load_settings(os.environ if env is None else env)
     from sabor.importing.tools import OpenAIImportProvider
-    registry = Registry(settings, import_factories=(OpenAIImportProvider,) if settings.llm_configured else ())
+    from sabor.sync.bring import BringSyncProvider
+    registry = Registry(settings, import_factories=(OpenAIImportProvider,) if settings.llm_configured else (),
+                        sync_factories=(BringSyncProvider,) if settings.bring_email and settings.bring_password else ())
     for module_name in TOOL_MODULES:
         import_module(module_name)
     names = []
