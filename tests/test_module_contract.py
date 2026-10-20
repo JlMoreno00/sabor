@@ -15,10 +15,15 @@ from sabor.core.toolsets import catalog
 
 # SHA-256 of ast.dump(arguments) + the exact uncleaned docstring, before moving.
 BASELINE_CONTRACT = {
+    "check_shopping_list_items": "e3f57862d4c913fa3b448c4f5ebf0354b2c90e1bb28ea414efa8b99039597d99",
+    "get_shopping_list_items": "6394c56a022f72ddc4a7b49a8fa1103a7eda6be90c23c3a68e53cd9243bd3931",
+    "remove_shopping_list_items": "3fc583904f09ed69326cf6e39881babef3b75d7205d2aa9a3ad8974b72a207a7",
+    "suggest_recipes": "2bedf80b32d638229e1c8932480f5403e70f1abfd6415e31b64ac8c269f6e332",
+    "update_recipe": "0a42fb71dfdc7e09fe3ade020988d0ee01721847973e5372f416053c34002d0f",
     "spanish_catalog_status": "86a2e7b817dfd97c44131476a16d072c83329a5434b3a4e024a0f5cbd0e2209f",
     "apply_spanish_catalog": "44a6883ceaf144f43fab3e05550ae336c91493db66fb8074ae799175f7c2e457",
-    "search_recipes": "ab320eb861d3a8d3dda98deebdfc0b956b85ef155bdf03ad777da2c894688aca",
-    "get_recipe": "2654d7e1a09ccb827eede9d78dabe5f69a3ae0320bcd577cda9a8bbbe38d2bf5",
+    "search_recipes": "128ffad429f12b735c1a94ab8dc5b2f4776969c9efd0df2896195d56b3bb1724",
+    "get_recipe": "74049c9d77b43e8b40236a033ee69091fa89a09ead56ef7d60714106112f37b6",
     "create_recipe": "fec9420e7bb87335e0e13b412fc633605d6d8d1832e5c9ca5f01308385dd0b56",
     "get_shopping_lists": "a90ac771915d1a06659884e8fbebc687f5f6840046f62348ce1344c9d293ec27",
     "create_shopping_list": "cf4fda38b3372c074245e4a16fd673e19428015b7bdd5de0c1a1eef684005c31",
@@ -74,7 +79,7 @@ class ModuleContractTests(unittest.TestCase):
     def test_registered_tool_names_match_baseline(self):
         names = [fn.__name__ for group, fn, requires in catalog]
         self.assertEqual(set(names), set(BASELINE_CONTRACT))
-        self.assertEqual(len(names), 52)
+        self.assertEqual(len(names), 57)
         register_tools()
         self.assertEqual(
             [fn.__name__ for group, fn, requires in catalog], names,

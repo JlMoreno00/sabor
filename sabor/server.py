@@ -27,6 +27,7 @@ TOOL_MODULES = (
     "sabor.integrations.mealie",
     "sabor.tools.recipes",
     "sabor.tools.shopping",
+    "sabor.tools.shopping_items",
     "sabor.tools.mealplan",
     "sabor.tools.tags",
     "sabor.tools.comments",

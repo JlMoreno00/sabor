@@ -108,7 +108,7 @@ class MealieRecipeTests(unittest.TestCase):
         result = sabor_mcp.get_recipe("soup")
 
         self.assertEqual(
-            result["tags"],
+            result["data"]["tags"],
             [{"id": "tag-id", "name": "Warm", "slug": "warm"}],
         )
 
