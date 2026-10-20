@@ -1,6 +1,6 @@
 """Read-only Decimal costing. Totals are partial, never missing-price zeroes."""
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date
 from decimal import Decimal, InvalidOperation, ROUND_CEILING
 from .provider import RetailContext, ProductQuery, PriceQuote
@@ -26,6 +26,7 @@ class CostLine:
     uncertainty: Uncertainty
     provenance: tuple[str, ...]
     match_evidence: tuple[str, ...]
+    alternatives: tuple[dict, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -120,7 +121,10 @@ def _words(text):
     return set(re.findall(r'[^\W\d_]+', text.casefold())) - {'de', 'the', 'of'}
 
 
-def estimate(source, store_ctx: RetailContext, recipe_store, pricing, product_overrides=None) -> CostEstimate:
+def estimate(source, store_ctx: RetailContext, recipe_store, pricing, product_overrides=None,
+             match_policy='cheapest') -> CostEstimate:
+    if match_policy not in ('cheapest', 'strict'):
+        raise ValueError('invalid match policy')
     rows = _resolve(source, recipe_store)
     overrides = product_overrides or {}
     if not isinstance(overrides, dict) or overrides.keys() - {r[0] for r in rows} or any(
@@ -136,26 +140,48 @@ def estimate(source, store_ctx: RetailContext, recipe_store, pricing, product_ov
     currency, location = store_ctx.currency, store_ctx.location_id
     consumption, quote_scope = None, None
     for (key, row, multiplier), q in zip(rows, quantities):
+        if q.amount is not None and not row.get('unit') and q.ambiguity == ('unknown_unit',):
+            q = replace(q, unit='ud', dimension='count', ambiguity=('assumed_count',))
+        if q.source == 'text' and q.dimension == 'count' and _words(row.get('text') or '') == _words(row['name']):
+            q = replace(q, ambiguity=tuple(dict.fromkeys((*q.ambiguity, 'assumed_count'))))
         required = q.amount * multiplier if q.amount is not None and q.dimension else None
         reasons, evidence = list(q.ambiguity), [f'quantity:{q.source}']
         candidates, quote, cost = [], None, None
+        comparable, alternatives = [], ()
         if required is not None:
             if key in overrides:
                 candidates = [overrides[key]]
                 evidence.append('caller_override')
             else:
                 words = _words(row['name'])
-                for product in pricing.search_products(ProductQuery(row['name']), store_ctx):
-                    if words and words <= _words(product.name):
+                for product in pricing.search_products(ProductQuery(row['name'], 50), store_ctx):
+                    if product.food is not False and words and words <= _words(product.name):
                         candidate_quote = pricing.get_quote(product.id, store_ctx)
                         dimension_unit = {'kg': 'g', 'l': 'ml', 'unit': 'ud'}.get(candidate_quote.package_unit)
-                        if dimension_unit in (None, q.unit):
+                        if candidate_quote.food is not False and dimension_unit in (None, q.unit):
                             candidates.append(product.id)
+                            price = candidate_quote.normalized_unit_price
+                            if dimension_unit == q.unit and isinstance(price, Decimal) and price.is_finite() and price >= 0:
+                                comparable.append((price, product.name, product.id))
                 candidates = list(dict.fromkeys(candidates))
                 evidence.append('whole_word')
-            if len(candidates) == 1:
-                quote = pricing.get_quote(candidates[0], store_ctx)
-                if quote.product_id != candidates[0] or quote.location.provider != store_ctx.provider:
+            if len(candidates) > 1 and match_policy == 'cheapest' and key not in overrides and comparable:
+                comparable.sort()
+                selected = comparable[0][2]
+                alternatives = tuple(dict(product_id=pid, name=name, normalized_unit_price=price)
+                                     for price, name, pid in comparable[1:6])
+                reasons.append('auto_selected_cheapest')
+            else:
+                selected = candidates[0] if len(candidates) == 1 else None
+            if selected is not None:
+                quote = pricing.get_quote(selected, store_ctx)
+                if quote.food is False:
+                    reasons.append('non_food')
+                    quote = None
+                    lines.append(CostLine(key, row['name'], required, q.unit, None, None, tuple(candidates),
+                                          Uncertainty('unknown', tuple(reasons)), (key,), tuple(evidence)))
+                    continue
+                if quote.product_id != selected or quote.location.provider != store_ctx.provider:
                     raise ValueError('quote identity mismatch')
                 if (currency and currency != quote.currency) or (location and location != quote.location.location_id):
                     raise ValueError('incompatible currency or location')
@@ -198,7 +224,7 @@ def estimate(source, store_ctx: RetailContext, recipe_store, pricing, product_ov
         level = 'unknown' if cost is None else 'estimated' if reasons else 'known'
         lines.append(CostLine(key, row['name'], required, q.unit, cost, quote, tuple(candidates),
                               Uncertainty(level, tuple(dict.fromkeys(reasons))),
-                              (key, quote.provenance) if quote else (key,), tuple(evidence)))
+                              (key, quote.provenance) if quote else (key,), tuple(evidence), alternatives))
     procurement = None
     for amount, quote in groups.values():
         packages = (amount / quote.package_quantity).to_integral_value(rounding=ROUND_CEILING)

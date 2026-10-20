@@ -43,6 +43,51 @@ class MercadonaTests(unittest.TestCase):
         self.provider._refresh()
         return self.provider.get_quote(pid, self.store)
 
+    def test_realistic_basket_cheapest_strict_and_overrides(self):
+        from sabor.pricing.engine import estimate
+        # Real catalog shapes: nominal ud package with reference denominator dz.
+        def food(pid, name, size, unit, price, reference, category=6, denominator=None):
+            product = item(pid, name, unit_size=size, size_format=unit,
+                           unit_price=price, reference_price=reference,
+                           reference_format=denominator or unit)
+            product['categories'] = [dict(id=category, name='fixture', level=0)]
+            return product
+        self.products = [
+            food('10380', 'Leche desnatada Hacendado', 1, 'l', '.81', '.81'),
+            food('10381', 'Leche semidesnatada Hacendado', 1, 'l', '.83', '.83'),
+            food('cosmetic', 'Leche corporal Nivea', 1, 'l', '.10', '.10', 20),
+            food('29100', 'Harina de trigo Hacendado', 1, 'kg', '.72', '.72', 5),
+            food('29106', 'Harina de trigo grande Hacendado', 5, 'kg', '2.95', '.59', 5),
+            food('eggs', 'Huevos', 12, 'ud', '2.64', '2.64', denominator='dz')]
+        self.provider._refresh()
+        source = dict(kind='items', items=[
+            dict(name='leche', quantity=1, unit='l'),
+            dict(name='harina de trigo', quantity=200, unit='g'),
+            dict(name='huevos', quantity=6), dict(name='sal al gusto')])
+        def run(**kw):
+            return estimate(source, self.store, None, self.provider, **kw)
+        result = run()
+        milk, flour, eggs, salt = result.lines
+        assert milk.quote is not None
+        self.assertEqual(milk.quote.product_id, '10380')
+        self.assertEqual(milk.alternatives[0]['name'], 'Leche semidesnatada Hacendado')
+        self.assertEqual(milk.uncertainty.level, 'estimated')
+        self.assertIn('auto_selected_cheapest', milk.uncertainty.reasons)
+        self.assertEqual(flour.consumption, Decimal('.2') * Decimal('.59'))
+        self.assertEqual(eggs.consumption, Decimal('1.32'))
+        self.assertIn('assumed_count', eggs.uncertainty.reasons)
+        self.assertIsNone(salt.consumption)
+        self.assertEqual(result.coverage['costed'], 3)
+        self.assertFalse(result.complete)
+        self.assertEqual(result.procurement_subtotal, Decimal('6.40'))
+        strict = run(match_policy='strict')
+        self.assertIn('ambiguous_match', strict.lines[0].uncertainty.reasons)
+        overridden = run(product_overrides={'items:0': '10381'}).lines[0].quote
+        assert overridden is not None
+        self.assertEqual(overridden.product_id, '10381')
+        self.assertNotIn('cosmetic', [p.id for p in self.provider.search_products(ProductQuery('leche'), self.store)])
+        self.assertFalse(self.provider.get_quote('cosmetic', self.store).food)
+
     def test_ttl_refresh(self):
         self.assertEqual(self.quote().package_price, Decimal('17.25'))
         self.products[0]['price_instructions']['unit_price'] = '20'

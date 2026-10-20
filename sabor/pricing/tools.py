@@ -33,7 +33,7 @@ def _public(value) -> Any:
     return value
 
 
-def _run(ctx, store, operation, argument, overrides=None):
+def _run(ctx, store, operation, argument, overrides=None, match_policy='cheapest'):
     if not ctx.pricing:
         return fail('provider_unconfigured', 'Pricing is not configured.')
     if store is None:
@@ -52,7 +52,7 @@ def _run(ctx, store, operation, argument, overrides=None):
         if operation == 'estimate':
             if isinstance(argument, dict) and argument.get('kind') in {'recipe', 'shopping_list', 'mealplan'} and ctx.store is None:
                 return fail('provider_unconfigured', 'Recipe store is not configured.')
-            result = estimate(argument, retail, ctx.store, pricing, overrides)
+            result = estimate(argument, retail, ctx.store, pricing, overrides, match_policy)
             data = _public(result)
             for key in ('consumption_subtotal', 'procurement_subtotal'):
                 data[key] = present_money(getattr(result, key))
@@ -94,13 +94,16 @@ def get_product_price(product_id: str, store: dict | None = None) -> Any:
 
 
 @tool('pricing', requires=pricing_ready, uses_context=True)
-def estimate_cost(source: dict, store: dict | None = None, product_overrides: dict | None = None) -> Any:
+def estimate_cost(source: dict, store: dict | None = None, product_overrides: dict | None = None,
+                  match_policy: str = 'cheapest') -> Any:
     """Read-only quantity-aware estimate with uncertainty and partial consumption/procurement subtotals; missing prices are never zero. Decimals are JSON strings.
 
     Source kinds: items (structured items), recipe (slug, multiplier=1),
     shopping_list (list_id), mealplan (start_date, end_date, multiplier=1).
     Product overrides map resolved line keys to product IDs; no retailer fallback.
     """
+    if match_policy not in ('cheapest', 'strict'):
+        return fail('invalid_argument', 'Use cheapest or strict match_policy.')
     if not isinstance(source, dict) or (product_overrides is not None and not isinstance(product_overrides, dict)):
         return fail('invalid_argument', 'Provide a tagged source and optional override mapping.')
-    return lambda ctx: _run(ctx, store, 'estimate', source, product_overrides)
+    return lambda ctx: _run(ctx, store, 'estimate', source, product_overrides, match_policy)

@@ -73,6 +73,12 @@ class PricingToolTests(unittest.TestCase):
         source['items'] = [{'name': 'rice', 'text': '200 g de rice'}]
         self.assertEqual(self.call('estimate_cost', source=source)['data']['consumption_subtotal'], '0.40')
 
+    def test_invalid_match_policy_before_provider(self):
+        result = self.call('estimate_cost', source={'kind': 'items', 'items': []},
+                           match_policy='invalid')
+        self.assertEqual(result['error']['code'], 'invalid_argument')
+        self.assertEqual(self.provider.calls, 0)
+
     def test_limit_bounds(self):
         for limit in (0, 51):
             self.assertEqual(self.call('search_pricing_products', query='rice', limit=limit)['error']['code'], 'invalid_argument')

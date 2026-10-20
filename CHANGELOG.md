@@ -16,6 +16,10 @@
   and image commit-only import kinds. Documented plan → list → cost → sync flow.
 
 ### Changed
+- Pricing defaults to `match_policy="cheapest"` with estimated selections and
+  alternatives; `strict` preserves ambiguous exclusions, overrides take priority.
+  Search/cost exclude non-food and rank closest token names. Unitless quantities
+  assume count; egg dozen quotes normalize to per-piece.
 - Mercadona catalog warm-up runs in one background worker with paced requests,
   bounded backoff and optional atomic `/data` cache; pricing calls never crawl
   synchronously. Stale snapshots remain usable with `stale_catalog`.

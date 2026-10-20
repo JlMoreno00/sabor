@@ -56,6 +56,14 @@ class MercadonaPricing:
         self._provenance = f'mercadona:{warehouse}:tienda.mercadona.es-catalog'
         self._load_cache()
 
+    @staticmethod
+    def _food(product):
+        categories = product.get('categories', [])
+        if not categories:
+            return None
+        return not any(str(c.get('id')) in {'20', '21', '22', '23', '25', '26'}
+                       for c in categories if c.get('level') == 0)
+
     def _validate(self, store):
         if (store.provider != self.id or store.location_id not in (None, self.warehouse)
                 or store.currency not in (None, 'EUR')):
@@ -198,7 +206,12 @@ class MercadonaPricing:
             return self._catalog, datetime.fromtimestamp(self._loaded_at, timezone.utc), stale
 
     def _quote(self, pid, product, observed, stale):
-        package = package_from_mercadona(product.get('price_instructions'))
+        instructions = product.get('price_instructions')
+        # The catalog quotes eggs per dozen (dz), with nominal size in ud.
+        if isinstance(instructions, dict) and instructions.get('reference_format') == 'dz' and instructions.get('size_format') == 'ud':
+            instructions = dict(instructions, reference_format='ud',
+                                reference_price=str(Decimal(str(instructions['reference_price'])) / 12))
+        package = package_from_mercadona(instructions)
         q = package.quantity
         factors = {'g': Decimal('.001'), 'kg': Decimal(1),
                    'ml': Decimal('.001'), 'l': Decimal(1), 'ud': Decimal(1)}
@@ -223,7 +236,7 @@ class MercadonaPricing:
         return PriceQuote(pid, name if isinstance(name, str) else '', package.package_price,
                           'EUR', amount, units.get(q.unit), normalized, observed, observed,
                           RetailContext(self.id, self.warehouse, 'EUR'), self._provenance,
-                          uncertainty_reasons=tuple(dict.fromkeys(reasons)))
+                          uncertainty_reasons=tuple(dict.fromkeys(reasons)), food=self._food(product))
 
     def get_quote(self, product_id: str, store: RetailContext) -> PriceQuote:
         self._validate(store)
@@ -246,9 +259,11 @@ class MercadonaPricing:
             if not isinstance(name, str):
                 continue
             score = _mercadona_cost_score(_mercadona_normalize(name), text)
-            if score >= 0:
+            if score >= 0 and self._food(product) is not False:
                 quote = self._quote(pid, product, observed, stale)
-                scored.append((score, Product(pid, name, self._provenance, observed,
-                                               quote.uncertainty_reasons)))
-        scored.sort(key=lambda row: (-row[0], row[1].name, row[1].id))
+                extra = len(set(_mercadona_normalize(name).split()) - set(text.split()))
+                scored.append((extra, Product(pid, name, self._provenance, observed,
+                                               quote.uncertainty_reasons, quote.food)))
+        # Food-only browsing; closest whole-word name, then food, name and id.
+        scored.sort(key=lambda row: (row[0], row[1].food is not True, row[1].name, row[1].id))
         return [product for _, product in scored[:query.limit]]

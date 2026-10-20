@@ -92,6 +92,20 @@ and normalized unit prices, quantity basis, timestamps, location, provenance and
 uncertainty. `estimate_cost` reads only; it never modifies recipes or buys goods.
 `legacy_pricing` now exposes only price drops and new arrivals.
 
+Mercadona search is food-only (non-food top categories 20, 21, 22, 23, 25,
+26 are excluded). Whole-word matches rank by the number of distinct normalized
+name tokens absent from the query (fewer is closer), then food metadata, name
+and ID. This is lexical closeness, not semantic ingredient identity.
+`estimate_cost(..., match_policy="cheapest")` defaults to the lowest normalized
+unit price among compatible food candidates in the search window (up to 50).
+Multiple candidates produce `estimated` / `auto_selected_cheapest` and up to
+five `alternatives` with names and normalized prices. Show alternatives and
+offer to switch using `product_overrides`; overrides take precedence, but cannot
+price non-food. Use `match_policy="strict"` to leave ambiguity uncosted.
+A positive quantity without a unit assumes pieces (`estimated`,
+`assumed_count`), matched only to count products. Kitchen measures stay unknown.
+Egg reference prices per dozen are divided by 12 for the per-piece basis.
+
 `store={"provider":"mercadona"}` is a **retail context**, not a recipe backend.
 Optional `location_id` and `currency` must match the configured adapter (stock
 configuration: warehouse `mad1`, EUR); incompatible contexts are rejected, never
@@ -332,7 +346,7 @@ sync_shopping_list(mealie_list_id: str, target: dict, mode: str='append', confir
 ```python
 search_pricing_products(query: str, store: dict | None=None, limit: int=10)
 get_product_price(product_id: str, store: dict | None=None)
-estimate_cost(source: dict, store: dict | None=None, product_overrides: dict | None=None)
+estimate_cost(source: dict, store: dict | None=None, product_overrides: dict | None=None, match_policy: str='cheapest')
 ```
 
 ### legacy_spoonacular

@@ -29,7 +29,7 @@ def items(*rows):
     return {'kind': 'items', 'items': list(rows)}
 
 
-def rice(amount: object = '300', unit='g'):
+def rice(amount: object = '300', unit: str | None = 'g'):
     return dict(name='rice', quantity=amount, unit=unit)
 
 
@@ -80,11 +80,32 @@ class EngineTests(unittest.TestCase):
         self.assertFalse(self.run_estimate(items(rice('2', 'cups'))).complete)
     def test_ambiguity_and_override(self):
         self.pricing.products.append(Product('other', 'rice', 'fixture'))
-        result = self.run_estimate(items(rice()))
+        result = self.run_estimate(items(rice()), match_policy='strict')
         self.assertIn('ambiguous_match', result.lines[0].uncertainty.reasons)
         self.assertIsNone(result.consumption_subtotal)
         selected = self.run_estimate(items(rice()), product_overrides={result.lines[0].key: 'other'})
         self.assertEqual(selected.consumption_subtotal, D('.6'))
+    def test_cheapest_food_and_count(self):
+        self.pricing.products = [Product('cosmetic', 'rice', 'fixture', food=False),
+                                 Product('other', 'rice', 'fixture'), Product('rice', 'rice', 'fixture')]
+        result = self.run_estimate(items(rice()))
+        line = result.lines[0]
+        self.assertEqual(line.uncertainty.level, 'estimated')
+        self.assertIn('auto_selected_cheapest', line.uncertainty.reasons)
+        self.assertNotIn('cosmetic', line.candidates)
+        self.assertTrue(line.alternatives)
+        self.pricing.products = [Product('rice', 'rice', 'fixture')]
+        self.pricing.quote = replace(self.pricing.quote, package_unit='unit',
+                                     package_quantity=D(12), normalized_unit_price=D('.2'))
+        line = self.run_estimate(items(rice('6', None))).lines[0]
+        self.assertEqual(line.consumption, D('1.2'))
+        self.assertIn('assumed_count', line.uncertainty.reasons)
+        text_line = self.run_estimate(items(dict(name='rice', text='6 rice'))).lines[0]
+        # Structured count inference must not invent weights for kitchen measures.
+        self.assertIsNone(self.run_estimate(items(rice('6', 'cups'))).consumption_subtotal)
+        with self.assertRaises(ValueError):
+            self.run_estimate(items(rice()), match_policy='bad')
+
     def test_whole_word_and_dimension(self):
         self.pricing.products = [Product('salsa', 'salsa', 'fixture')]
         self.assertIsNone(self.run_estimate(items(dict(name='sal', quantity='1', unit='g'))).consumption_subtotal)

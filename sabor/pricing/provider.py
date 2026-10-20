@@ -25,6 +25,7 @@ class Product:
     provenance: str
     observed_at: datetime | None = None
     uncertainty_reasons: tuple[str, ...] = ()
+    food: bool | None = None
 
 
 @dataclass(frozen=True)
@@ -42,6 +43,7 @@ class PriceQuote:
     provenance: str
     availability: bool | None = None
     uncertainty_reasons: tuple[str, ...] = ()
+    food: bool | None = None
 
 
 class PricingProvider(Protocol):
