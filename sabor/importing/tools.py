@@ -1,4 +1,4 @@
-"""Import orchestration. Only image downloads are fetched by Sabor itself."""
+"""Import orchestration with bounded media extraction."""
 import ipaddress
 import json
 import math
@@ -81,12 +81,15 @@ def duplicate(name, cfg):
 class OpenAIImportProvider:
     """ImportProvider adapter: extraction only, never writes Mealie."""
     id = 'openai_compatible'
-    kinds = frozenset({'text'})
+    kinds = frozenset({'text', 'video'})
 
     def __init__(self, cfg):
         self.cfg = cfg
 
     def preview(self, request):
+        if request.get('kind') == 'video':
+            from .video import preview_video
+            return preview_video(request['source'], self.cfg, request)
         cfg = self.cfg
         headers = {'Content-Type': 'application/json'}
         if cfg.llm_api_key:
@@ -120,21 +123,25 @@ class OpenAIImportProvider:
             recipes = json.loads(raw)['recipes']
         except (ValueError, KeyError, TypeError):
             raise ValueError('Invalid extraction') from None
-        if not isinstance(recipes, list) or len(recipes) > request['max_recipes']:
-            raise ValueError('Invalid candidates')
-        accepted, dropped = [], 0
-        for c in recipes:
-            if (not isinstance(c, dict) or set(c) != {'name', 'ingredients', 'steps', 'servings', 'notes', 'confidence'}
-                or any(not isinstance(c[k], str) for k in ('name', 'servings', 'notes'))
-                or not c['name'].strip()
-                or any(not isinstance(c[k], list) or not c[k] or any(not isinstance(x, str) for x in c[k]) for k in ('ingredients', 'steps'))
-                or type(c['confidence']) not in (int, float) or not math.isfinite(c['confidence']) or not 0 <= c['confidence'] <= 1):
-                raise ValueError('Invalid candidate')
-            if c['confidence'] < request['min_confidence']:
-                dropped += 1
-            else:
-                accepted.append(c)
-        return {'candidates': accepted, 'dropped': dropped}
+        return validate_recipes(recipes, request)
+
+
+def validate_recipes(recipes, request):
+    if not isinstance(recipes, list) or len(recipes) > request['max_recipes']:
+        raise ValueError('Invalid candidates')
+    accepted, dropped = [], 0
+    for c in recipes:
+        if (not isinstance(c, dict) or set(c) != {'name', 'ingredients', 'steps', 'servings', 'notes', 'confidence'}
+            or any(not isinstance(c[k], str) for k in ('name', 'servings', 'notes'))
+            or not c['name'].strip()
+            or any(not isinstance(c[k], list) or not c[k] or any(not isinstance(x, str) for x in c[k]) for k in ('ingredients', 'steps'))
+            or type(c['confidence']) not in (int, float) or not math.isfinite(c['confidence']) or not 0 <= c['confidence'] <= 1):
+            raise ValueError('Invalid candidate')
+        if c['confidence'] < request['min_confidence']:
+            dropped += 1
+        else:
+            accepted.append(c)
+    return {'candidates': accepted, 'dropped': dropped}
 
 
 def plain_steps(value):
@@ -202,11 +209,14 @@ def image_bytes(url):
     reject('invalid_argument', 'Too many image redirects.')
 
 
-@tool('import', requires=lambda s: s.mealie_configured or s.llm_configured)
+@tool('import', requires=lambda s: s.mealie_configured or s.llm_configured or s.gemini_configured)
 def import_recipe(source: str, kind: str = 'auto', dry_run: bool = True,
                   language: str = 'en', max_recipes: int = 8,
                   min_confidence: float = 0.55) -> dict:
-    """Preview or import URL/text recipes; image creation has no preview. Video arrives later."""
+    """Preview or import recipes. Video previews may download media and incur LLM costs.
+
+    Image creation has no read-only preview. Local media paths are unsupported.
+    """
     provider = 'sabor'
     created = []
     try:
@@ -218,11 +228,11 @@ def import_recipe(source: str, kind: str = 'auto', dry_run: bool = True,
             reject('invalid_argument', 'Invalid import arguments.')
         detected = detect(source)
         kind = detected if kind == 'auto' else kind
-        if kind == 'video':
-            reject('unsupported_operation', 'Video import lands in a later unit.')
         cfg = settings()
-        provider = 'openai_compatible' if kind == 'text' else 'mealie'
-        if (kind != 'text' or not dry_run) and not cfg.mealie_configured:
+        from .video import select_video, preview_video, tag_video
+        provider = select_video(cfg).id if kind == 'video' else ('openai_compatible' if kind == 'text' else 'mealie')
+        limitations = []
+        if (kind not in ('text', 'video') or not dry_run) and not cfg.mealie_configured:
             reject('provider_unconfigured', 'Mealie is not configured.', 'mealie')
         if kind == 'image':
             http_url(source)
@@ -250,6 +260,11 @@ def import_recipe(source: str, kind: str = 'auto', dry_run: bool = True,
                 'steps': plain_steps(data.get('recipeInstructions', [])), 'yield': data.get('recipeYield'),
                 'times': {k: data.get(k) for k in ('totalTime', 'prepTime', 'cookTime')}, 'image': data.get('image')}]
             dropped = 0
+        elif kind == 'video':
+            extracted = preview_video(source, cfg, dict(language=language, max_recipes=max_recipes,
+                min_confidence=min_confidence))
+            candidates, dropped = extracted['candidates'], extracted['dropped']
+            limitations = extracted['limitations']
         else:
             if not cfg.llm_configured:
                 reject('provider_unconfigured', 'Text extraction requires an LLM.', provider)
@@ -270,15 +285,19 @@ def import_recipe(source: str, kind: str = 'auto', dry_run: bool = True,
                 else:
                     recipe = {'@context': 'https://schema.org', '@type': 'Recipe', 'name': c['name'],
                         'recipeIngredient': c['ingredients'], 'recipeInstructions': c['steps'],
-                        'recipeYield': c['servings'], 'description': c['notes']}
+                        'recipeYield': c['servings'], 'description': c['notes'] + (f'\nSource: {source}' if kind == 'video' else '')}
                     path, payload = '/create/html-or-json', {'data': json.dumps(recipe)}
+                extraction_provider = provider
                 provider = 'mealie'
                 slug = request(requests.post, path, cfg, json=payload)
                 if not isinstance(slug, str) or not slug.strip():
                     raise ValueError('Invalid created slug')
                 created.append(slug)
+                if kind == 'video':
+                    tag_video(slug)
+                    provider = extraction_provider
         return ok(dict(preview=dry_run, kind=kind, provider=provider, candidates=candidates,
-                       dropped=dropped, created=created, skips=skips))
+                       dropped=dropped, created=created, skips=skips, limitations=limitations))
     except ImportErrorResult as exc:
         return errors.partial(created, ['remaining'], provider) if created else exc.result
     except Exception as exc:

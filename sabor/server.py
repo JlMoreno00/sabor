@@ -48,8 +48,10 @@ def register_tools(server=None, env=None) -> None:
         return
     settings = load_settings(os.environ if env is None else env)
     from sabor.importing.tools import OpenAIImportProvider
+    from sabor.importing.video import GeminiNativeVideo
     from sabor.sync.bring import BringSyncProvider
-    registry = Registry(settings, import_factories=(OpenAIImportProvider,) if settings.llm_configured else (),
+    registry = Registry(settings, import_factories=((OpenAIImportProvider,) if settings.llm_configured else ())
+                        + ((GeminiNativeVideo,) if settings.gemini_configured else ()),
                         sync_factories=(BringSyncProvider,) if settings.bring_email and settings.bring_password else ())
     for module_name in TOOL_MODULES:
         import_module(module_name)

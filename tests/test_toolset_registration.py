@@ -60,7 +60,7 @@ class RegistrationTests(unittest.TestCase):
 
     def test_gemini_only(self):
         tools, discovery = self.register(GEMINI)
-        self.assertEqual(set(tools), {'sabor_capabilities', 'analyze_video_recipes'})
+        self.assertEqual(set(tools), {'sabor_capabilities', 'analyze_video_recipes', 'import_recipe'})
         self.assertIn({'tool': 'import_video_recipes_to_mealie',
                        'reason': 'missing_configuration'}, discovery['data']['warnings'])
 

@@ -17,7 +17,7 @@ from sabor.core.toolsets import catalog
 BASELINE_CONTRACT = {
     "get_shopping_sync_targets": "091ac0b4400db55cd0204d8decd6a76746f9456269ab69b14bedd4dd791bf7d0",
     "sync_shopping_list": "c903bd0d108c1231a80cd66e9ee5b8593cef203599e1218afdf965b3265c79a0",
-    "import_recipe": "080a64f54626874585abb9b1f77efbe35163d83dd8f0f9bfb11c0f6751d051d4",
+    "import_recipe": "8da1c991c9d13470c17690d825d890d4eb9b7f7b4490361acffaee4273c52914",
     "add_to_shopping_list": "3efe414918d389283ef0b3394126399f907c51e5116752ca4f8b4aef5d87ca1c",
     "check_shopping_list_items": "e3f57862d4c913fa3b448c4f5ebf0354b2c90e1bb28ea414efa8b99039597d99",
     "get_shopping_list_items": "6394c56a022f72ddc4a7b49a8fa1103a7eda6be90c23c3a68e53cd9243bd3931",
