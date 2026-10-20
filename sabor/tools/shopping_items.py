@@ -1,5 +1,7 @@
 """Read and safely mutate items belonging to one Mealie shopping list."""
 from uuid import UUID
+from datetime import date
+from urllib.parse import quote
 
 import requests
 import sabor.config as config
@@ -63,6 +65,120 @@ def _selection(list_id, item_ids):
         return fail("invalid_argument", "Items do not belong to the requested list.",
                     data={"unknown_or_foreign_ids": unknown})
     return ok([by_id[value] for value in item_ids])
+
+
+def _compose_get(path, params=None):
+    response = requests.get(f"{config.MEALIE_BASE_URL}{path}",
+        headers=mealie._mealie_headers(), params=params, timeout=30)
+    if not 200 <= response.status_code < 300:
+        return errors.from_http(response.status_code, "mealie")
+    return ok(response.json())
+
+
+@tool("core", requires=mealie_ready)
+def add_to_shopping_list(list_id: str, items: list[str] | None = None,
+                         recipe_slugs: list[str] | None = None,
+                         mealplan_start: str | None = None, mealplan_end: str | None = None,
+                         servings_multiplier: float = 1.0) -> dict:
+    """Add exactly one source to a list. The client must get user approval before calling.
+
+    Items remain unparsed notes; recipe scaling uses the explicit servings multiplier.
+    """
+    try:
+        list_id = str(UUID(list_id))
+        if type(servings_multiplier) not in (int, float) or not 0 < servings_multiplier <= 20:
+            raise ValueError
+        range_selected = mealplan_start is not None or mealplan_end is not None
+        if sum((items is not None, recipe_slugs is not None, range_selected)) != 1:
+            raise ValueError
+        for values in (items, recipe_slugs):
+            if values is not None and (not isinstance(values, list) or not values or any(
+                    not isinstance(x, str) or not x.strip() for x in values)):
+                raise ValueError
+        if range_selected:
+            if not isinstance(mealplan_start, str) or not isinstance(mealplan_end, str):
+                raise ValueError
+            start, end = date.fromisoformat(mealplan_start), date.fromisoformat(mealplan_end)
+            if start.isoformat() != mealplan_start or end.isoformat() != mealplan_end or start > end:
+                raise ValueError
+    except (ValueError, TypeError, AttributeError):
+        return _invalid("Require a UUID list, exactly one nonempty source, valid ISO range, and multiplier > 0 and <= 20.")
+    source = "items" if items is not None else "recipe_slugs" if recipe_slugs is not None else "mealplan"
+    recipes, skipped, occurrences = {}, [], []
+    try:
+        if recipe_slugs is not None:
+            for slug in recipe_slugs:
+                result = _compose_get(f"/api/recipes/{quote(slug, safe='')}")
+                if not result["ok"]:
+                    result["data"] = {"unresolved_slugs": [slug]}
+                    return result
+                recipe = result["data"]
+                occurrences.append({"id": str(UUID(recipe["id"])), "slug": slug})
+        elif range_selected:
+            entries, page, expected = [], 1, None
+            while True:
+                result = _compose_get("/api/households/mealplans", {
+                    "start_date": mealplan_start, "end_date": mealplan_end,
+                    "page": page, "perPage": 100})
+                if not result["ok"]:
+                    return result
+                data = result["data"]
+                numbers = tuple(data[k] for k in ("page", "per_page", "total", "total_pages"))
+                current, size, total, pages = numbers
+                if (any(type(x) is not int for x in numbers) or current != page or size < 1
+                        or total < 0 or pages != (total + size - 1) // size
+                        or not isinstance(data["items"], list)
+                        or (expected is not None and expected != (size, total, pages))):
+                    raise ValueError
+                expected = (size, total, pages)
+                entries.extend(data["items"])
+                if page >= pages:
+                    if len(entries) != total:
+                        raise ValueError
+                    break
+                if len(data["items"]) != size:
+                    raise ValueError
+                page += 1
+            for entry in entries:
+                recipe = entry.get("recipe")
+                if recipe is None:
+                    if entry.get("recipeId"):
+                        raise ValueError
+                    skipped.append({"entry": entry["id"], "reason": "text_only_entry"})
+                else:
+                    occurrences.append({"id": str(UUID(recipe["id"])), "slug": recipe["slug"]})
+        for recipe in occurrences:
+            summary = recipes.setdefault(recipe["id"], {**recipe, "occurrences": 0})
+            summary["occurrences"] += 1
+        payload = ([{"shoppingListId": list_id, "note": x, "quantity": 1} for x in items]
+                   if items is not None else [{"recipeId": x["id"],
+                       "recipeIncrementQuantity": servings_multiplier} for x in occurrences])
+        result_data = {"list_id": list_id, "source": source,
+                       "added": {"items": 0, "recipe_occurrences": 0},
+                       "recipes": list(recipes.values()), "skipped": skipped}
+        if not payload:
+            return ok(result_data)
+        # The schema is an array without uniqueItems: retain one row per occurrence.
+        path = f"{_ITEMS}/create-bulk" if items is not None else f"/api/households/shopping/lists/{list_id}/recipe"
+        response = requests.post(f"{config.MEALIE_BASE_URL}{path}",
+            headers=mealie._mealie_headers(), json=payload, timeout=30)
+        if not 200 <= response.status_code < 300:
+            return errors.from_http(response.status_code, "mealie")
+        if items is not None:
+            created = response.json()["createdItems"]
+            if not isinstance(created, list):
+                raise ValueError
+            if len(created) != len(items):
+                return errors.partial([x["id"] for x in created],
+                                      [{"source": "items", "unconfirmed_count": len(items) - len(created)}], "mealie")
+            result_data["added"]["items"] = len(created)
+        else:
+            result_data["added"]["recipe_occurrences"] = len(occurrences)
+        return ok(result_data)
+    except (KeyError, TypeError, AttributeError):
+        return errors.from_exception(ValueError(), "mealie")
+    except Exception as exc:
+        return errors.from_exception(exc, "mealie")
 
 
 @tool("core", requires=mealie_ready)

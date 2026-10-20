@@ -29,7 +29,7 @@ class RegistrationTests(unittest.TestCase):
         env = {**MEALIE, **GEMINI, **BRING, 'SPOONACULAR_API_KEY': 'secret-spoon',
                'SABOR_MERCADONA_ENABLED': 'true', 'SABOR_TOOLSETS': ','.join(TOOLSETS)}
         tools, discovery = self.register(env)
-        self.assertEqual(len(tools), 58)
+        self.assertEqual(len(tools), 59)
         encoded = json.dumps(discovery)
         for key in (*MEALIE, *GEMINI, *BRING, 'SPOONACULAR_API_KEY'):
             self.assertNotIn(env[key], encoded)
@@ -38,7 +38,7 @@ class RegistrationTests(unittest.TestCase):
         tools, discovery = self.register(MEALIE)
         from sabor.core.toolsets import catalog
         core = {fn.__name__ for group, fn, requires in catalog if group == 'core'}
-        self.assertEqual(len(core), 23)
+        self.assertEqual(len(core), 24)
         self.assertEqual(set(tools), core | {'scrape_recipe', 'import_recipe_to_mealie',
                                             'sabor_capabilities'})
         self.assertIn({'tool': 'analyze_video_recipes', 'reason': 'missing_configuration'},
@@ -46,7 +46,7 @@ class RegistrationTests(unittest.TestCase):
 
     def test_mealie_and_gemini_defaults(self):
         tools, _ = self.register({**MEALIE, **GEMINI})
-        self.assertEqual(len(tools), 28)
+        self.assertEqual(len(tools), 29)
         self.assertIn('analyze_video_recipes', tools)
         self.assertIn('import_video_recipes_to_mealie', tools)
 
