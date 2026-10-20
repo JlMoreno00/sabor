@@ -1,0 +1,57 @@
+"""Discovery projects static, non-sensitive metadata only, never adapter state."""
+from typing import Any, cast
+
+from .envelope import ok
+from .registry import ImportProvider
+from .registry import Registry
+
+VIDEO_LIMITATIONS = {
+    'gemini_native': ['External whole-video upload processes audio and vision.'],
+    'openai_compatible': ['Sampled frames and captions only; vision support is model-dependent.',
+                          'Without captions, spoken quantities are unavailable.'],
+}
+
+
+def describe(registry: Registry, registered_tools, version: str) -> dict:
+    """Names/version are trusted registration metadata, not user/provider output.
+
+    Model IDs are deliberately omitted: operator-selected strings may themselves
+    contain secrets or paths. No configuration strings are copied to discovery.
+    """
+    capabilities = {}
+    for name, adapters in (('import', registry.imports), ('shopping_sync', registry.syncs)):
+        enabled = name in registry.enabled_toolsets
+        rows = []
+        for adapter in adapters if enabled else ():
+            row: dict[str, Any] = {'id': adapter.id}
+            if name == 'import':
+                kinds = set(cast(ImportProvider, adapter).kinds)
+                if adapter.id != registry.video_provider:
+                    kinds.discard('video')
+                if not kinds:
+                    continue
+                row.update(kinds=sorted(kinds), operations=['preview'])
+                if registry.settings.mealie_configured:
+                    row['operations'].append('commit')
+                if 'image' in kinds:
+                    row['limitations'] = ['Image import uses Mealie-owned OpenAI configuration; preview is not supported.']
+                if 'video' in kinds:
+                    row['active_video'] = True
+                    row['limitations'] = VIDEO_LIMITATIONS[registry.video_provider or 'openai_compatible']
+            else:
+                row.update(kinds=['shopping_list'], operations=['targets', 'plan', 'apply'])
+            rows.append(row)
+        capability = {'configured': enabled, 'adapters': rows}
+        if not enabled:
+            capability['reason'] = registry.disabled_toolsets[name]
+        capabilities[name] = capability
+    warnings = []
+    if registry.settings.video_provider and registry.video_provider is None:
+        warnings.append('Requested video provider is not configured; no fallback was selected.')
+    return ok({'version': version,
+               'requested_toolsets': list(registry.settings.requested_toolsets),
+               'registered_tools': list(registered_tools), 'capabilities': capabilities,
+               'mealie': {'configured': registry.settings.mealie_configured},
+               'disabled_toolsets': [{'name': name, 'reason': reason}
+                                     for name, reason in registry.disabled_toolsets.items()],
+               'warnings': warnings})
