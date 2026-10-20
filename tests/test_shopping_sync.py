@@ -7,9 +7,9 @@ from sabor.sync import tools
 
 class ShoppingSyncTests(unittest.TestCase):
     def setUp(self):
-        self.req = patch('sabor.integrations.bring._bring_req').start()
-        patch('sabor.integrations.bring._bring_ensure_auth').start()
-        patch.dict('sabor.integrations.bring._bring_auth', {'uuid': 'user'}).start()
+        self.req = patch('sabor.sync.bring_client._bring_req').start()
+        patch('sabor.sync.bring_client._bring_ensure_auth').start()
+        patch.dict('sabor.sync.bring_client._bring_auth', {'uuid': 'user'}).start()
         self.read = patch('sabor.sync.tools.shopping_items._read').start()
         self.addCleanup(patch.stopall)
         self.items = [{'id': 's1', 'food': {'name': 'Milk'}, 'quantity': 2,
@@ -65,7 +65,7 @@ class ShoppingSyncTests(unittest.TestCase):
         self.assertEqual(data['add'][0]['spec'], '2 litre')
 
     def test_preview_zero_writes_or_parser(self):
-        with patch('sabor.integrations.bring._parse_ingredient', side_effect=AssertionError):
+        with patch('sabor.sync.bring_client.requests.post', side_effect=AssertionError):
             self.assertTrue(self.sync()['data']['preview'])
         self.assertTrue(all(c.args[0] == 'GET' for c in self.req.call_args_list))
 

@@ -180,7 +180,6 @@ def suggest_recipes(
 @tool("core")
 def create_recipe(
     name: str,
-    url: str | None = None,
     description: str | None = None,
     recipe_yield: str | None = None,
     total_time: str | None = None,
@@ -189,24 +188,10 @@ def create_recipe(
     tags: list[str] | None = None,
     source_url: str | None = None,
 ) -> dict[str, Any]:
-    """Crea o importa una receta en Mealie, con campos estructurados opcionales."""
+    """Create a recipe in Mealie using structured fields, not URL import."""
     if err := mealie._check_mealie():
         return err
     try:
-        if url:
-            payload = {"url": url, "includeCategories": True, "includeTags": True}
-            r = requests.post(
-                f"{config.MEALIE_BASE_URL}/api/recipes/create/url",
-                headers=mealie._mealie_headers(),
-                json=payload,
-                timeout=60,
-            )
-            result = {
-                "ok": 200 <= r.status_code < 300,
-                "status": r.status_code,
-                "body": r.text[:2000],
-            }
-            return mealie._normalization_result(result, mealie._response_slug(r)) if result["ok"] else result
         structured_values = (
             description,
             recipe_yield,

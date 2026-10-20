@@ -29,7 +29,7 @@ class RegistrationTests(unittest.TestCase):
         env = {**MEALIE, **GEMINI, **BRING, 'SPOONACULAR_API_KEY': 'secret-spoon',
                'SABOR_MERCADONA_ENABLED': 'true', 'SABOR_TOOLSETS': ','.join(TOOLSETS)}
         tools, discovery = self.register(env)
-        self.assertEqual(len(tools), 62)
+        self.assertEqual(len(tools), 52)
         encoded = json.dumps(discovery)
         for key in (*MEALIE, *GEMINI, *BRING, 'SPOONACULAR_API_KEY'):
             self.assertNotIn(env[key], encoded)
@@ -38,17 +38,13 @@ class RegistrationTests(unittest.TestCase):
         tools, discovery = self.register(MEALIE)
         from sabor.core.toolsets import catalog
         core = {fn.__name__ for group, fn, requires in catalog if group == 'core'}
-        self.assertEqual(len(core), 24)
-        self.assertEqual(set(tools), core | {'scrape_recipe', 'import_recipe_to_mealie', 'import_recipe',
-                                            'sabor_capabilities'})
-        self.assertIn({'tool': 'analyze_video_recipes', 'reason': 'missing_configuration'},
-                      discovery['data']['warnings'])
+        self.assertEqual(len(core), 22)
+        self.assertEqual(set(tools), core | {'import_recipe', 'sabor_capabilities'})
 
     def test_mealie_and_gemini_defaults(self):
         tools, _ = self.register({**MEALIE, **GEMINI})
-        self.assertEqual(len(tools), 30)
-        self.assertIn('analyze_video_recipes', tools)
-        self.assertIn('import_video_recipes_to_mealie', tools)
+        self.assertEqual(len(tools), 24)
+        self.assertIn('import_recipe', tools)
 
     def test_empty_selection(self):
         tools, _ = self.register({**MEALIE, 'SABOR_TOOLSETS': ''})
@@ -60,11 +56,21 @@ class RegistrationTests(unittest.TestCase):
 
     def test_gemini_only(self):
         tools, discovery = self.register(GEMINI)
-        self.assertEqual(set(tools), {'sabor_capabilities', 'analyze_video_recipes', 'import_recipe'})
-        self.assertIn({'tool': 'import_video_recipes_to_mealie',
-                       'reason': 'missing_configuration'}, discovery['data']['warnings'])
+        self.assertEqual(set(tools), {'sabor_capabilities', 'import_recipe'})
 
     def test_bring_only(self):
         tools, _ = self.register(BRING)
-        self.assertEqual(set(tools), {'sabor_capabilities', 'bring_get_lists',
-                                     'bring_sync_list', 'bring_add_items'})
+        self.assertEqual(set(tools), {'sabor_capabilities'})
+
+    def test_removed_names_never_registered(self):
+        removed = ["scrape_recipe","import_recipe_to_mealie","analyze_video_recipes","import_video_recipes_to_mealie","add_items_to_shopping_list","add_recipe_ingredients_to_list","bring_get_lists","bring_sync_list","bring_add_items","spoonacular_search_by_nutrients"]
+        # Exhaust all toolset selections with every provider configured.
+        from itertools import combinations
+        for size in range(len(TOOLSETS) + 1):
+            for selected in combinations(TOOLSETS, size):
+                with self.subTest(selected=selected):
+                    tools, _ = self.register({**MEALIE, **GEMINI, **BRING,
+                        'SPOONACULAR_API_KEY': 'secret-spoon',
+                        'SABOR_MERCADONA_ENABLED': 'true',
+                        'SABOR_TOOLSETS': ','.join(selected)})
+                    self.assertFalse(set(removed) & tools.keys())

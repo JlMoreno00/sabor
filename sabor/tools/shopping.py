@@ -84,30 +84,6 @@ def delete_shopping_list(list_id: str, confirm: bool = False) -> dict[str, Any]:
         return {"ok": False, "error": f"delete_list_failed: {e}"}
 
 
-@tool("core")
-def add_items_to_shopping_list(list_id: str, items: list[str]) -> dict[str, Any]:
-    """Anade ingredientes a una lista de compra existente. items: lista de strings."""
-    if err := mealie._check_mealie():
-        return err
-    if not items:
-        return {"ok": False, "error": "items list is empty"}
-    try:
-        payload = [
-            {"shoppingListId": list_id, "note": item, "quantity": 1} for item in items
-        ]
-        r = requests.post(
-            f"{config.MEALIE_BASE_URL}/api/households/shopping/items/create-bulk",
-            headers=mealie._mealie_headers(),
-            json=payload,
-            timeout=30,
-        )
-        if not (200 <= r.status_code < 300):
-            return {"ok": False, "status": r.status_code, "body": r.text[:1000]}
-        created = len(r.json().get("createdItems") or [])
-        return {"ok": True, "list_id": list_id, "items_added": created}
-    except Exception as e:
-        return {"ok": False, "error": f"add_items_failed: {e}"}
-
 
 @tool("core")
 def clear_shopping_list(list_id: str, confirm: bool = False) -> dict[str, Any]:
@@ -143,33 +119,6 @@ def clear_shopping_list(list_id: str, confirm: bool = False) -> dict[str, Any]:
     except Exception as e:
         return {"ok": False, "error": f"clear_list_failed: {e}"}
 
-
-@tool("core")
-def add_recipe_ingredients_to_list(list_id: str, recipe_slug: str) -> dict[str, Any]:
-    """Anade automaticamente TODOS los ingredientes de una receta a una lista de compra."""
-    if err := mealie._check_mealie():
-        return err
-    try:
-        r = requests.post(
-            f"{config.MEALIE_BASE_URL}/api/households/shopping/lists/{list_id}/recipe/{recipe_slug}",
-            headers=mealie._mealie_headers(),
-            timeout=30,
-        )
-        if not (200 <= r.status_code < 300):
-            return {
-                "ok": False,
-                "status": r.status_code,
-                "body": r.text[:500],
-                "recipe_slug": recipe_slug,
-            }
-        return {
-            "ok": True,
-            "list_id": list_id,
-            "recipe_slug": recipe_slug,
-            "status": r.status_code,
-        }
-    except Exception as e:
-        return {"ok": False, "error": f"add_recipe_failed: {e}"}
 
 
 @tool("core")

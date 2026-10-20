@@ -9,8 +9,6 @@ from pathlib import Path
 from typing import Any
 import requests
 import sabor.config as config
-import sabor.integrations.mealie as mealie
-from sabor.core.toolsets import tool, bring_ready
 
 # BRING! — Catalog & Auth Helpers
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -172,7 +170,10 @@ def _load_bring_catalog(lang: str) -> dict[str, str]:
         if not base.exists():
             continue
         for p in base.rglob(f"articles.{lang}.json"):
-            data = json.loads(p.read_text())
+            try:
+                data = json.loads(p.read_text())
+            except (OSError, ValueError):
+                continue  # An unreadable catalog must not prevent server startup.
             result: dict[str, str] = {}
             for german_key, localized_name in data.items():
                 key = localized_name.lower()
@@ -326,17 +327,6 @@ def _bring_req(method: str, path: str, **kwargs) -> requests.Response:
     return r
 
 
-def _normalize_ingredient_text(text: str) -> str:
-    for pattern, repl in [
-        (r"\bcdtas?\b", "cucharadita"),
-        (r"\bcdas\b", "cucharadas"),
-        (r"\bcda\b", "cucharada"),
-        (r"\bkg\b", "kilogramo"),
-        (r"\bml\b", "mililitro"),
-    ]:
-        text = re.sub(pattern, repl, text, flags=re.IGNORECASE)
-    return text
-
 
 def _clean_food_name(name: str) -> str:
     name = name.strip()
@@ -360,163 +350,3 @@ def _clean_food_name(name: str) -> str:
     return name.capitalize() if name else name
 
 
-def _parse_ingredient(text: str) -> tuple[str, str]:
-    text = text.split(",")[0].strip() if re.search(r",\s*\d", text) else text
-    text_norm = _normalize_ingredient_text(text)
-    food_name, unit, qty = "", "", 0.0
-    try:
-        r = requests.post(
-            f"{config.MEALIE_BASE_URL}/api/parser/ingredient",
-            headers=mealie._mealie_headers(),
-            json={"ingredient": text_norm},
-            timeout=5,
-        )
-        if r.ok:
-            ing = r.json().get("ingredient", {})
-            food_name = _clean_food_name((ing.get("food") or {}).get("name", ""))
-            unit = (ing.get("unit") or {}).get("name", "")
-            qty = ing.get("quantity") or 0.0
-    except Exception:
-        pass
-    if not food_name:
-        food_name = text.split("(")[0].strip()
-    catalog_name = _catalog_match(food_name)
-    item_id = catalog_name if catalog_name else food_name
-    qty_str = (
-        str(int(qty))
-        if qty and qty == int(qty)
-        else (str(round(qty, 3)) if qty else "")
-    )
-    spec = " ".join(filter(None, [qty_str, unit])).strip() or text
-    return item_id, spec
-
-
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# BRING! — Tools
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-
-@tool("shopping_sync", requires=bring_ready)
-def bring_get_lists() -> dict[str, Any]:
-    """Devuelve todas las listas de compra de Bring! del usuario con sus UUIDs."""
-    try:
-        _bring_ensure_auth()
-        r = _bring_req("GET", f"/bringusers/{_bring_auth['uuid']}/lists")
-        lists = [
-            {"uuid": l.get("listUuid"), "name": l.get("name"), "theme": l.get("theme")}
-            for l in r.json().get("lists", [])
-        ]
-        return {"ok": True, "total": len(lists), "lists": lists}
-    except Exception as e:
-        return {"ok": False, "error": str(e)}
-
-
-@tool("shopping_sync", requires=bring_ready)
-def bring_sync_list(list_name: str, items: list[str], confirm: bool = False) -> dict[str, Any]:
-    """Preview list replacement; pass confirm=True after approval to remove and add items."""
-    try:
-        _bring_ensure_auth()
-        r = _bring_req("GET", f"/bringusers/{_bring_auth['uuid']}/lists")
-        all_lists = r.json().get("lists", [])
-        if not all_lists:
-            return {"ok": False, "error": "No hay listas en tu cuenta de Bring!"}
-        match = next(
-            (l for l in all_lists if l.get("name", "").lower() == list_name.lower()),
-            None,
-        )
-        if match is None:
-            return {"ok": False, "error": f"Unknown list: {list_name}",
-                    "available_lists": [l.get("name") for l in all_lists]}
-        target = match
-        list_uuid = target["listUuid"]
-        used_name = target.get("name", list_uuid)
-        # Clear current list
-        current = _bring_req("GET", f"/v2/bringlists/{list_uuid}").json()
-        purchase = current.get("purchase", [])
-        if not confirm:
-            return {"ok": True, "preview": True, "list_name": used_name,
-                    "items_to_remove": purchase, "items_to_add": items,
-                    "remove_count": len(purchase), "add_count": len(items)}
-        if purchase:
-            changes = [
-                {
-                    "itemId": i.get("itemId") or i.get("name", ""),
-                    "spec": "",
-                    "operation": "TO_RECENTLY",
-                }
-                for i in purchase
-                if i.get("itemId") or i.get("name")
-            ]
-            if changes:
-                _bring_req(
-                    "PUT",
-                    f"/v2/bringlists/{list_uuid}/items",
-                    json={"changes": changes, "sender": "Sabor"},
-                )
-        # Parse + catalog match + add (deduplicated)
-        seen, changes, parsed_log = set(), [], []
-        for raw in items:
-            item_id, spec = _parse_ingredient(raw)
-            key = item_id.lower()
-            if key in seen:
-                continue
-            seen.add(key)
-            changes.append(
-                {
-                    "itemId": item_id,
-                    "spec": spec,
-                    "operation": "TO_PURCHASE",
-                    "accuracy": "0.0",
-                    "altitude": "0.0",
-                    "latitude": "0.0",
-                    "longitude": "0.0",
-                }
-            )
-            parsed_log.append({"raw": raw, "itemId": item_id, "spec": spec})
-        if changes:
-            _bring_req(
-                "PUT",
-                f"/v2/bringlists/{list_uuid}/items",
-                json={"changes": changes, "sender": "Sabor"},
-            )
-        return {
-            "ok": True,
-            "list_name": used_name,
-            "items_added": len(changes),
-            "items_cleared": len(purchase),
-            "parsed": parsed_log,
-        }
-    except Exception as e:
-        return {"ok": False, "error": str(e)}
-
-
-@tool("shopping_sync", requires=bring_ready)
-def bring_add_items(list_uuid: str, items: list[str]) -> dict[str, Any]:
-    """Anade items a una lista de Bring! sin borrar el contenido actual."""
-    try:
-        changes = []
-        for raw in items:
-            item_id, spec = _parse_ingredient(raw)
-            changes.append(
-                {
-                    "itemId": item_id,
-                    "spec": spec,
-                    "operation": "TO_PURCHASE",
-                    "accuracy": "0.0",
-                    "altitude": "0.0",
-                    "latitude": "0.0",
-                    "longitude": "0.0",
-                }
-            )
-        _bring_req(
-            "PUT",
-            f"/v2/bringlists/{list_uuid}/items",
-            json={"changes": changes, "sender": "Sabor"},
-        )
-        return {"ok": True, "list_uuid": list_uuid, "items_added": len(items)}
-    except Exception as e:
-        return {"ok": False, "error": str(e)}
-
-
-
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

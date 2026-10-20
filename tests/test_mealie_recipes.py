@@ -1,6 +1,8 @@
+# pyright: reportAttributeAccessIssue=false
+# sabor_mcp exposes these patch targets dynamically through compat.install().
 import json
 import unittest
-from unittest.mock import Mock, call, patch
+from unittest.mock import Mock, patch
 
 from tests.support import install_runtime_dependency_stubs
 
@@ -28,23 +30,9 @@ class MealieRecipeTests(unittest.TestCase):
         self.assertEqual(payload["recipeInstructions"], ["Instrucciones a completar"])
         self.assertEqual(payload["recipeYield"], "2 raciones")
 
-    @patch.object(sabor_mcp.requests, "post")
-    def test_create_recipe_url_remains_backwards_compatible(self, post):
-        post.return_value = Mock(status_code=201, text="imported")
-
-        result = sabor_mcp.create_recipe("Ignored legacy name", url="https://example.test/r")
-
-        self.assertTrue(result["ok"])
-        post.assert_called_once_with(
-            f"{sabor_mcp.MEALIE_BASE_URL}/api/recipes/create/url",
-            headers=sabor_mcp._mealie_headers(),
-            json={
-                "url": "https://example.test/r",
-                "includeCategories": True,
-                "includeTags": True,
-            },
-            timeout=60,
-        )
+    def test_create_recipe_rejects_url_import_argument(self):
+        with self.assertRaises(TypeError):
+            sabor_mcp.create_recipe("URL", url="https://example.test/r")
 
     @patch.object(sabor_mcp.requests, "post")
     def test_create_recipe_structured_fields_have_no_placeholders(self, post):
@@ -473,19 +461,15 @@ class CatalogAndNormalizationTests(unittest.TestCase):
 
     @patch.object(sabor_mcp, "_normalize_imported_recipe")
     @patch.object(sabor_mcp.requests, "post")
-    def test_all_import_paths_use_response_slug_and_warn_without_failing(self, post, normalize):
+    def test_structured_creation_uses_response_slug_and_warns_without_failing(self, post, normalize):
         post.return_value = response(201, "created-slug", text='"created-slug"')
         normalize.return_value = {"ok": False, "warning": "parser_unavailable"}
         with patch.object(sabor_mcp, "SABOR_NORMALIZE_IMPORTS", True):
-            url_result = sabor_mcp.import_recipe_to_mealie("https://example.test/r")
-            structured_result = sabor_mcp.create_recipe("Soup", ingredients=["1 tomate"])
-            video_result = sabor_mcp._create_recipe_in_mealie_from_video(
-                {"name": "Video soup", "ingredients": ["1 tomate"], "steps": ["Cook"]}, "video"
-            )
-        self.assertEqual([url_result["slug"], structured_result["slug"], video_result["slug"]], ["created-slug"] * 3)
-        self.assertTrue(all(result["ok"] for result in (url_result, structured_result, video_result)))
-        self.assertTrue(all(result["normalization_warning"] == "parser_unavailable" for result in (url_result, structured_result, video_result)))
-        self.assertEqual(normalize.call_count, 3)
+            result = sabor_mcp.create_recipe("Soup", ingredients=["1 tomate"])
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["slug"], "created-slug")
+        self.assertEqual(result["normalization_warning"], "parser_unavailable")
+        normalize.assert_called_once_with("created-slug")
 
     @patch.object(sabor_mcp, "_normalize_imported_recipe")
     @patch.object(sabor_mcp.requests, "post")

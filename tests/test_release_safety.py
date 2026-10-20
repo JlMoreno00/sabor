@@ -3,7 +3,7 @@ import unittest
 from unittest.mock import Mock, patch
 from support import install_runtime_dependency_stubs
 install_runtime_dependency_stubs()
-from sabor.integrations import bring, mercadona
+from sabor.integrations import mercadona
 from sabor.tools import shopping, mealplan
 
 
@@ -11,43 +11,6 @@ def response(data):
     result = Mock(status_code=200)
     result.json.return_value = data
     return result
-
-
-class BringSafetyTests(unittest.TestCase):
-    def setUp(self):
-        self.auth = patch.object(bring, '_bring_ensure_auth').start()
-        patch.dict(bring._bring_auth, {'uuid': 'user'}).start()
-        self.req = patch.object(bring, '_bring_req').start()
-        self.req.side_effect = [response({'lists': [{'name': 'Home', 'listUuid': 'home'}]}), response({'purchase': [{'itemId': 'Milk'}]}), response({}), response({})]
-        self.parse = patch.object(bring, '_parse_ingredient', return_value=('Eggs', '2')).start()
-        self.http = patch.object(bring, 'requests').start()
-        self.addCleanup(patch.stopall)
-
-    def assert_read_only(self):
-        self.assertTrue(all(c.args[0] == 'GET' for c in self.req.call_args_list))
-        self.http.post.assert_not_called()
-        self.http.put.assert_not_called()
-        self.http.delete.assert_not_called()
-
-    def test_unknown_list_never_falls_back(self):
-        result = bring.bring_sync_list('Missing', ['2 eggs'])
-        self.assertFalse(result['ok'])
-        self.assertIn('Home', result['available_lists'])
-        self.assert_read_only()
-
-    def test_replacement_previews_without_writes(self):
-        result = bring.bring_sync_list('Home', ['2 eggs'])
-        self.assertTrue(result['preview'])
-        self.assertEqual(result['items_to_remove'], [{'itemId': 'Milk'}])
-        self.assertEqual(result['items_to_add'], ['2 eggs'])
-        self.parse.assert_not_called()
-        self.assert_read_only()
-
-    def test_confirm_preserves_replacement(self):
-        result = bring.bring_sync_list('Home', ['2 eggs'], confirm=True)
-        self.assertTrue(result['ok'])
-        self.assertEqual(result['items_added'], 1)
-        self.assertEqual([c.args[0] for c in self.req.call_args_list], ['GET', 'GET', 'PUT', 'PUT'])
 
 
 class MealieSafetyTests(unittest.TestCase):

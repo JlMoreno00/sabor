@@ -28,7 +28,6 @@ from typing import Any
 from uuid import UUID
 import requests
 from mcp.server.fastmcp import FastMCP
-from recipe_scrapers import scrape_html
 
 # Names that were defined by the original entrypoint, grouped by their new owner.
 _EXPORTS = {
@@ -62,7 +61,7 @@ _EXPORTS = {
     ),
     "sabor.tools.shopping": (
         "get_shopping_lists", "create_shopping_list", "delete_shopping_list",
-        "add_items_to_shopping_list", "clear_shopping_list", "add_recipe_ingredients_to_list",
+         "clear_shopping_list", 
         "get_or_create_shopping_list",
     ),
     "sabor.tools.mealplan": (
@@ -76,31 +75,20 @@ _EXPORTS = {
         "add_recipe_comment", "log_cooking_event",
     ),
     "sabor.integrations.spoonacular": (
-        "_spoonacular_get", "spoonacular_search_recipes", "spoonacular_search_by_nutrients",
+        "_spoonacular_get", "spoonacular_search_recipes", 
         "spoonacular_nutrition_100g",
-    ),
-    "sabor.integrations.scraper": (
-        "_BROWSER_HEADERS", "_fetch_html", "_normalize_scraper", "scrape_recipe",
-        "import_recipe_to_mealie",
-    ),
-    "sabor.integrations.gemini_video": (
-        "_is_url", "_download_video_from_url", "_resolve_video_source", "_upload_to_gemini",
-        "_wait_for_gemini_processing", "_cleanup_gemini_file", "_extract_recipes_with_gemini",
-        "_parse_json_response", "_normalize_video_recipe", "_analyze_video",
-        "_create_recipe_in_mealie_from_video", "analyze_video_recipes",
-        "import_video_recipes_to_mealie",
     ),
     "sabor.tools.memory": (
         "_read_memory", "_write_memory", "_ensure_section", "_get_section_content",
         "_replace_section", "_rating_to_stars", "_MEMORY_TEMPLATE", "save_feedback",
         "read_memory", "update_pantry", "update_learned_preference",
     ),
-    "sabor.integrations.bring": (
+    "sabor.sync.bring_client": (
         "_QUANTITY_NOUNS", "_PREP_WORDS", "_MANUAL_ALIASES", "_load_bring_catalog", "_CAT_ES",
         "_CAT_EN", "_remove_accents", "_catalog_match", "_bring_auth", "_bring_login_headers",
         "_bring_authed_headers", "_bring_login", "_bring_ensure_auth", "_bring_req",
-        "_normalize_ingredient_text", "_clean_food_name", "_parse_ingredient",
-        "bring_get_lists", "bring_sync_list", "bring_add_items",
+         "_clean_food_name", 
+          
     ),
     "sabor.integrations.mercadona": (
         "MERCADONA_BASE_URL", "MERCADONA_WAREHOUSE", "MERCADONA_TIMEOUT",
@@ -143,7 +131,7 @@ def install(module: ModuleType) -> None:
         for name in names
     }
     # Preserve access to imports such as requests, Path, and date as well.
-    legacy_imports = ("copy", "json", "hashlib", "math", "os", "re", "sysconfig", "tempfile", "threading", "time", "unicodedata", "urllib", "ThreadPoolExecutor", "as_completed", "date", "Path", "Any", "UUID", "requests", "FastMCP", "scrape_html",)
+    legacy_imports = ("copy", "json", "hashlib", "math", "os", "re", "sysconfig", "tempfile", "threading", "time", "unicodedata", "urllib", "ThreadPoolExecutor", "as_completed", "date", "Path", "Any", "UUID", "requests", "FastMCP", )
     owners.update({name: sys.modules[__name__] for name in legacy_imports})
 
     class LegacyModule(ModuleType):

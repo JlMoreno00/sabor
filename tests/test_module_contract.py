@@ -28,13 +28,11 @@ BASELINE_CONTRACT = {
     "apply_spanish_catalog": "44a6883ceaf144f43fab3e05550ae336c91493db66fb8074ae799175f7c2e457",
     "search_recipes": "128ffad429f12b735c1a94ab8dc5b2f4776969c9efd0df2896195d56b3bb1724",
     "get_recipe": "74049c9d77b43e8b40236a033ee69091fa89a09ead56ef7d60714106112f37b6",
-    "create_recipe": "fec9420e7bb87335e0e13b412fc633605d6d8d1832e5c9ca5f01308385dd0b56",
+    "create_recipe": "2ccf74cf9017a1ea33acf103534f4b3acbb451be6e99b9fa2045870a8dad7311",
     "get_shopping_lists": "a90ac771915d1a06659884e8fbebc687f5f6840046f62348ce1344c9d293ec27",
     "create_shopping_list": "cf4fda38b3372c074245e4a16fd673e19428015b7bdd5de0c1a1eef684005c31",
     "delete_shopping_list": "b5656aba7dc18532e21002163c8c5e3690b4e4f2750d5fc46d3f83cb7ed00b36",
-    "add_items_to_shopping_list": "84db94f3001ae63f2e98e68345b32492873f5db44e9ec87a75b2ba2d2397546c",
     "clear_shopping_list": "4c64679ffb195b8cdd9e87b09e144ee3a7ef8e918ed009c7fcc0d21c14231c34",
-    "add_recipe_ingredients_to_list": "2d433b65f65b7f92415939e5a8bb13516f4d14fcf7e9cda13030df1a88dadc29",
     "get_or_create_shopping_list": "2a43ff281ed75d1c61ead9f5fa54305e2a7ffee8acc3c88b3643a8f57020a1f1",
     "get_mealplan_week": "5e97997f9b82608e3d13b1d521d954589dc35279a4675ed2946581e0fb2ffb67",
     "set_mealplan_entry": "b048f5fd92866f9fa6fb39057a307e8822e4fe338c3246077a3f143a72b38ab0",
@@ -44,20 +42,12 @@ BASELINE_CONTRACT = {
     "tag_recipe": "04669ca7e5db073047464b46f489e7e51d88a1faa45fa1988a77ca19265bbdb3",
     "add_recipe_comment": "7194080243de8eb19f479285bc73a222f4e2bd9576118c48c0ab2ff32aef68d3",
     "log_cooking_event": "f2db8653fd70ad05ba1f1758cafada8204010369a730120f3239466059ff2d36",
-    "spoonacular_search_recipes": "ae9fbea4dd61cd60ab672c94a0f5b24bbdd640ca1a8623adbddaca42d0b519ec",
-    "spoonacular_search_by_nutrients": "770e5a880f327916f522f497ad4fb31680959baff70a5013555ada189e3bd3ff",
+    "spoonacular_search_recipes": "e98acc68c4ec9924306b238b190c9afab561971823631266b27f822858334d56",
     "spoonacular_nutrition_100g": "01018b051f2e622531510d7081b18ed77f8d1acd8432cf1b4b282b4484fb8f24",
-    "scrape_recipe": "eab1b0b9aab375de933a4c2243949dca234b0ba449b9f52edcb95d01c025c207",
-    "import_recipe_to_mealie": "bbd47eefe2782b4f824a612ed9c27b4f67100a53d63f8f6ce4a91683f5110449",
-    "analyze_video_recipes": "f97398f686316465ab6c144661847dce5e55d8232b0816b2ff15196ec09ff1e6",
-    "import_video_recipes_to_mealie": "a4c7fbddf7dd75f5dede2e3b2a2818bfd1b72f05d676afc6b60e4abd1e9808de",
     "save_feedback": "17aba06a697c7906f12f6810cd3ef30f8ab1e77ec6345b7352d92f2103646bcf",
     "read_memory": "79228db57e091b2e9cc41b590a5dd4ef1d7a7f5f60eac08acfe14ca0eaacd953",
     "update_pantry": "fb152616de6a8483734866e8593bd7319dcc9ac787f67c703f24221cb8a08db4",
     "update_learned_preference": "ad0b80288f1f6d139a91ec88af8f244ca344e49b09f67aaa23dd762143aa899c",
-    "bring_get_lists": "ade7b8cced8c17d4fd0a48c1c02ab5eecfbc35b088d956fee2e5e74ac0970f13",
-    "bring_sync_list": "2e40435b24ee774f75c245d8a197b35beb51c98ec5fe9ca9e74e0f13a213a244",
-    "bring_add_items": "7d7b424e442570dbc4feca934bb5dfca0aa42e763712c084fd501a2fad52319b",
     "mercadona_search_products": "3c2a2b603d70bd99ea661051d07ecfdfcd96baf7870ff1bffa831d37248340b3",
     "mercadona_get_product_price": "cc9e87f7e9d13889ee3bf3ca77bfd991afc80a4e548537bf252ee689a3f587c1",
     "mercadona_estimate_recipe_cost": "6f6b1655ce93efe94bfa1741f25c660b3087f575391479b1e731989338234c38",
@@ -83,7 +73,7 @@ class ModuleContractTests(unittest.TestCase):
     def test_registered_tool_names_match_baseline(self):
         names = [fn.__name__ for group, fn, requires in catalog]
         self.assertEqual(set(names), set(BASELINE_CONTRACT))
-        self.assertEqual(len(names), 61)
+        self.assertEqual(len(names), 51)
         register_tools()
         self.assertEqual(
             [fn.__name__ for group, fn, requires in catalog], names,

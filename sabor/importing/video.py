@@ -8,7 +8,7 @@ from tempfile import TemporaryDirectory
 from typing import Any, Protocol
 from urllib.parse import urlsplit
 
-from sabor.integrations import gemini_video as legacy
+import sabor.importing.gemini_client as gemini_client
 from sabor.importing.tools import OpenAIImportProvider, ImportErrorResult, reject, validate_recipes
 
 MAX_BYTES = 100 * 1024 * 1024
@@ -100,20 +100,20 @@ class GeminiNativeVideo:
         return preview_video(request['source'], self.cfg, request)
 
     def extract(self, path, captions, request):
-        upload = legacy._upload_to_gemini(path)
+        upload = gemini_client._upload_to_gemini(path)
         name = upload.get('name')
         try:
             if not upload.get('ok') or not name or not upload.get('uri'):
                 reject('upstream_error', 'Video upload failed.', self.id)
-            if upload.get('state') != 'ACTIVE' and not legacy._wait_for_gemini_processing(name):
+            if upload.get('state') != 'ACTIVE' and not gemini_client._wait_for_gemini_processing(name):
                 reject('upstream_error', 'Video processing failed.', self.id)
-            result = legacy._extract_recipes_with_gemini(upload['uri'], request['language'], request['max_recipes'])
+            result = gemini_client._extract_recipes_with_gemini(upload['uri'], request['language'], request['max_recipes'])
             if not result.get('ok'):
                 reject('invalid_response', 'Video extraction failed.', self.id)
             return dict(validate_recipes(result['recipes'], request), limitations=[])
         finally:
             if name:
-                legacy._cleanup_gemini_file(name)
+                gemini_client._cleanup_gemini_file(name)
 
 
 class OpenAICompatibleVideo:

@@ -24,7 +24,7 @@ class VideoTests(unittest.TestCase):
 
     def test_gemini_cleanup_on_error(self):
         from sabor.importing import video as v
-        with patch.object(v.legacy, '_upload_to_gemini', return_value={'ok': True, 'name': 'files/a', 'uri': 'uri', 'state': 'ACTIVE'}), patch.object(v.legacy, '_extract_recipes_with_gemini', side_effect=ValueError('SECRET')), patch.object(v.legacy, '_cleanup_gemini_file') as cleanup:
+        with patch.object(v.gemini_client, '_upload_to_gemini', return_value={'ok': True, 'name': 'files/a', 'uri': 'uri', 'state': 'ACTIVE'}), patch.object(v.gemini_client, '_extract_recipes_with_gemini', side_effect=ValueError('SECRET')), patch.object(v.gemini_client, '_cleanup_gemini_file') as cleanup:
             with self.assertRaises(ValueError):
                 v.GeminiNativeVideo(load_settings(ENV)).extract(Path('unused'), '', dict(language='en', max_recipes=8))
             cleanup.assert_called_once_with('files/a')
@@ -115,7 +115,7 @@ class VideoTests(unittest.TestCase):
         with patch.dict(sys.modules, yt_dlp=SimpleNamespace(YoutubeDL=factory)), v.TemporaryDirectory() as root:
             media, captions = v.download('https://youtu.be/a', Path(root))
             self.assertEqual(captions, '200 g salt')
-            with patch.object(v.legacy, '_upload_to_gemini', return_value={'ok': True, 'name': 'files/a', 'uri': 'uri', 'state': 'PROCESSING'}), patch.object(v.legacy, '_wait_for_gemini_processing', return_value=True) as wait, patch.object(v.legacy, '_extract_recipes_with_gemini', return_value={'ok': True, 'recipes': [C]}), patch.object(v.legacy, '_cleanup_gemini_file') as cleanup:
+            with patch.object(v.gemini_client, '_upload_to_gemini', return_value={'ok': True, 'name': 'files/a', 'uri': 'uri', 'state': 'PROCESSING'}), patch.object(v.gemini_client, '_wait_for_gemini_processing', return_value=True) as wait, patch.object(v.gemini_client, '_extract_recipes_with_gemini', return_value={'ok': True, 'recipes': [C]}), patch.object(v.gemini_client, '_cleanup_gemini_file') as cleanup:
                 result = v.GeminiNativeVideo(load_settings(ENV)).extract(media, captions, dict(language='en', max_recipes=8, min_confidence=.55))
                 self.assertEqual(result['candidates'], [C])
                 self.assertEqual(result['limitations'], [])

@@ -32,10 +32,7 @@ TOOL_MODULES = (
     "sabor.tools.tags",
     "sabor.tools.comments",
     "sabor.integrations.spoonacular",
-    "sabor.integrations.scraper",
-    "sabor.integrations.gemini_video",
     "sabor.tools.memory",
-    "sabor.integrations.bring",
     "sabor.integrations.mercadona",
     "sabor.tools.nutrition",
 )

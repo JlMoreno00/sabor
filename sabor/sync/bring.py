@@ -2,7 +2,7 @@
 from typing import Any, Mapping, Literal
 from urllib.parse import quote
 
-from sabor.integrations import bring
+import sabor.sync.bring_client as bring
 from sabor.core import errors
 from sabor.core.envelope import ok
 

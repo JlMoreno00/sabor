@@ -67,7 +67,7 @@ def _spoonacular_get(path: str, params: dict[str, Any] | None = None) -> dict[st
 
 @tool("legacy_spoonacular")
 def spoonacular_search_recipes(
-    query: str,
+    query: str = "",
     number: int = 5,
     max_calories: float | None = None,
     min_calories: float | None = None,
@@ -130,40 +130,6 @@ def spoonacular_search_recipes(
         "recipes": recipes,
     }
 
-
-@tool("legacy_spoonacular")
-def spoonacular_search_by_nutrients(
-    min_protein_g: float | None = None,
-    max_calories_kcal: float | None = None,
-    max_carbs_g: float | None = None,
-    number: int = 5,
-) -> dict[str, Any]:
-    """Busca recetas por criterios nutricionales en Spoonacular."""
-    params: dict[str, Any] = {"number": max(1, min(number, 100))}
-    if min_protein_g is not None:
-        params["minProtein"] = min_protein_g
-    if max_calories_kcal is not None:
-        params["maxCalories"] = max_calories_kcal
-    if max_carbs_g is not None:
-        params["maxCarbs"] = max_carbs_g
-    result = _spoonacular_get("/recipes/findByNutrients", params)
-    if not result["ok"]:
-        return result
-    raw = result["data"]
-    items = raw if isinstance(raw, list) else []
-    recipes = [
-        {
-            "id": r.get("id"),
-            "title": r.get("title"),
-            "image": r.get("image"),
-            "calories": r.get("calories"),
-            "protein": r.get("protein"),
-            "fat": r.get("fat"),
-            "carbs": r.get("carbs"),
-        }
-        for r in items
-    ]
-    return {"ok": True, "filters": params, "recipes": recipes}
 
 
 @tool("legacy_spoonacular")
