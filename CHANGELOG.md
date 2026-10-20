@@ -1,5 +1,13 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- `import_recipe(dry_run=False)` now applies the same ingredient normalization
+  and nutrition-after-import gate as `create_recipe` for url, text, video and
+  image imports, reported per slug in `normalization`, `nutrition` and
+  `warnings` (#7).
+
 ## [0.3.0] - 2026-10-20
 
 ### Added
