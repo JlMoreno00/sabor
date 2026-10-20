@@ -96,9 +96,7 @@ _EXPORTS = {
         "_mercadona_catalog", "_mercadona_catalog_loaded_at", "_mercadona_catalog_loading",
         "_mercadona_normalize", "_mercadona_relevance_score", "_mercadona_get",
         "_mercadona_extract_product", "_mercadona_fetch_subcategory",
-        "_mercadona_load_catalog", "_mercadona_ensure_catalog", "mercadona_search_products",
-        "mercadona_get_product_price", "mercadona_estimate_recipe_cost",
-        "mercadona_estimate_shopping_list_cost", "mercadona_get_price_drops",
+        "_mercadona_load_catalog", "_mercadona_ensure_catalog", "mercadona_get_price_drops",
         "mercadona_get_new_arrivals",
     ),
     "sabor.tools.nutrition": (

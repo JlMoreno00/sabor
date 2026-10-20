@@ -15,6 +15,9 @@ from sabor.core.toolsets import catalog
 
 # SHA-256 of ast.dump(arguments) + the exact uncleaned docstring, before moving.
 BASELINE_CONTRACT = {
+    "search_pricing_products": "731eb14dad31b462147dd8b551ee8507b3d35a7a1ab7572aed1a881d7a786034",
+    "get_product_price": "1676539839c387f8c1ffb5dae583c1ae4065ce25e39796aac4302baedb90efc0",
+    "estimate_cost": "bf8ec1ccc110d227248a566805f64f227bb0dea1a7636a6712fc56a978db77da",
     "get_shopping_sync_targets": "091ac0b4400db55cd0204d8decd6a76746f9456269ab69b14bedd4dd791bf7d0",
     "sync_shopping_list": "c903bd0d108c1231a80cd66e9ee5b8593cef203599e1218afdf965b3265c79a0",
     "import_recipe": "8da1c991c9d13470c17690d825d890d4eb9b7f7b4490361acffaee4273c52914",
@@ -48,10 +51,6 @@ BASELINE_CONTRACT = {
     "read_memory": "f4a5f93e16e3d6a4b27fdcf8b328e666f91220eae1d9bfc126396524243d0f22",
     "update_pantry": "d1730b5ffe7af215f3458bc4e6f8a10655544c50d98e79848be457990e10b4ba",
     "update_learned_preference": "6662d7a4bffeda5d8bb22d9c037e6df7b88fd9849a53e15aacc9db64c5eabeff",
-    "mercadona_search_products": "3c2a2b603d70bd99ea661051d07ecfdfcd96baf7870ff1bffa831d37248340b3",
-    "mercadona_get_product_price": "25c5636fb5a8e9fc4df3f427ea6683731113b358d9f3a6fe979ec91a638f0ba3",
-    "mercadona_estimate_recipe_cost": "6f6b1655ce93efe94bfa1741f25c660b3087f575391479b1e731989338234c38",
-    "mercadona_estimate_shopping_list_cost": "c91da98d2d0ebf11038d4599a0e4469530a9765bcf122de7e0f8530497b4e267",
     "mercadona_get_price_drops": "23a24e912d59f9da96dbfcef9f4caa6692472009154e710ee185de1db1a22420",
     "mercadona_get_new_arrivals": "a31079566128a01a8a00dc12394227525c248b1287c7e3ada8d9c4d5ea2f033f",
     "nutrition_recipe_readiness": "633aa225a56721fed3a12c410efdb2db858ac6b4532bd7676aba92df7627b8ec",
@@ -73,7 +72,7 @@ class ModuleContractTests(unittest.TestCase):
     def test_registered_tool_names_match_baseline(self):
         names = [fn.__name__ for group, fn, requires in catalog]
         self.assertEqual(set(names), set(BASELINE_CONTRACT))
-        self.assertEqual(len(names), 51)
+        self.assertEqual(len(names), 50)
         register_tools()
         self.assertEqual(
             [fn.__name__ for group, fn, requires in catalog], names,
@@ -103,8 +102,8 @@ class ModuleContractTests(unittest.TestCase):
         self.assertEqual(config.MEALIE_API_TOKEN, original)
         with patch.object(sabor_mcp, "_normalize_imported_recipe") as normalize:
             self.assertIs(mealie._normalize_imported_recipe, normalize)
-        self.assertIs(sabor_mcp.create_recipe, recipes.create_recipe)
-        self.assertEqual(sabor_mcp.CATALOG_DIR, Path(__file__).resolve().parents[1] / "catalog")
+        self.assertIs(getattr(sabor_mcp, "create_recipe"), recipes.create_recipe)
+        self.assertEqual(getattr(sabor_mcp, "CATALOG_DIR"), Path(__file__).resolve().parents[1] / "catalog")
 
 
 if __name__ == "__main__":

@@ -29,10 +29,17 @@ class RegistrationTests(unittest.TestCase):
         env = {**MEALIE, **GEMINI, **BRING, 'SPOONACULAR_API_KEY': 'secret-spoon',
                'SABOR_MERCADONA_ENABLED': 'true', 'SABOR_TOOLSETS': ','.join(TOOLSETS)}
         tools, discovery = self.register(env)
-        self.assertEqual(len(tools), 52)
+        self.assertEqual(len(tools), 51)
         encoded = json.dumps(discovery)
         for key in (*MEALIE, *GEMINI, *BRING, 'SPOONACULAR_API_KEY'):
             self.assertNotIn(env[key], encoded)
+
+    def test_pricing_gates_and_legacy_promotions(self):
+        for enabled, selected, count in [(False, 'pricing', 0), (True, '', 0),
+                                          (True, 'pricing', 3), (True, 'legacy_pricing', 2)]:
+            tools, _ = self.register({'SABOR_MERCADONA_ENABLED': str(enabled).lower(),
+                                      'SABOR_TOOLSETS': selected})
+            self.assertEqual(len(tools) - 1, count)
 
     def test_mealie_defaults(self):
         tools, discovery = self.register(MEALIE)
@@ -63,7 +70,7 @@ class RegistrationTests(unittest.TestCase):
         self.assertEqual(set(tools), {'sabor_capabilities'})
 
     def test_removed_names_never_registered(self):
-        removed = ["scrape_recipe","import_recipe_to_mealie","analyze_video_recipes","import_video_recipes_to_mealie","add_items_to_shopping_list","add_recipe_ingredients_to_list","bring_get_lists","bring_sync_list","bring_add_items","spoonacular_search_by_nutrients"]
+        removed = ["mercadona_search_products", "mercadona_get_product_price", "mercadona_estimate_recipe_cost", "mercadona_estimate_shopping_list_cost", "scrape_recipe","import_recipe_to_mealie","analyze_video_recipes","import_video_recipes_to_mealie","add_items_to_shopping_list","add_recipe_ingredients_to_list","bring_get_lists","bring_sync_list","bring_add_items","spoonacular_search_by_nutrients"]
         # Exhaust all toolset selections with every provider configured.
         from itertools import combinations
         for size in range(len(TOOLSETS) + 1):

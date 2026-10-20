@@ -34,7 +34,7 @@ TOOL_MODULES = (
     "sabor.tools.comments",
     "sabor.integrations.spoonacular",
     "sabor.tools.memory",
-    "sabor.integrations.mercadona",
+    "sabor.integrations.mercadona", "sabor.pricing.tools",
     "sabor.tools.nutrition",
 )
 
@@ -48,7 +48,10 @@ def register_tools(server=None, env=None) -> None:
     from sabor.importing.tools import OpenAIImportProvider
     from sabor.importing.video import GeminiNativeVideo
     from sabor.sync.bring import BringSyncProvider
-    context = build_context(settings, store_factory=mealie_store_factory if settings.mealie_configured else None, pricing_factories=(), import_factories=((OpenAIImportProvider,) if settings.llm_configured else ())
+    from sabor.pricing.mercadona import MercadonaPricing
+    from sabor.integrations.mercadona import MERCADONA_WAREHOUSE
+    context = build_context(settings, store_factory=mealie_store_factory if settings.mealie_configured else None,
+                        pricing_factories=(lambda s: MercadonaPricing(warehouse=MERCADONA_WAREHOUSE),) if settings.mercadona_enabled else (), import_factories=((OpenAIImportProvider,) if settings.llm_configured else ())
                         + ((GeminiNativeVideo,) if settings.gemini_configured else ()),
                         sync_factories=(BringSyncProvider,) if settings.bring_email and settings.bring_password else ())
     registry = context.registry
