@@ -10,7 +10,7 @@ import requests
 import sabor.config as config
 import sabor.integrations.mealie as mealie
 import sabor.tools.tags as tags
-from sabor.server import mcp
+from sabor.core.toolsets import tool, gemini_ready, video_commit_ready
 
 # VIDEO RECIPE — Helpers (Gemini multimodal)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -359,7 +359,7 @@ def _create_recipe_in_mealie_from_video(
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 
-@mcp.tool()
+@tool("import", requires=gemini_ready)
 def analyze_video_recipes(
     source: str, language: str = "es", max_recipes: int = 8
 ) -> dict[str, Any]:
@@ -369,7 +369,7 @@ def analyze_video_recipes(
     return _analyze_video(source, language=language, max_recipes=max_recipes)
 
 
-@mcp.tool()
+@tool("import", requires=video_commit_ready)
 def import_video_recipes_to_mealie(
     source: str,
     language: str = "es",

@@ -7,7 +7,7 @@ import unicodedata
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 import requests
-from sabor.server import mcp
+from sabor.core.toolsets import tool
 
 # SUPERMARKET — Mercadona Prices
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -188,7 +188,7 @@ def _mercadona_ensure_catalog() -> dict | None:
     return None
 
 
-@mcp.tool()
+@tool("legacy_pricing")
 def mercadona_search_products(query: str, limit: int = 10) -> dict[str, Any]:
     """Search Mercadona products by name with relevance ranking.
 
@@ -222,7 +222,7 @@ def mercadona_search_products(query: str, limit: int = 10) -> dict[str, Any]:
     }
 
 
-@mcp.tool()
+@tool("legacy_pricing")
 def mercadona_get_product_price(product_id: str) -> dict[str, Any]:
     """Get detailed price information for a specific Mercadona product by ID.
 
@@ -256,7 +256,7 @@ def mercadona_get_product_price(product_id: str) -> dict[str, Any]:
     }
 
 
-@mcp.tool()
+@tool("legacy_pricing")
 def mercadona_estimate_recipe_cost(ingredients: list[str]) -> dict[str, Any]:
     """Estimate the cost of a recipe by searching Mercadona prices for each ingredient.
 
@@ -320,7 +320,7 @@ def mercadona_estimate_recipe_cost(ingredients: list[str]) -> dict[str, Any]:
     }
 
 
-@mcp.tool()
+@tool("legacy_pricing")
 def mercadona_estimate_shopping_list_cost(items: list[str]) -> dict[str, Any]:
     """Estimate the total cost of a shopping list using Mercadona prices.
 
@@ -330,7 +330,7 @@ def mercadona_estimate_shopping_list_cost(items: list[str]) -> dict[str, Any]:
     return mercadona_estimate_recipe_cost(items)
 
 
-@mcp.tool()
+@tool("legacy_pricing")
 def mercadona_get_price_drops() -> dict[str, Any]:
     """Get products with reduced prices (bajadas de precio) from Mercadona.
 
@@ -348,7 +348,7 @@ def mercadona_get_price_drops() -> dict[str, Any]:
     }
 
 
-@mcp.tool()
+@tool("legacy_pricing")
 def mercadona_get_new_arrivals() -> dict[str, Any]:
     """Get new products recently added to Mercadona's catalog.
 

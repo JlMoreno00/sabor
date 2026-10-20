@@ -10,7 +10,7 @@ from typing import Any
 import requests
 import sabor.config as config
 import sabor.integrations.mealie as mealie
-from sabor.server import mcp
+from sabor.core.toolsets import tool, bring_ready
 
 # BRING! — Catalog & Auth Helpers
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -396,7 +396,7 @@ def _parse_ingredient(text: str) -> tuple[str, str]:
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 
-@mcp.tool()
+@tool("shopping_sync", requires=bring_ready)
 def bring_get_lists() -> dict[str, Any]:
     """Devuelve todas las listas de compra de Bring! del usuario con sus UUIDs."""
     try:
@@ -411,7 +411,7 @@ def bring_get_lists() -> dict[str, Any]:
         return {"ok": False, "error": str(e)}
 
 
-@mcp.tool()
+@tool("shopping_sync", requires=bring_ready)
 def bring_sync_list(list_name: str, items: list[str], confirm: bool = False) -> dict[str, Any]:
     """Preview list replacement; pass confirm=True after approval to remove and add items."""
     try:
@@ -490,7 +490,7 @@ def bring_sync_list(list_name: str, items: list[str], confirm: bool = False) -> 
         return {"ok": False, "error": str(e)}
 
 
-@mcp.tool()
+@tool("shopping_sync", requires=bring_ready)
 def bring_add_items(list_uuid: str, items: list[str]) -> dict[str, Any]:
     """Anade items a una lista de Bring! sin borrar el contenido actual."""
     try:

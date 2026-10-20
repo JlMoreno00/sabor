@@ -17,13 +17,19 @@ class ManifestContractTests(unittest.TestCase):
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
             and any(
                 isinstance(decorator, ast.Call)
-                and isinstance(decorator.func, ast.Attribute)
-                and isinstance(decorator.func.value, ast.Name)
-                and decorator.func.value.id == "mcp"
-                and decorator.func.attr == "tool"
+                and isinstance(decorator.func, ast.Name)
+                and decorator.func.id == "tool"
                 for decorator in node.decorator_list
             )
         ]
+        from sabor.server import TOOL_MODULES
+        from importlib import import_module
+        from sabor.core.toolsets import catalog
+        for module in TOOL_MODULES:
+            import_module(module)
+        catalog_names = [fn.__name__ for group, fn, requires in catalog]
+        self.assertCountEqual(catalog_names, tools)
+        self.assertEqual(len(catalog_names), 52)
         self.assertEqual(len(tools), 52)
         self.assertEqual(tools.count("nutrition_set_food_profile"), 1)
         self.assertEqual(tools.count("nutrition_recipe_readiness"), 1)

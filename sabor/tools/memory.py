@@ -4,7 +4,7 @@ import re
 from datetime import date
 from typing import Any
 import sabor.config as config
-from sabor.server import mcp
+from sabor.core.toolsets import tool
 
 # MEMORY — Helpers
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -65,7 +65,7 @@ _MEMORY_TEMPLATE = """# Memoria del Agente de Cocina
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 
-@mcp.tool()
+@tool("legacy_memory")
 def save_feedback(
     recipe_name: str,
     rating: int | None = None,
@@ -140,7 +140,7 @@ def save_feedback(
     }
 
 
-@mcp.tool()
+@tool("legacy_memory")
 def read_memory(section: str | None = None) -> dict[str, Any]:
     """Lee MEMORY.md completo o una seccion especifica."""
     content = _read_memory()
@@ -155,7 +155,7 @@ def read_memory(section: str | None = None) -> dict[str, Any]:
     return {"ok": True, "content": content}
 
 
-@mcp.tool()
+@tool("legacy_memory")
 def update_pantry(items: list[str]) -> dict[str, Any]:
     """Actualiza la seccion 'Despensa Conversacional' con los ingredientes disponibles."""
     if not items:
@@ -174,7 +174,7 @@ def update_pantry(items: list[str]) -> dict[str, Any]:
     }
 
 
-@mcp.tool()
+@tool("legacy_memory")
 def update_learned_preference(preference: str) -> dict[str, Any]:
     """Anade una preferencia aprendida del usuario a MEMORY.md."""
     if not preference:

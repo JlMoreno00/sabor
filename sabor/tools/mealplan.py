@@ -6,13 +6,13 @@ import requests
 import sabor.config as config
 import sabor.integrations.mealie as mealie
 import sabor.tools.nutrition as nutrition
-from sabor.server import mcp
+from sabor.core.toolsets import tool
 
 # MEALIE — Meal Planner / Calendar
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 
-@mcp.tool()
+@tool("core")
 def get_mealplan_week(start_date: str, end_date: str) -> dict[str, Any]:
     """Obtiene el plan de comidas para un rango de fechas (YYYY-MM-DD)."""
     if err := mealie._check_mealie():
@@ -45,7 +45,7 @@ def get_mealplan_week(start_date: str, end_date: str) -> dict[str, Any]:
         return {"ok": False, "error": f"get_mealplan_failed: {e}"}
 
 
-@mcp.tool()
+@tool("core")
 def set_mealplan_entry(
     date_str: str, entry_type: str, title: str, recipe_slug: str | None = None
 ) -> dict[str, Any]:
@@ -153,7 +153,7 @@ def set_mealplan_entry(
         return {"ok": False, "error": f"set_mealplan_failed: {e}"}
 
 
-@mcp.tool()
+@tool("core")
 def delete_mealplan_entry(entry_id: str) -> dict[str, Any]:
     """Elimina una entrada del plan de comidas por su ID."""
     if err := mealie._check_mealie():
@@ -173,7 +173,7 @@ def delete_mealplan_entry(entry_id: str) -> dict[str, Any]:
         return {"ok": False, "error": f"delete_mealplan_failed: {e}"}
 
 
-@mcp.tool()
+@tool("core")
 def clear_mealplan_week(start_date: str, end_date: str, confirm: bool = False) -> dict[str, Any]:
     """Preview entries removed in a date range; pass confirm=True to clear them."""
     if err := mealie._check_mealie():

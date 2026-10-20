@@ -7,7 +7,7 @@ import requests
 from recipe_scrapers import scrape_html
 import sabor.config as config
 import sabor.integrations.mealie as mealie
-from sabor.server import mcp
+from sabor.core.toolsets import tool, mealie_ready
 
 # RECIPE SCRAPER — Tools
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -47,7 +47,7 @@ def _normalize_scraper(s: Any) -> dict[str, Any]:
     }
 
 
-@mcp.tool()
+@tool("import", requires=mealie_ready)
 def scrape_recipe(url: str) -> dict[str, Any]:
     """Extrae una receta de cualquier URL (solo lectura, no guarda en Mealie). Soporta wild_mode."""
     try:
@@ -88,7 +88,7 @@ def scrape_recipe(url: str) -> dict[str, Any]:
         }
 
 
-@mcp.tool()
+@tool("import", requires=mealie_ready)
 def import_recipe_to_mealie(url: str) -> dict[str, Any]:
     """Importa una receta en Mealie directamente desde una URL (usa el scraper interno de Mealie)."""
     if err := mealie._check_mealie():

@@ -10,6 +10,7 @@ from support import install_runtime_dependency_stubs
 install_runtime_dependency_stubs()
 import sabor_mcp
 from sabor.server import register_tools
+from sabor.core.toolsets import catalog
 
 
 # SHA-256 of ast.dump(arguments) + the exact uncleaned docstring, before moving.
@@ -71,12 +72,12 @@ BASELINE_CONTRACT = {
 
 class ModuleContractTests(unittest.TestCase):
     def test_registered_tool_names_match_baseline(self):
-        names = [tool.name for tool in sabor_mcp.mcp._tool_manager.list_tools()]
+        names = [fn.__name__ for group, fn, requires in catalog]
         self.assertEqual(set(names), set(BASELINE_CONTRACT))
         self.assertEqual(len(names), 52)
         register_tools()
         self.assertEqual(
-            [tool.name for tool in sabor_mcp.mcp._tool_manager.list_tools()], names,
+            [fn.__name__ for group, fn, requires in catalog], names,
         )
 
     def test_tool_signatures_and_exact_docstrings_match_baseline(self):

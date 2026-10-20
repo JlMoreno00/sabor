@@ -4,13 +4,13 @@ from typing import Any
 import requests
 import sabor.config as config
 import sabor.integrations.mealie as mealie
-from sabor.server import mcp
+from sabor.core.toolsets import tool
 
 # MEALIE — Comments & Cooking Log
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 
-@mcp.tool()
+@tool("core")
 def add_recipe_comment(slug: str, text: str) -> dict[str, Any]:
     """Anade un comentario a una receta en Mealie (rating, notas, feedback)."""
     if err := mealie._check_mealie():
@@ -48,7 +48,7 @@ def add_recipe_comment(slug: str, text: str) -> dict[str, Any]:
         return {"ok": False, "error": f"add_comment_failed: {e}"}
 
 
-@mcp.tool()
+@tool("core")
 def log_cooking_event(
     slug: str, subject: str, message: str | None = None
 ) -> dict[str, Any]:

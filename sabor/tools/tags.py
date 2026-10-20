@@ -5,13 +5,13 @@ from typing import Any
 import requests
 import sabor.config as config
 import sabor.integrations.mealie as mealie
-from sabor.server import mcp
+from sabor.core.toolsets import tool
 
 # MEALIE — Tags
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 
-@mcp.tool()
+@tool("core")
 def get_or_create_tag(name: str) -> dict[str, Any]:
     """Busca un tag por nombre (case-insensitive); si no existe, lo crea."""
     if err := mealie._check_mealie():
@@ -68,7 +68,7 @@ def get_or_create_tag(name: str) -> dict[str, Any]:
         return {"ok": False, "error": f"get_or_create_tag_failed: {e}"}
 
 
-@mcp.tool()
+@tool("core")
 def tag_recipe(slug: str, tags: list[str]) -> dict[str, Any]:
     """Asigna etiquetas a una receta. Conserva tags existentes y anade los nuevos."""
     if err := mealie._check_mealie():

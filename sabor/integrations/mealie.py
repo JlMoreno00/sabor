@@ -6,7 +6,7 @@ from typing import Any
 import requests
 import sabor.config as config
 import sabor.tools.nutrition as nutrition
-from sabor.server import mcp
+from sabor.core.toolsets import tool
 
 # MEALIE — Helpers
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -160,13 +160,13 @@ def _reconcile_spanish_catalog(apply: bool = False) -> dict[str, Any]:
         return {"ok": False, "apply": apply, "error": f"catalog_reconciliation_failed: {exc}"}
 
 
-@mcp.tool()
+@tool("legacy_catalog")
 def spanish_catalog_status() -> dict[str, Any]:
     """Dry-run del catalogo curado espanol: faltantes y conflictos, sin escrituras."""
     return _reconcile_spanish_catalog(apply=False)
 
 
-@mcp.tool()
+@tool("legacy_catalog")
 def apply_spanish_catalog() -> dict[str, Any]:
     """Crea solo entradas faltantes del catalogo espanol; nunca fusiona ni modifica existentes."""
     return _reconcile_spanish_catalog(apply=True)

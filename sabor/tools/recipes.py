@@ -5,13 +5,13 @@ from typing import Any
 import requests
 import sabor.config as config
 import sabor.integrations.mealie as mealie
-from sabor.server import mcp
+from sabor.core.toolsets import tool
 
 # MEALIE — Recipes
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 
-@mcp.tool()
+@tool("core")
 def search_recipes(query: str) -> dict[str, Any]:
     """Busca recetas en Mealie por nombre. Devuelve lista con nombre y slug."""
     if err := mealie._check_mealie():
@@ -38,7 +38,7 @@ def search_recipes(query: str) -> dict[str, Any]:
         return {"ok": False, "error": f"search_failed: {e}"}
 
 
-@mcp.tool()
+@tool("core")
 def get_recipe(slug: str) -> dict[str, Any]:
     """Obtiene una receta completa por su slug (incluyendo ingredientes e instrucciones)."""
     if err := mealie._check_mealie():
@@ -75,7 +75,7 @@ def get_recipe(slug: str) -> dict[str, Any]:
         return {"ok": False, "error": f"get_recipe_failed: {e}"}
 
 
-@mcp.tool()
+@tool("core")
 def create_recipe(
     name: str,
     url: str | None = None,

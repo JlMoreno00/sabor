@@ -58,8 +58,8 @@ class Registry:
         if len(video_owners) > 1 and any(a.id not in available for a in video_owners):
             raise ConfigError('Duplicate import kind ownership')
         ready = dict(core=settings.mealie_configured,
-                     import_=bool(settings.mealie_configured or settings.llm_configured or video),
-                     shopping_sync=bool(settings.mealie_configured and settings.bring_email),
+                     import_=bool(settings.mealie_configured or settings.gemini_configured),
+                     shopping_sync=bool(settings.bring_email and settings.bring_password),
                      legacy_spoonacular=bool(settings.spoonacular_api_key),
                      legacy_pricing=settings.mercadona_enabled, legacy_memory=True,
                      legacy_nutrition=True, legacy_catalog=settings.mealie_configured)

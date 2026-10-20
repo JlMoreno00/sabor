@@ -11,7 +11,7 @@ from uuid import UUID
 import requests
 import sabor.config as config
 import sabor.integrations.mealie as mealie
-from sabor.server import mcp
+from sabor.core.toolsets import tool
 
 # Nutrition is initialized lazily so disabled deployments make no database or provider calls.
 _NUTRITION_SERVICE_INSTANCE: Any = None
@@ -234,7 +234,7 @@ def _nutrition_bound_readiness_output(value: Any, field: str | None = None) -> A
             if cap is not None and value is not None else value)
 
 
-@mcp.tool()
+@tool("legacy_nutrition")
 def nutrition_recipe_readiness(slug: str,
                                include_suggestions: bool = True) -> dict[str, Any]:
     """Assess recipe nutrition data readiness without calculation or mutation."""
@@ -475,7 +475,7 @@ def _nutrition_stage_correction(slug: str, candidate: dict[str, Any] | None,
         return copy.deepcopy(active_schedule)
 
 
-@mcp.tool()
+@tool("legacy_nutrition")
 def nutrition_correct_recipe(slug: str, expected_revision: dict[str, str | None],
                               corrections: list[dict[str, Any]],
                               apply: bool = False) -> dict[str, Any]:
@@ -849,7 +849,7 @@ def _nutrition_after_import(import_result: dict[str, Any], slug: str | None) -> 
     return import_result
 
 
-@mcp.tool()
+@tool("legacy_nutrition")
 def nutrition_status() -> dict[str, Any]:
     """Report nutrition feature flags without initializing the sidecar while disabled."""
     result = {
@@ -879,7 +879,7 @@ def nutrition_status() -> dict[str, Any]:
                                 details={"reason": type(exc).__name__})
 
 
-@mcp.tool()
+@tool("legacy_nutrition")
 def nutrition_food_profile(mealie_food_id: str) -> dict[str, Any]:
     """Read cached resolution, profile, and conversions for an exact Mealie food ID."""
     if not config.SABOR_NUTRITION_ENABLED:
@@ -898,7 +898,7 @@ def nutrition_food_profile(mealie_food_id: str) -> dict[str, Any]:
                         "conversions": service.db.list_conversions(mealie_food_id)}}
 
 
-@mcp.tool()
+@tool("legacy_nutrition")
 def nutrition_set_food_profile(
         mealie_food_id: str, calories_kcal: float | None = None,
         protein_g: float | None = None, carbohydrate_g: float | None = None,
@@ -1038,7 +1038,7 @@ def nutrition_set_food_profile(
             "details": details}
 
 
-@mcp.tool()
+@tool("legacy_nutrition")
 def nutrition_set_food_mapping(mealie_food_id: str, mealie_food_name: str,
                                canonical_term: str, confidence: float | None = None,
                                source_note: str = "", provider_food_id: str | None = None,
@@ -1128,7 +1128,7 @@ def nutrition_set_food_mapping(mealie_food_id: str, mealie_food_name: str,
             "message": "Manual canonical mapping saved.", "retryable": False, "details": details}
 
 
-@mcp.tool()
+@tool("legacy_nutrition")
 def nutrition_set_conversion_override(mealie_food_id: str, conversion_type: str,
                                        unit_key: str, grams_per_unit: float,
                                        confidence: float | None = None,
@@ -1174,7 +1174,7 @@ def nutrition_set_conversion_override(mealie_food_id: str, conversion_type: str,
             "message": "Manual conversion override saved.", "retryable": False, "details": details}
 
 
-@mcp.tool()
+@tool("legacy_nutrition")
 def nutrition_calculate_recipe(slug: str, publish: bool = False,
                                force: bool = False) -> dict[str, Any]:
     """Calculate nutrition evidence; Mealie mutation requires publish=true."""
@@ -1183,7 +1183,7 @@ def nutrition_calculate_recipe(slug: str, publish: bool = False,
     return _nutrition_calculate_slug(slug, publish=publish, force=force)
 
 
-@mcp.tool()
+@tool("legacy_nutrition")
 def nutrition_publish_recipe(slug: str, publish: bool = False,
                              force: bool = False) -> dict[str, Any]:
     """Publish per-serving nutrition only when publish=true and policy gates pass."""
@@ -1235,7 +1235,7 @@ def _nutrition_readiness_cookbook_summaries(cookbook_name: str,
     return [item for item in summaries[:limit] if isinstance(item, dict) and item.get("slug")]
 
 
-@mcp.tool()
+@tool("legacy_nutrition")
 def nutrition_cookbook_readiness(cookbook_name: str = "Mis recetas", limit: int = 100,
                                  detail_limit: int = 25) -> dict[str, Any]:
     """Return a bounded, privacy-safe nutrition readiness inventory."""
@@ -1327,7 +1327,7 @@ def nutrition_cookbook_readiness(cookbook_name: str = "Mis recetas", limit: int 
     })
 
 
-@mcp.tool()
+@tool("legacy_nutrition")
 def nutrition_backfill_personal_recipes(limit: int | None = None, batch_size: int = 5,
                                          execute: bool = False, publish: bool = False,
                                          cookbook_name: str = "Mis recetas",
@@ -1357,7 +1357,7 @@ def nutrition_backfill_personal_recipes(limit: int | None = None, batch_size: in
                                 details={"reason": type(exc).__name__})
 
 
-@mcp.tool()
+@tool("legacy_nutrition")
 def nutrition_unresolved_report() -> dict[str, Any]:
     """Return compact unresolved food mappings from the sidecar."""
     if not config.SABOR_NUTRITION_ENABLED:

@@ -3,7 +3,7 @@
 from typing import Any
 import requests
 import sabor.config as config
-from sabor.server import mcp
+from sabor.core.toolsets import tool
 
 # SPOONACULAR — Helpers
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -65,7 +65,7 @@ def _spoonacular_get(path: str, params: dict[str, Any] | None = None) -> dict[st
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 
-@mcp.tool()
+@tool("legacy_spoonacular")
 def spoonacular_search_recipes(
     query: str,
     number: int = 5,
@@ -131,7 +131,7 @@ def spoonacular_search_recipes(
     }
 
 
-@mcp.tool()
+@tool("legacy_spoonacular")
 def spoonacular_search_by_nutrients(
     min_protein_g: float | None = None,
     max_calories_kcal: float | None = None,
@@ -166,7 +166,7 @@ def spoonacular_search_by_nutrients(
     return {"ok": True, "filters": params, "recipes": recipes}
 
 
-@mcp.tool()
+@tool("legacy_spoonacular")
 def spoonacular_nutrition_100g(ingredient: str) -> dict[str, Any]:
     """Informacion nutricional por cada 100g de un ingrediente via Spoonacular."""
     search_result = _spoonacular_get(

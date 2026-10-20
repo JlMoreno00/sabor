@@ -4,13 +4,13 @@ from typing import Any
 import requests
 import sabor.config as config
 import sabor.integrations.mealie as mealie
-from sabor.server import mcp
+from sabor.core.toolsets import tool
 
 # MEALIE — Shopping Lists
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 
-@mcp.tool()
+@tool("core")
 def get_shopping_lists() -> dict[str, Any]:
     """Devuelve todas las listas de compra del hogar con sus IDs y nombres."""
     if err := mealie._check_mealie():
@@ -37,7 +37,7 @@ def get_shopping_lists() -> dict[str, Any]:
         return {"ok": False, "error": f"get_lists_failed: {e}"}
 
 
-@mcp.tool()
+@tool("core")
 def create_shopping_list(name: str) -> dict[str, Any]:
     """Crea una nueva lista de compra vacia con el nombre indicado."""
     if err := mealie._check_mealie():
@@ -57,7 +57,7 @@ def create_shopping_list(name: str) -> dict[str, Any]:
         return {"ok": False, "error": f"create_list_failed: {e}"}
 
 
-@mcp.tool()
+@tool("core")
 def delete_shopping_list(list_id: str, confirm: bool = False) -> dict[str, Any]:
     """Preview deletion of a shopping list; pass confirm=True to delete it permanently."""
     if err := mealie._check_mealie():
@@ -84,7 +84,7 @@ def delete_shopping_list(list_id: str, confirm: bool = False) -> dict[str, Any]:
         return {"ok": False, "error": f"delete_list_failed: {e}"}
 
 
-@mcp.tool()
+@tool("core")
 def add_items_to_shopping_list(list_id: str, items: list[str]) -> dict[str, Any]:
     """Anade ingredientes a una lista de compra existente. items: lista de strings."""
     if err := mealie._check_mealie():
@@ -109,7 +109,7 @@ def add_items_to_shopping_list(list_id: str, items: list[str]) -> dict[str, Any]
         return {"ok": False, "error": f"add_items_failed: {e}"}
 
 
-@mcp.tool()
+@tool("core")
 def clear_shopping_list(list_id: str, confirm: bool = False) -> dict[str, Any]:
     """Preview removal of all shopping items; pass confirm=True to clear the list."""
     if err := mealie._check_mealie():
@@ -144,7 +144,7 @@ def clear_shopping_list(list_id: str, confirm: bool = False) -> dict[str, Any]:
         return {"ok": False, "error": f"clear_list_failed: {e}"}
 
 
-@mcp.tool()
+@tool("core")
 def add_recipe_ingredients_to_list(list_id: str, recipe_slug: str) -> dict[str, Any]:
     """Anade automaticamente TODOS los ingredientes de una receta a una lista de compra."""
     if err := mealie._check_mealie():
@@ -172,7 +172,7 @@ def add_recipe_ingredients_to_list(list_id: str, recipe_slug: str) -> dict[str, 
         return {"ok": False, "error": f"add_recipe_failed: {e}"}
 
 
-@mcp.tool()
+@tool("core")
 def get_or_create_shopping_list(name: str) -> dict[str, Any]:
     """Busca una lista de compra por nombre; si no existe, la crea. Devuelve siempre el ID."""
     if err := mealie._check_mealie():
