@@ -21,7 +21,8 @@ Los resultados satisfactorios están en `data`; si `ok=false`, revisa
 5. Relee `get_shopping_list_items` y calcula
    `estimate_cost(source={"kind":"shopping_list","list_id":id}, store={"provider":"mercadona"})`.
    Muestra consumo proporcional y compra de paquetes, cobertura e incertidumbre.
-   `match_policy="cheapest"` elige el menor precio normalizado compatible y marca
+   `match_policy="cheapest"` elige el producto compatible que menos cuesta en caja
+   para la cantidad necesaria (y, a igualdad, el menor precio por kg/l) y marca
    `estimated` / `auto_selected_cheapest`. Muestra `alternatives` (nombre/precio)
    y ofrece cambiar con `product_overrides` (prioritarios). Usa `strict` para
    dejar ambigüedades sin precio. La búsqueda excluye productos no alimentarios.

@@ -96,10 +96,13 @@ Mercadona search is food-only (non-food top categories 20, 21, 22, 23, 25,
 26 are excluded). Whole-word matches rank by the number of distinct normalized
 name tokens absent from the query (fewer is closer), then food metadata, name
 and ID. This is lexical closeness, not semantic ingredient identity.
-`estimate_cost(..., match_policy="cheapest")` defaults to the lowest normalized
-unit price among compatible food candidates in the search window (up to 50).
-Multiple candidates produce `estimated` / `auto_selected_cheapest` and up to
-five `alternatives` with names and normalized prices. Show alternatives and
+`estimate_cost(..., match_policy="cheapest")` defaults to the compatible food
+candidate (search window up to 50) with the lowest checkout cost for the
+required quantity, that is whole packages times package price, then the lowest
+unit price. For 200 g of flour this picks a 1 kg bag over a cheaper-per-kilo
+5 kg bag. Multiple candidates produce `estimated` / `auto_selected_cheapest`
+and up to five `alternatives` with names, normalized prices and
+`checkout_cost`. Show alternatives and
 offer to switch using `product_overrides`; overrides take precedence, but cannot
 price non-food. Use `match_policy="strict"` to leave ambiguity uncosted.
 A positive quantity without a unit assumes pieces (`estimated`,

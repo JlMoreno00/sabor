@@ -16,8 +16,11 @@
   and image commit-only import kinds. Documented plan → list → cost → sync flow.
 
 ### Changed
-- Pricing defaults to `match_policy="cheapest"` with estimated selections and
-  alternatives; `strict` preserves ambiguous exclusions, overrides take priority.
+- Pricing defaults to `match_policy="cheapest"` (lowest checkout cost for the
+  needed quantity, then unit price) with estimated selections and
+  alternatives; Mercadona dozen (dc/dz), 100 ml and 100 g reference prices are
+  normalized, and unknown denominators are derived from the package
+  (`derived_unit_price`); `strict` preserves ambiguous exclusions, overrides take priority.
   Search/cost exclude non-food and rank closest token names. Unitless quantities
   assume count; egg dozen quotes normalize to per-piece.
 - Mercadona catalog warm-up runs in one background worker with paced requests,
