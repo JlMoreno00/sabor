@@ -162,13 +162,13 @@ def _reconcile_spanish_catalog(apply: bool = False) -> dict[str, Any]:
 
 @tool("legacy_catalog")
 def spanish_catalog_status() -> dict[str, Any]:
-    """Dry-run del catalogo curado espanol: faltantes y conflictos, sin escrituras."""
+    """Preview the curated Spanish catalog: missing entries and conflicts, without writes."""
     return _reconcile_spanish_catalog(apply=False)
 
 
 @tool("legacy_catalog")
 def apply_spanish_catalog() -> dict[str, Any]:
-    """Crea solo entradas faltantes del catalogo espanol; nunca fusiona ni modifica existentes."""
+    """Create only missing Spanish catalog entries; never merge or modify existing entries."""
     return _reconcile_spanish_catalog(apply=True)
 
 

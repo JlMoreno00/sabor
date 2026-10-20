@@ -72,7 +72,7 @@ def save_feedback(
     comment: str | None = None,
     tags: list[str] | None = None,
 ) -> dict[str, Any]:
-    """Persiste feedback de una receta en MEMORY.md (historial, favoritas, blacklist)."""
+    """Persist recipe feedback in MEMORY.md (history, favorites, blacklist)."""
     if not recipe_name:
         return {"ok": False, "error": "recipe_name is required"}
     tags = tags or []
@@ -142,7 +142,7 @@ def save_feedback(
 
 @tool("legacy_memory")
 def read_memory(section: str | None = None) -> dict[str, Any]:
-    """Lee MEMORY.md completo o una seccion especifica."""
+    """Read all of MEMORY.md or a specific section."""
     content = _read_memory()
     if not content:
         return {"ok": False, "error": "MEMORY.md no existe o esta vacio"}
@@ -157,7 +157,7 @@ def read_memory(section: str | None = None) -> dict[str, Any]:
 
 @tool("legacy_memory")
 def update_pantry(items: list[str]) -> dict[str, Any]:
-    """Actualiza la seccion 'Despensa Conversacional' con los ingredientes disponibles."""
+    """Update the 'Despensa Conversacional' section with available ingredients."""
     if not items:
         return {"ok": False, "error": "items list is empty"}
     content = _read_memory() or _MEMORY_TEMPLATE
@@ -176,7 +176,7 @@ def update_pantry(items: list[str]) -> dict[str, Any]:
 
 @tool("legacy_memory")
 def update_learned_preference(preference: str) -> dict[str, Any]:
-    """Anade una preferencia aprendida del usuario a MEMORY.md."""
+    """Add a learned user preference to MEMORY.md."""
     if not preference:
         return {"ok": False, "error": "preference text is required"}
     content = _read_memory() or _MEMORY_TEMPLATE

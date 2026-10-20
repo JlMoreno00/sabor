@@ -78,7 +78,7 @@ def spoonacular_search_recipes(
     max_carbs_g: float | None = None,
     min_carbs_g: float | None = None,
 ) -> dict[str, Any]:
-    """Busca recetas ONLINE en Spoonacular con filtros nutricionales opcionales. Usar cuando Mealie no tiene resultados."""
+    """Search ONLINE recipes on Spoonacular with optional nutrition filters. Use when Mealie has no results."""
     params: dict[str, Any] = {"query": query, "number": max(1, min(number, 100))}
     nutrient_map = {
         "maxCalories": max_calories,
@@ -134,7 +134,7 @@ def spoonacular_search_recipes(
 
 @tool("legacy_spoonacular")
 def spoonacular_nutrition_100g(ingredient: str) -> dict[str, Any]:
-    """Informacion nutricional por cada 100g de un ingrediente via Spoonacular."""
+    """Get nutrition information per 100 g of an ingredient via Spoonacular."""
     search_result = _spoonacular_get(
         "/food/ingredients/search",
         {"query": ingredient, "number": 1, "metaInformation": True},

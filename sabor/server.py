@@ -8,6 +8,7 @@ from sabor.core.config import load_settings
 from sabor.core.registry import Registry
 from sabor.core.capabilities import describe
 from sabor.core.toolsets import catalog
+from sabor.core.legacy import legacy_envelope
 
 _registered = WeakKeyDictionary()
 
@@ -60,7 +61,10 @@ def register_tools(server=None, env=None) -> None:
         if requires is not None and not requires(registry.settings):
             skipped.append({"tool": fn.__name__, "reason": "missing_configuration"})
             continue
-        server.add_tool(fn)
+        provider = {"legacy_memory": "memory", "legacy_pricing": "mercadona",
+                    "legacy_spoonacular": "spoonacular", "legacy_catalog": "mealie",
+                    "legacy_nutrition": "nutrition"}.get(group)
+        server.add_tool(legacy_envelope(fn, provider) if group.startswith("legacy_") else fn)
         names.append(fn.__name__)
     names.append("sabor_capabilities")
 

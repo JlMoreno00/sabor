@@ -227,7 +227,7 @@ def mercadona_get_product_price(product_id: str) -> dict[str, Any]:
     """Get detailed price information for a specific Mercadona product by ID.
 
     Returns full product details including unit price, bulk price, reference price,
-    IVA, size info, and whether the price has been reduced.
+    VAT, size info, and whether the price has been reduced.
     """
     result = _mercadona_get(f"/products/{product_id}/")
     if not result.get("ok"):
@@ -332,7 +332,7 @@ def mercadona_estimate_shopping_list_cost(items: list[str]) -> dict[str, Any]:
 
 @tool("legacy_pricing")
 def mercadona_get_price_drops() -> dict[str, Any]:
-    """Get products with reduced prices (bajadas de precio) from Mercadona.
+    """Get products with reduced prices from Mercadona.
 
     Returns all products where price_decreased is True, sorted by category.
     Loads the catalog if not yet cached.
