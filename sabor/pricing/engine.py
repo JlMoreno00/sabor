@@ -1,0 +1,214 @@
+"""Read-only Decimal costing. Totals are partial, never missing-price zeroes."""
+import re
+from dataclasses import dataclass
+from datetime import date
+from decimal import Decimal, InvalidOperation, ROUND_CEILING
+from .provider import RetailContext, ProductQuery, PriceQuote
+from .quantities import from_structured, to_base
+from sabor.store import DateRange
+
+
+@dataclass(frozen=True)
+class Uncertainty:
+    level: str
+    reasons: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class CostLine:
+    key: str
+    name: str
+    required_quantity: Decimal | None
+    base_unit: str | None
+    consumption: Decimal | None
+    quote: PriceQuote | None
+    candidates: tuple[str, ...]
+    uncertainty: Uncertainty
+    provenance: tuple[str, ...]
+    match_evidence: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class CostEstimate:
+    lines: tuple[CostLine, ...]
+    consumption_subtotal: Decimal | None
+    procurement_subtotal: Decimal | None
+    currency: str | None
+    complete: bool
+    coverage: dict[str, int]
+    excluded_rows: tuple[CostLine, ...]
+
+
+def _number(value):
+    if isinstance(value, (bool, float)):
+        raise ValueError('Decimal operands required')
+    try:
+        result = Decimal(str(value))
+    except (InvalidOperation, ValueError):
+        raise ValueError('invalid amount') from None
+    if not result.is_finite() or result < 0:
+        raise ValueError('invalid amount')
+    return result
+
+
+def _resolve(source, store):
+    shapes = {'items': {'items'}, 'shopping_list': {'list_id'},
+              'recipe': {'slug', 'multiplier'},
+              'mealplan': {'start_date', 'end_date', 'multiplier'}}
+    if not isinstance(source, dict) or source.get('kind') not in shapes:
+        raise ValueError('invalid source')
+    kind = source['kind']
+    required = shapes[kind] - {'multiplier'}
+    if source.keys() - (shapes[kind] | {'kind'}) or not required <= source.keys():
+        raise ValueError('mixed or incomplete source')
+    multiplier = _number(source.get('multiplier', 1))
+    if not 0 < multiplier <= 20:
+        raise ValueError('invalid multiplier')
+    if kind == 'mealplan':
+        start, end = (date.fromisoformat(source[k]) for k in ('start_date', 'end_date'))
+        if not 0 <= (end - start).days < 31:
+            raise ValueError('invalid date range')
+    for key in required - {'items', 'start_date', 'end_date'}:
+        if not isinstance(source[key], str) or not source[key].strip():
+            raise ValueError('invalid identifier')
+    rows = []
+    def add(key, item, scale=multiplier):
+        if isinstance(item, dict):
+            if item.keys() - {'name', 'quantity', 'unit', 'text'} or not isinstance(item.get('name'), str) or not item['name'].strip():
+                raise ValueError('invalid inline item')
+            row = dict(item)
+        else:
+            row = dict(name=(item.food.name if item.food else None) or item.display or item.note or '',
+                       quantity=item.quantity, unit=item.unit.name if item.unit else None,
+                       text=getattr(item, 'originalText', None) or item.display or item.note)
+        amount = row.get('quantity')
+        # Store DTOs carry API floats; decode once at this boundary only.
+        if amount is not None:
+            row['quantity'] = _number(str(amount) if not isinstance(item, dict) else amount)
+        rows.append((key, row, scale))
+        if len(rows) > 500:
+            raise ValueError('too many rows')
+    def recipe(slug, prefix):
+        for i, ingredient in enumerate(store.get_recipe(slug).recipeIngredient or ()):
+            add(f'{prefix}:{i}', ingredient)
+    if kind == 'items':
+        if not isinstance(source['items'], list) or len(source['items']) > 500:
+            raise ValueError('invalid items')
+        for i, item in enumerate(source['items']):
+            if not isinstance(item, dict):
+                raise ValueError('invalid item')
+            add(f'items:{i}', item)
+    else:
+        if store is None:
+            raise ValueError('recipe store required')
+        if kind == 'recipe':
+            recipe(source['slug'], 'recipe:' + source['slug'])
+        elif kind == 'shopping_list':
+            for item in store.get_shopping_items(source['list_id']).items:
+                add(f'list:{source["list_id"]}:{item.id}', item)
+        else:
+            for entry in store.get_mealplan(DateRange(source['start_date'], source['end_date'])):
+                prefix = f'meal:{entry.id}'
+                if entry.recipe_slug:
+                    recipe(entry.recipe_slug, prefix)
+                else:
+                    add(prefix, dict(name=entry.title or 'Text-only meal', text=entry.title))
+    return rows
+
+
+def _words(text):
+    return set(re.findall(r'[^\W\d_]+', text.casefold())) - {'de', 'the', 'of'}
+
+
+def estimate(source, store_ctx: RetailContext, recipe_store, pricing, product_overrides=None) -> CostEstimate:
+    rows = _resolve(source, recipe_store)
+    overrides = product_overrides or {}
+    if not isinstance(overrides, dict) or overrides.keys() - {r[0] for r in rows} or any(
+            not isinstance(v, str) or not v.strip() for v in overrides.values()):
+        raise ValueError('invalid overrides')
+    if store_ctx.provider != pricing.id:
+        raise ValueError('provider mismatch')
+    quantities = [to_base(from_structured(row.get('quantity'), row.get('unit'), row['name'], row.get('text')))
+                  for _, row, _ in rows]
+    if any('invalid_amount' in q.ambiguity for q in quantities):
+        raise ValueError('invalid amount')
+    lines, groups = [], {}
+    currency, location = store_ctx.currency, store_ctx.location_id
+    consumption, quote_scope = None, None
+    for (key, row, multiplier), q in zip(rows, quantities):
+        required = q.amount * multiplier if q.amount is not None and q.dimension else None
+        reasons, evidence = list(q.ambiguity), [f'quantity:{q.source}']
+        candidates, quote, cost = [], None, None
+        if required is not None:
+            if key in overrides:
+                candidates = [overrides[key]]
+                evidence.append('caller_override')
+            else:
+                words = _words(row['name'])
+                for product in pricing.search_products(ProductQuery(row['name']), store_ctx):
+                    if words and words <= _words(product.name):
+                        candidate_quote = pricing.get_quote(product.id, store_ctx)
+                        dimension_unit = {'kg': 'g', 'l': 'ml', 'unit': 'ud'}.get(candidate_quote.package_unit)
+                        if dimension_unit in (None, q.unit):
+                            candidates.append(product.id)
+                candidates = list(dict.fromkeys(candidates))
+                evidence.append('whole_word')
+            if len(candidates) == 1:
+                quote = pricing.get_quote(candidates[0], store_ctx)
+                if quote.product_id != candidates[0] or quote.location.provider != store_ctx.provider:
+                    raise ValueError('quote identity mismatch')
+                if (currency and currency != quote.currency) or (location and location != quote.location.location_id):
+                    raise ValueError('incompatible currency or location')
+                if quote.location.currency not in (None, quote.currency):
+                    raise ValueError('incompatible quote currency')
+                scope = (quote.currency, quote.location.location_id)
+                if quote_scope is not None and scope != quote_scope:
+                    raise ValueError('incompatible quote scopes')
+                quote_scope = scope
+                currency, location = scope
+                for value in (quote.package_price, quote.package_quantity, quote.normalized_unit_price):
+                    if value is not None and (not isinstance(value, Decimal) or not value.is_finite() or value < 0):
+                        raise ValueError('invalid quote operand')
+                reasons.extend(quote.uncertainty_reasons)
+                if quote.availability is not True:
+                    reasons.append('availability_unknown' if quote.availability is None else 'unavailable')
+                unit = {'kg': 'g', 'l': 'ml', 'unit': 'ud'}.get(quote.package_unit)
+                if unit != q.unit:
+                    reasons.append('dimension_mismatch')
+                elif quote.package_quantity is None or quote.package_quantity <= 0:
+                    reasons.append('package_only')
+                else:
+                    factor = Decimal(1) if unit == 'ud' else Decimal(1000)
+                    if quote.normalized_unit_price is not None:
+                        cost = required / factor * quote.normalized_unit_price
+                        consumption = (consumption if consumption is not None else Decimal(0)) + cost
+                    else:
+                        reasons.append('missing_unit_price')
+                    if quote.package_price is not None:
+                        previous = groups.get(quote.product_id)
+                        if previous and previous[1] != quote:
+                            raise ValueError('inconsistent product quotes')
+                        groups[quote.product_id] = ((previous[0] if previous else Decimal(0)) + required / factor, quote)
+                    else:
+                        reasons.append('missing_package_price')
+            else:
+                reasons.append('ambiguous_match' if candidates else 'no_match')
+        else:
+            reasons.append('unknown_quantity')
+        level = 'unknown' if cost is None else 'estimated' if reasons else 'known'
+        lines.append(CostLine(key, row['name'], required, q.unit, cost, quote, tuple(candidates),
+                              Uncertainty(level, tuple(dict.fromkeys(reasons))),
+                              (key, quote.provenance) if quote else (key,), tuple(evidence)))
+    procurement = None
+    for amount, quote in groups.values():
+        packages = (amount / quote.package_quantity).to_integral_value(rounding=ROUND_CEILING)
+        procurement = (procurement if procurement is not None else Decimal(0)) + packages * quote.package_price
+    excluded = tuple(line for line in lines if line.consumption is None)
+    return CostEstimate(tuple(lines), consumption, procurement, currency,
+                        bool(lines) and all(line.uncertainty.level == 'known' for line in lines),
+                        dict(total=len(lines), costed=len(lines)-len(excluded), excluded=len(excluded)), excluded)
+
+
+def present_money(value: Decimal | None) -> str | None:
+    """Presentation only; audit operands and estimates remain unrounded."""
+    return None if value is None else str(value.quantize(Decimal('0.01')))
