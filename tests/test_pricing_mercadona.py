@@ -7,6 +7,8 @@ from decimal import Decimal
 from unittest.mock import Mock
 from typing import Any
 
+import requests
+
 from sabor.pricing.mercadona import MercadonaPricing
 from sabor.pricing.provider import ProductQuery, RetailContext
 
@@ -28,7 +30,7 @@ class MercadonaTests(unittest.TestCase):
         self.session.get.side_effect = self.fetch
         self.store = RetailContext('mercadona')
         self.provider = MercadonaPricing(session=self.session, ttl_seconds=10,
-                                         clock=lambda: self.now)
+                                         clock=lambda: self.now, request_delay=0)
 
     def fetch(self, url, **kwargs):
         response = Mock()
@@ -147,6 +149,50 @@ class MercadonaTests(unittest.TestCase):
             self.quote()
         self.session.get.side_effect = self.fetch
         self.assertEqual(self.quote().package_price, Decimal('17.25'))
+
+    def many_subcategories(self, failing, status=403, recover=False):
+        """20 subcategories; `failing` ids answer `status` (once if `recover`)."""
+        seen = {}
+
+        def fetch(url, **kwargs):
+            response = Mock()
+            if url.endswith('/categories/'):
+                response.json.return_value = {'categories': [
+                    {'id': 1, 'categories': [{'id': n} for n in range(2, 22)]}]}
+                return response
+            sub = int(url.rstrip('/').rsplit('/', 1)[1])
+            seen[sub] = seen.get(sub, 0) + 1
+            if sub in failing and not (recover and seen[sub] > 1):
+                response.status_code = status
+                response.raise_for_status.side_effect = requests.HTTPError(response=response)
+                return response
+            response.status_code = 200
+            response.json.return_value = {'categories': [{'products': [item(f'p{sub}', f'Producto {sub}')]}]}
+            return response
+        self.session.get.side_effect = fetch
+        self.provider = MercadonaPricing(session=self.session, ttl_seconds=10,
+                                         clock=lambda: self.now, retry_delay=0,
+                                         request_delay=0)
+        return seen
+
+    def test_one_blocked_subcategory_gives_partial_catalog(self):
+        self.many_subcategories({7})
+        quote = self.quote('p3')
+        self.assertEqual(quote.package_price, Decimal('17.25'))
+        self.assertIn('catalog_partial', quote.uncertainty_reasons)
+        with self.assertRaises(LookupError):
+            self.quote('p7')
+
+    def test_blocked_subcategory_is_retried_once(self):
+        seen = self.many_subcategories({7}, status=429, recover=True)
+        quote = self.quote('p7')
+        self.assertEqual(seen[7], 2)
+        self.assertNotIn('catalog_partial', quote.uncertainty_reasons)
+
+    def test_too_many_failed_subcategories_is_unavailable(self):
+        self.many_subcategories(set(range(2, 6)))  # 4 of 20 = 20% > 10%
+        with self.assertRaises(RuntimeError):
+            self.quote('p10')
 
     def test_partial_refresh_preserves_last_complete_catalog(self):
         first = self.quote()

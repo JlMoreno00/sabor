@@ -23,8 +23,16 @@ class MercadonaPricing:
     id = 'mercadona'
     operations = frozenset({'search_products', 'get_quote'})
 
-    def __init__(self, warehouse='mad1', session=None, ttl_seconds=86400, clock=time.time):
+    # The catalog is unofficial and rate-limited: a few blocked subcategories must
+    # not discard the whole catalog. Above this failure ratio it is unavailable.
+    MAX_FAILED_SUBCATEGORY_RATIO = Decimal('0.10')
+
+    def __init__(self, warehouse='mad1', session=None, ttl_seconds=86400, clock=time.time,
+                 retry_delay=1.0, request_delay=0.05):
         self.warehouse = warehouse
+        self.retry_delay = retry_delay
+        self.request_delay = request_delay
+        self._partial = False
         self.session = session if session is not None else requests.Session()
         self.ttl_seconds = ttl_seconds
         self.clock = clock
@@ -65,16 +73,40 @@ class MercadonaPricing:
             for child in node.get('categories', []):
                 collect(child)
 
+        subcategories = []
         for category in categories:
             if not isinstance(category, dict):
                 raise ValueError('Invalid category')
             for sub in category.get('categories', []):
                 if not isinstance(sub, dict) or not isinstance(sub.get('id'), (str, int)):
                     raise ValueError('Invalid category id')
-                collect(self._get(f"/categories/{sub['id']}/"))
+                subcategories.append(sub['id'])
+        failed = 0
+        for sub_id in subcategories:
+            try:
+                collect(self._get_subcategory(sub_id))
+            except (requests.RequestException, OSError, ValueError):
+                failed += 1
+        if subcategories and Decimal(failed) / Decimal(len(subcategories)) > self.MAX_FAILED_SUBCATEGORY_RATIO:
+            raise ValueError('Too many unavailable catalog subcategories')
         if not catalog:
             raise ValueError('Empty catalog')
+        self._fetched_partial = failed > 0
         return catalog
+
+    def _get_subcategory(self, sub_id):
+        """Fetch one subcategory, retrying once after a 403/429 rate-limit answer."""
+        if self.request_delay:
+            time.sleep(self.request_delay)
+        try:
+            return self._get(f'/categories/{sub_id}/')
+        except requests.HTTPError as exc:
+            status = getattr(exc.response, 'status_code', None)
+            if status not in (403, 429):
+                raise
+            if self.retry_delay:
+                time.sleep(self.retry_delay)
+            return self._get(f'/categories/{sub_id}/')
 
     def _snapshot(self):
         with self._lock:
@@ -91,6 +123,7 @@ class MercadonaPricing:
                     stale = True
                 else:
                     self._catalog, self._loaded_at = catalog, loaded_at
+                    self._partial = getattr(self, '_fetched_partial', False)
             assert self._catalog is not None and self._loaded_at is not None
             return self._catalog, datetime.fromtimestamp(self._loaded_at, timezone.utc), stale
 
@@ -115,6 +148,8 @@ class MercadonaPricing:
             normalized = None
         if stale:
             reasons.append('stale_catalog')
+        if self._partial:
+            reasons.append('catalog_partial')
         return PriceQuote(pid, name if isinstance(name, str) else '', package.package_price,
                           'EUR', amount, units.get(q.unit), normalized, observed, observed,
                           RetailContext(self.id, self.warehouse, 'EUR'), self._provenance,
