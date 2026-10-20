@@ -14,9 +14,15 @@ def response(data):
 
 class MealieSafetyTests(unittest.TestCase):
     def setUp(self):
-        patch.object(shopping.mealie, '_check_mealie', return_value=None).start()
-        self.http = patch.object(shopping, 'requests').start()
-        patch.object(mealplan, 'requests', self.http).start()
+        # Since v0.3 the tools route through the instance store; direct calls
+        # use the requests module as the store session, so intercept it there.
+        import requests
+        import sabor.config as config
+        patch.object(config, 'MEALIE_BASE_URL', 'http://mealie.test').start()
+        patch.object(config, 'MEALIE_API_TOKEN', 'test-token').start()
+        self.http = Mock()
+        for method in ('get', 'post', 'put', 'patch', 'delete', 'request'):
+            patch.object(requests, method, getattr(self.http, method)).start()
         self.http.get.return_value = response({'listItems': [{'id': 'item', 'note': 'Milk'}], 'items': [{'id': 'entry', 'title': 'Soup'}]})
         self.http.delete.return_value = response({})
         self.addCleanup(patch.stopall)

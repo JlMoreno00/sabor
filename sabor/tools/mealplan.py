@@ -3,55 +3,92 @@
 import threading
 from typing import Any
 import requests
+import sabor.integrations.mealie as _mealie
 import sabor.config as config
-import sabor.integrations.mealie as mealie
 import sabor.tools.nutrition as nutrition
 from sabor.core.toolsets import tool
+from sabor.store import DateRange, MealEntryDraft, StoreError, store_error_envelope
 
-# MEALIE — Meal Planner / Calendar
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+mealie = _mealie  # Retained direct-call patch site; never used by registered transport.
 
 
-@tool("core")
+@tool("core", uses_context=True)
 def get_mealplan_week(start_date: str, end_date: str) -> dict[str, Any]:
     """Obtiene el plan de comidas para un rango de fechas (YYYY-MM-DD)."""
-    if err := mealie._check_mealie():
-        return err
-    try:
-        r = requests.get(
-            f"{config.MEALIE_BASE_URL}/api/households/mealplans",
-            headers=mealie._mealie_headers(),
-            params={"start_date": start_date, "end_date": end_date},
-            timeout=30,
-        )
-        if not (200 <= r.status_code < 300):
-            return {"ok": False, "status": r.status_code, "body": r.text[:1000]}
-        entries = r.json().get("items") or []
-        result = []
-        for e in entries:
-            recipe = e.get("recipe") or {}
-            result.append(
-                {
-                    "id": e.get("id"),
-                    "date": e.get("date"),
-                    "entryType": e.get("entryType"),
-                    "title": e.get("title") or recipe.get("name", ""),
-                    "recipe_slug": recipe.get("slug"),
-                    "recipe_id": recipe.get("id"),
-                }
-            )
-        return {"ok": True, "total": len(result), "entries": result}
-    except Exception as e:
-        return {"ok": False, "error": f"get_mealplan_failed: {e}"}
+    return _defer("read", DateRange(start_date, end_date))
 
 
-@tool("core")
+@tool("core", uses_context=True)
 def set_mealplan_entry(
     date_str: str, entry_type: str, title: str, recipe_slug: str | None = None
 ) -> dict[str, Any]:
     """Anade una entrada al calendario de Mealie. entry_type: lunch|dinner|breakfast|side."""
-    if err := mealie._check_mealie():
-        return err
+    return _defer("set", MealEntryDraft(date_str, entry_type, title, recipe_slug))
+
+
+@tool("core", uses_context=True)
+def delete_mealplan_entry(entry_id: str) -> dict[str, Any]:
+    """Elimina una entrada del plan de comidas por su ID."""
+    return _defer("delete", entry_id)
+
+
+@tool("core", uses_context=True)
+def clear_mealplan_week(start_date: str, end_date: str, confirm: bool = False) -> dict[str, Any]:
+    """Preview entries removed in a date range; pass confirm=True to clear them."""
+    return _defer("clear", DateRange(start_date, end_date), confirm)
+
+
+def _defer(action, argument, confirm=False) -> Any:
+    return lambda ctx: _calendar(ctx, action, argument, confirm)
+
+
+def _calendar(ctx, action, argument, confirm=False):
+    if ctx.store is None:
+        return store_error_envelope(StoreError("provider_unconfigured", "mealie"))
+    try:
+        if action == "set":
+            entry = ctx.store.set_mealplan_entry(argument)
+            result = getattr(entry, "result", None)
+            return result if result is not None else {
+                "ok": True, "id": entry.id, "date": entry.date,
+                "entry_type": entry.entry_type, "title": entry.title,
+                "has_recipe_link": entry.recipe_id is not None, "scheduled": True, "created": True}
+        if action == "delete":
+            status = ctx.store.delete_mealplan_entry(argument)
+            return {"ok": True, "status": status or 200, "entry_id": argument}
+        entries = ctx.store.get_mealplan(argument)
+        if action == "read":
+            rows = [{"id": e.id, "date": e.date, "entryType": e.entry_type,
+                     "title": e.title, "recipe_slug": e.recipe_slug, "recipe_id": e.recipe_id}
+                    for e in entries]
+            return {"ok": True, "total": len(rows), "entries": rows}
+        date_range = f"{argument.start_date} -> {argument.end_date}"
+        if not confirm:
+            rows = [getattr(e, "raw", None) or {
+                "id": e.id, "date": e.date, "entryType": e.entry_type, "title": e.title}
+                for e in entries]
+            return {"ok": True, "preview": True, "items_to_remove": rows,
+                    "count": len(rows), "range": date_range}
+        if not entries:
+            return {"ok": True, "deleted": 0, "message": "No habia entradas en ese rango"}
+        deleted, failures = 0, []
+        for entry in entries:
+            if not entry.id:
+                continue
+            try:
+                ctx.store.delete_mealplan_entry(entry.id)
+                deleted += 1
+            except StoreError as exc:
+                failures.append({"id": entry.id, "status": getattr(exc, "status", None)}
+                                if hasattr(exc, "status") else
+                                {"id": entry.id, "error": store_error_envelope(exc)["error"]})
+        return {"ok": True, "deleted": deleted, "errors": failures, "range": date_range}
+    except StoreError as exc:
+        return store_error_envelope(exc)
+
+
+def _schedule(date_str, entry_type, title, recipe_slug, session, base_url, headers):
+    """Legacy nutrition bridge: config flag, nutrition services and locks remain global."""
     arguments = {"date_str": date_str, "entry_type": entry_type, "title": title,
                  "recipe_slug": recipe_slug}
     continuation = nutrition._nutrition_continuation("set_mealplan_entry", arguments)
@@ -70,9 +107,9 @@ def set_mealplan_entry(
                     return {**ensured, "scheduled": False, "continuation": continuation}
                 expected_revision = ensured.get("revision")
             else:
-                rr = requests.get(
-                    f"{config.MEALIE_BASE_URL}/api/recipes/{recipe_slug}",
-                    headers=mealie._mealie_headers(), timeout=30,
+                rr = session.get(
+                    f"{base_url}/api/recipes/{recipe_slug}",
+                    headers=headers, timeout=30,
                 )
                 if 200 <= rr.status_code < 300:
                     payload["recipeId"] = rr.json().get("id")
@@ -81,9 +118,9 @@ def set_mealplan_entry(
         with lock:
             if recipe_slug and config.SABOR_NUTRITION_ENABLED:
                 try:
-                    lookup = requests.get(
-                        f"{config.MEALIE_BASE_URL}/api/households/mealplans",
-                        headers=mealie._mealie_headers(),
+                    lookup = session.get(
+                        f"{base_url}/api/households/mealplans",
+                        headers=headers,
                         params={"start_date": date_str, "end_date": date_str}, timeout=30,
                     )
                 except requests.exceptions.RequestException:
@@ -130,11 +167,11 @@ def set_mealplan_entry(
                         "retryable": False, "scheduled": True, "created": False,
                         "id": existing.get("id"), "date": date_str,
                         "entry_type": entry_type, "title": title,
-                        "has_recipe_link": True,
+                        "has_recipe_link": True, "_recipe_id": payload.get("recipeId"),
                     }
-            r = requests.post(
-                f"{config.MEALIE_BASE_URL}/api/households/mealplans",
-                headers=mealie._mealie_headers(), json=payload, timeout=30,
+            r = session.post(
+                f"{base_url}/api/households/mealplans",
+                headers=headers, json=payload, timeout=30,
             )
         if not (200 <= r.status_code < 300):
             return {"ok": False, "status": r.status_code, "body": r.text[:500]}
@@ -146,79 +183,10 @@ def set_mealplan_entry(
             "entry_type": entry_type,
             "title": title,
             "has_recipe_link": "recipeId" in payload,
+            "_recipe_id": payload.get("recipeId"),
             "scheduled": True,
             "created": True,
         }
     except Exception as e:
         return {"ok": False, "error": f"set_mealplan_failed: {e}"}
 
-
-@tool("core")
-def delete_mealplan_entry(entry_id: str) -> dict[str, Any]:
-    """Elimina una entrada del plan de comidas por su ID."""
-    if err := mealie._check_mealie():
-        return err
-    try:
-        r = requests.delete(
-            f"{config.MEALIE_BASE_URL}/api/households/mealplans/{entry_id}",
-            headers=mealie._mealie_headers(),
-            timeout=30,
-        )
-        return {
-            "ok": 200 <= r.status_code < 300,
-            "status": r.status_code,
-            "entry_id": entry_id,
-        }
-    except Exception as e:
-        return {"ok": False, "error": f"delete_mealplan_failed: {e}"}
-
-
-@tool("core")
-def clear_mealplan_week(start_date: str, end_date: str, confirm: bool = False) -> dict[str, Any]:
-    """Preview entries removed in a date range; pass confirm=True to clear them."""
-    if err := mealie._check_mealie():
-        return err
-    try:
-        r = requests.get(
-            f"{config.MEALIE_BASE_URL}/api/households/mealplans",
-            headers=mealie._mealie_headers(),
-            params={"start_date": start_date, "end_date": end_date},
-            timeout=30,
-        )
-        if not (200 <= r.status_code < 300):
-            return {"ok": False, "status": r.status_code, "body": r.text[:500]}
-        entries = r.json().get("items") or []
-        if not confirm:
-            return {"ok": True, "preview": True, "items_to_remove": entries,
-                    "count": len(entries), "range": f"{start_date} -> {end_date}"}
-        if not entries:
-            return {
-                "ok": True,
-                "deleted": 0,
-                "message": "No habia entradas en ese rango",
-            }
-        deleted, errors = 0, []
-        for entry in entries:
-            eid = entry.get("id")
-            if not eid:
-                continue
-            rd = requests.delete(
-                f"{config.MEALIE_BASE_URL}/api/households/mealplans/{eid}",
-                headers=mealie._mealie_headers(),
-                timeout=30,
-            )
-            if 200 <= rd.status_code < 300:
-                deleted += 1
-            else:
-                errors.append({"id": eid, "status": rd.status_code})
-        return {
-            "ok": True,
-            "deleted": deleted,
-            "errors": errors,
-            "range": f"{start_date} -> {end_date}",
-        }
-    except Exception as e:
-        return {"ok": False, "error": f"clear_mealplan_failed: {e}"}
-
-
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

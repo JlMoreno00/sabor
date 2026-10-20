@@ -1,158 +1,73 @@
-"""Mealie shopping-list tools."""
-
+"""Shopping-list orchestration over the instance-owned store."""
 from typing import Any
-import requests
-import sabor.config as config
-import sabor.integrations.mealie as mealie
-from sabor.core.toolsets import tool
-
-# MEALIE — Shopping Lists
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+from sabor.core.toolsets import tool, mealie_ready
+from sabor.core.envelope import fail
+from sabor.store import StoreError, store_error_envelope
 
 
-@tool("core")
+def _run(ctx, operation, value=None, confirm=False):
+    store = ctx.store
+    if store is None:
+        return fail('provider_unconfigured', 'Mealie is not configured.', 'mealie')
+    try:
+        if operation == 'get':
+            rows = store.get_shopping_lists()
+            return {'ok': True, 'total': len(rows), 'lists': [
+                {'id': row.id, 'name': row.name, 'items_count': row.items_count} for row in rows]}
+        if operation in ('create', 'get_or_create'):
+            if operation == 'get_or_create':
+                matches = [row for row in store.get_shopping_lists() if row.name == value]
+                if len(matches) > 1:
+                    return fail('conflict', 'Multiple shopping lists have this exact name.', store.id)
+                if matches:
+                    return {'ok': True, 'id': matches[0].id, 'name': matches[0].name, 'created': False}
+            row = store.create_shopping_list(value)
+            result = {'ok': True, 'id': row.id, 'name': row.name}
+            if operation == 'get_or_create':
+                result['created'] = True
+            return result
+        if not confirm:
+            data = store.shopping_list_preview(value)
+            if operation == 'clear':
+                data.pop('name', None)
+            return {'ok': True, 'preview': True, 'list_id': value, **data}
+        if operation == 'clear':
+            return store.clear_shopping_list_items(value)
+        status = store.delete_shopping_list(value)
+        return {'ok': True, 'status': status if status is not None else 204}
+    except StoreError as exc:
+        return store_error_envelope(exc)
+
+
+def _defer(operation, value=None, confirm=False) -> Any:
+    return lambda ctx: _run(ctx, operation, value, confirm)
+
+
+@tool('core', requires=mealie_ready, uses_context=True)
 def get_shopping_lists() -> dict[str, Any]:
     """Devuelve todas las listas de compra del hogar con sus IDs y nombres."""
-    if err := mealie._check_mealie():
-        return err
-    try:
-        r = requests.get(
-            f"{config.MEALIE_BASE_URL}/api/households/shopping/lists",
-            headers=mealie._mealie_headers(),
-            timeout=30,
-        )
-        if not (200 <= r.status_code < 300):
-            return {"ok": False, "status": r.status_code, "body": r.text[:1000]}
-        data = r.json()
-        lists = [
-            {
-                "id": it.get("id"),
-                "name": it.get("name"),
-                "items_count": len(it.get("listItems") or []),
-            }
-            for it in (data.get("items") or [])
-        ]
-        return {"ok": True, "total": len(lists), "lists": lists}
-    except Exception as e:
-        return {"ok": False, "error": f"get_lists_failed: {e}"}
+    return _defer('get')
 
 
-@tool("core")
+@tool('core', requires=mealie_ready, uses_context=True)
 def create_shopping_list(name: str) -> dict[str, Any]:
     """Crea una nueva lista de compra vacia con el nombre indicado."""
-    if err := mealie._check_mealie():
-        return err
-    try:
-        r = requests.post(
-            f"{config.MEALIE_BASE_URL}/api/households/shopping/lists",
-            headers=mealie._mealie_headers(),
-            json={"name": name},
-            timeout=30,
-        )
-        if not (200 <= r.status_code < 300):
-            return {"ok": False, "status": r.status_code, "body": r.text[:1000]}
-        data = r.json()
-        return {"ok": True, "id": data.get("id"), "name": data.get("name")}
-    except Exception as e:
-        return {"ok": False, "error": f"create_list_failed: {e}"}
+    return _defer('create', name)
 
 
-@tool("core")
+@tool('core', requires=mealie_ready, uses_context=True)
 def delete_shopping_list(list_id: str, confirm: bool = False) -> dict[str, Any]:
     """Preview deletion of a shopping list; pass confirm=True to delete it permanently."""
-    if err := mealie._check_mealie():
-        return err
-    try:
-        if not confirm:
-            r = requests.get(
-                f"{config.MEALIE_BASE_URL}/api/households/shopping/lists/{list_id}",
-                headers=mealie._mealie_headers(), timeout=30,
-            )
-            if not 200 <= r.status_code < 300:
-                return {"ok": False, "status": r.status_code, "body": r.text[:500]}
-            data = r.json()
-            items = data.get("listItems") or []
-            return {"ok": True, "preview": True, "list_id": list_id,
-                    "name": data.get("name"), "items_to_remove": items, "count": len(items)}
-        r = requests.delete(
-            f"{config.MEALIE_BASE_URL}/api/households/shopping/lists/{list_id}",
-            headers=mealie._mealie_headers(),
-            timeout=30,
-        )
-        return {"ok": 200 <= r.status_code < 300, "status": r.status_code}
-    except Exception as e:
-        return {"ok": False, "error": f"delete_list_failed: {e}"}
+    return _defer('delete', list_id, confirm)
 
 
-
-@tool("core")
+@tool('core', requires=mealie_ready, uses_context=True)
 def clear_shopping_list(list_id: str, confirm: bool = False) -> dict[str, Any]:
     """Preview removal of all shopping items; pass confirm=True to clear the list."""
-    if err := mealie._check_mealie():
-        return err
-    try:
-        r = requests.get(
-            f"{config.MEALIE_BASE_URL}/api/households/shopping/lists/{list_id}",
-            headers=mealie._mealie_headers(),
-            timeout=30,
-        )
-        if not (200 <= r.status_code < 300):
-            return {"ok": False, "status": r.status_code, "body": r.text[:500]}
-        items = r.json().get("listItems") or []
-        if not confirm:
-            return {"ok": True, "preview": True, "list_id": list_id,
-                    "items_to_remove": items, "count": len(items)}
-        if not items:
-            return {"ok": True, "deleted": 0, "message": "Lista ya estaba vacia"}
-        item_ids = [it["id"] for it in items if it.get("id")]
-        params = "&".join(f"ids={iid}" for iid in item_ids)
-        rd = requests.delete(
-            f"{config.MEALIE_BASE_URL}/api/households/shopping/items?{params}",
-            headers=mealie._mealie_headers(),
-            timeout=30,
-        )
-        return {
-            "ok": 200 <= rd.status_code < 300,
-            "deleted": len(item_ids),
-            "status": rd.status_code,
-        }
-    except Exception as e:
-        return {"ok": False, "error": f"clear_list_failed: {e}"}
+    return _defer('clear', list_id, confirm)
 
 
-
-@tool("core")
+@tool('core', requires=mealie_ready, uses_context=True)
 def get_or_create_shopping_list(name: str) -> dict[str, Any]:
     """Busca una lista de compra por nombre; si no existe, la crea. Devuelve siempre el ID."""
-    if err := mealie._check_mealie():
-        return err
-    try:
-        r = requests.get(
-            f"{config.MEALIE_BASE_URL}/api/households/shopping/lists",
-            headers=mealie._mealie_headers(),
-            timeout=30,
-        )
-        if 200 <= r.status_code < 300:
-            for it in r.json().get("items") or []:
-                if it.get("name", "").lower() == name.lower():
-                    return {
-                        "ok": True,
-                        "id": it["id"],
-                        "name": it["name"],
-                        "created": False,
-                    }
-        r2 = requests.post(
-            f"{config.MEALIE_BASE_URL}/api/households/shopping/lists",
-            headers=mealie._mealie_headers(),
-            json={"name": name},
-            timeout=30,
-        )
-        if not (200 <= r2.status_code < 300):
-            return {"ok": False, "status": r2.status_code, "body": r2.text[:500]}
-        data = r2.json()
-        return {"ok": True, "id": data["id"], "name": data["name"], "created": True}
-    except Exception as e:
-        return {"ok": False, "error": f"get_or_create_failed: {e}"}
-
-
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    return _defer('get_or_create', name)

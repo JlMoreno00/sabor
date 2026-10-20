@@ -10,7 +10,7 @@ from copy import deepcopy
 
 from sabor.core import errors
 from sabor.store import (Ingredient, Instruction, NamedRef, Page, Recipe,
-                         RecipeSummary, RecipeRef, StoreError, Suggestion)
+                         RecipeSummary, RecipeRef, StoreError, Suggestion, MealEntry)
 
 
 def _object(value):
@@ -64,9 +64,12 @@ def _summary(value):
     return {key: value.get(key) for key in ("id", "name", "slug")}
 
 
-class MealieRecipeStore:
+from sabor.store.mealie_shopping import MealieShoppingListsMixin  # noqa: E402
+
+
+class MealieRecipeStore(MealieShoppingListsMixin):
     id = "mealie"
-    operations: frozenset[str] = frozenset(("search_recipes", "get_recipe", "suggest_recipes", "create_recipe", "update_recipe"))
+    operations: frozenset[str] = frozenset(("search_recipes", "get_recipe", "suggest_recipes", "create_recipe", "update_recipe", "get_mealplan", "set_mealplan_entry", "delete_mealplan_entry", "get_shopping_lists", "create_shopping_list", "delete_shopping_list"))
 
     def __init__(self, base_url, token, session=None, settings=None):
         from sabor.core.config import load_settings
@@ -85,12 +88,6 @@ class MealieRecipeStore:
         raise StoreError("unsupported_operation", self.id)
 
     # Explicitly unavailable until their bounded migration units land.
-    get_mealplan = _unsupported
-    set_mealplan_entry = _unsupported
-    delete_mealplan_entry = _unsupported
-    get_shopping_lists = _unsupported
-    create_shopping_list = _unsupported
-    delete_shopping_list = _unsupported
     get_shopping_items = _unsupported
     add_shopping_items = _unsupported
     add_recipe_occurrences = _unsupported
@@ -100,6 +97,71 @@ class MealieRecipeStore:
     tag_recipe = _unsupported
     add_recipe_comment = _unsupported
     log_cooking_event = _unsupported
+
+    def _calendar_request(self, method, path="", **kwargs):
+        try:
+            response = method(f"{self.base_url}/api/households/mealplans{path}",
+                              headers=self._headers, timeout=30, **kwargs)
+            if not 200 <= response.status_code < 300:
+                exc = StoreError(errors.from_http(response.status_code, self.id)["error"]["code"], self.id)
+                setattr(exc, "status", response.status_code)
+                raise exc
+            return response
+        except StoreError:
+            raise
+        except Exception as exc:
+            raise StoreError(errors.from_exception(exc, self.id)["error"]["code"], self.id) from None
+
+    def get_mealplan(self, dates):
+        rows, seen, expected_pages = [], set(), None
+        for page in range(1, 1001):
+            params = {"start_date": dates.start_date, "end_date": dates.end_date}
+            if page > 1:
+                params["page"] = page
+            response = self._calendar_request(self.session.get, params=params)
+            try:
+                data = _object(response.json())
+                items = data.get("items") or []
+                pages = data.get("total_pages", 1)
+                if (type(pages) is not int or not 1 <= pages <= 1000
+                        or data.get("page", page) != page
+                        or (expected_pages is not None and pages != expected_pages)):
+                    raise ValueError("Inconsistent pagination")
+                expected_pages = pages
+                for item in items:
+                    item = _object(item)
+                    eid = item.get("id")
+                    if eid in seen and eid is not None:
+                        raise ValueError("Repeated page entry")
+                    seen.add(eid)
+                    recipe = item.get("recipe") or {}
+                    rows.append(_CalendarEntry(
+                        date=cast(Any, item.get("date")), entry_type=cast(Any, item.get("entryType")),
+                        title=item.get("title") or recipe.get("name", ""),
+                        recipe_slug=recipe.get("slug"), id=cast(Any, eid),
+                        recipe_id=recipe.get("id"), raw=deepcopy(item)))
+                if page == pages:
+                    return rows
+            except Exception:
+                raise StoreError("invalid_response", self.id) from None
+        raise StoreError("invalid_response", self.id)
+
+    def set_mealplan_entry(self, entry):
+        # Shared legacy gate intentionally retains nutrition config/services/locks.
+        from sabor.tools.mealplan import _schedule
+        result = _schedule(entry.date, entry.entry_type, entry.title, entry.recipe_slug,
+                           self.session, self.base_url, self._headers)
+        if not result.get("ok"):
+            if "status" in result:
+                raise StoreError(errors.from_http(result["status"], self.id)["error"]["code"], self.id)
+            if "code" not in result:
+                raise StoreError("upstream_error", self.id)
+        recipe_id = result.pop("_recipe_id", None)
+        return _CalendarEntry(entry.date, entry.entry_type, entry.title, entry.recipe_slug,
+                              result.get("id"), recipe_id, result=result)
+
+    def delete_mealplan_entry(self, entry_id):
+        return self._calendar_request(self.session.delete, f"/{entry_id}").status_code
 
     def _read(self, path, mapper, **kwargs):
         try:
@@ -259,3 +321,9 @@ class _CreatedRecipe(RecipeRef):
 class _MealieStringRef(NamedRef):
     def to_public(self):
         return self.name
+
+
+@dataclass(frozen=True)
+class _CalendarEntry(MealEntry):
+    raw: dict | None = None
+    result: dict | None = None
