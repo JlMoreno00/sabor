@@ -129,6 +129,32 @@ def parse_text(text: object) -> Quantity:
     return q
 
 
+_CONNECTORS = {'de', 'del', 'of'}
+_UNIT_WORDS = set('g gr gramo gramos kg kilo kilos kilogramo kilogramos ml cl l litro litros '
+                  'mililitro mililitros ud uds unidad unidades u pieza piezas docena docenas'.split())
+
+
+def ingredient_name(text: object) -> str:
+    """Strip a leading amount, unit and connector from free text ('300 g de arroz').
+
+    Returns the remaining words; amounts are parsed separately by parse_text.
+    """
+    if not isinstance(text, str):
+        return ''
+    rest = text.strip()
+    match = _LEADING.match(rest.lower())
+    if match:
+        rest = rest[match.end():].strip()
+    words = rest.split()
+    if match and words and words[0].lower().rstrip('.') in _UNIT_WORDS | _KITCHEN | _PACKAGES:
+        words = words[1:]
+    while words and words[0].lower() in _CONNECTORS:
+        words = words[1:]
+    name = ' '.join(words)
+    name = re.sub(r'\b(?:al gusto|to taste|c\s*/\s*s)\b', '', name, flags=re.I)
+    return re.sub(r'\s+', ' ', name).strip()
+
+
 def from_structured(quantity: object, unit_name: object, food_name: object,
                     original_text: object) -> Quantity:
     """Prefer structured data. Only missing/zero placeholders permit text fallback.

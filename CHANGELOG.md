@@ -16,6 +16,8 @@
   and image commit-only import kinds. Documented plan → list → cost → sync flow.
 
 ### Changed
+- `estimate_cost` on shopping lists reads amount and name from free-text
+  (note-only) items such as `1 l leche`, whose Mealie quantity is a placeholder.
 - Pricing defaults to `match_policy="cheapest"` (lowest checkout cost for the
   needed quantity, then unit price) with estimated selections and
   alternatives; Mercadona dozen (dc/dz), 100 ml and 100 g reference prices are

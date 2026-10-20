@@ -55,6 +55,20 @@ class EngineTests(unittest.TestCase):
         ref = self.store.create_shopping_list('test')
         self.store.add_shopping_items(ref.id, [ItemDraft(quantity=300, food=NamedRef(name='rice'), unit=NamedRef(name='g'))])
         self.assertEqual(self.run_estimate(dict(kind='shopping_list', list_id=ref.id)).consumption_subtotal, D('.6'))
+    def test_shopping_list_free_text_items(self):
+        # add_to_shopping_list(items=[...]) creates note-only Mealie items with a
+        # placeholder quantity 1 and no food/unit; the note carries the amount.
+        ref = self.store.create_shopping_list('notes')
+        self.store.add_shopping_items(ref.id, [ItemDraft(quantity=1, note='300 g de rice'),
+                                              ItemDraft(quantity=1, note='rice al gusto')])
+        result = self.run_estimate(dict(kind='shopping_list', list_id=ref.id))
+        first, second = result.lines
+        self.assertEqual(first.name, 'rice')
+        self.assertEqual(first.required_quantity, D(300))
+        self.assertEqual(first.consumption, D('.6'))
+        self.assertEqual(second.name, 'rice')
+        self.assertIsNone(second.consumption)
+
     def test_mealplan_occurrences_and_text(self):
         for day in ('01', '02'):
             self.store.set_mealplan_entry(MealEntryDraft('2026-01-'+day, 'dinner', 'rice', 'rice'))

@@ -4,7 +4,7 @@ from dataclasses import dataclass, replace
 from datetime import date
 from decimal import Decimal, InvalidOperation, ROUND_CEILING
 from .provider import RetailContext, ProductQuery, PriceQuote
-from .quantities import from_structured, to_base
+from .quantities import from_structured, ingredient_name, to_base
 from sabor.store import DateRange
 
 
@@ -78,6 +78,11 @@ def _resolve(source, store):
             if item.keys() - {'name', 'quantity', 'unit', 'text'} or not isinstance(item.get('name'), str) or not item['name'].strip():
                 raise ValueError('invalid inline item')
             row = dict(item)
+        elif item.food is None and item.unit is None:
+            # Free-text item (for example a note-only Mealie shopping item): its
+            # quantity is a placeholder; amount and name come from the text.
+            text = getattr(item, 'originalText', None) or item.note or item.display or ''
+            row = dict(name=ingredient_name(text) or text, quantity=None, unit=None, text=text)
         else:
             row = dict(name=(item.food.name if item.food else None) or item.display or item.note or '',
                        quantity=item.quantity, unit=item.unit.name if item.unit else None,

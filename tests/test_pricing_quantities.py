@@ -196,3 +196,14 @@ class PackageTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class IngredientNameTests(unittest.TestCase):
+    def test_strips_leading_amount_unit_and_connector(self):
+        from sabor.pricing.quantities import ingredient_name
+        for text, expected in [('1 l leche', 'leche'), ('300 g de arroz', 'arroz'),
+                               ('1,5 kg de patatas', 'patatas'), ('2 huevos', 'huevos'),
+                               ('una cebolla', 'cebolla'), ('1 cucharada de aceite', 'aceite'),
+                               ('sal al gusto', 'sal'), ('leche', 'leche'), (None, '')]:
+            with self.subTest(text=text):
+                self.assertEqual(ingredient_name(text), expected)
