@@ -27,6 +27,30 @@ class CatalogWarming(RuntimeError):
     pass
 
 
+# Reference denominators observed in the real catalog, mapped to canonical ones:
+# a multiplier applied to reference_price and the canonical reference_format.
+_REFERENCE_DENOMINATORS = {'dz': (Decimal(1) / 12, 'ud'), 'dc': (Decimal(1) / 12, 'ud'),
+                           '100 ml': (Decimal(10), 'l'), '100 g': (Decimal(10), 'kg')}
+
+
+def _normalize_reference(instructions):
+    """Rewrite dozen and per-100 reference prices to per-unit, per-l or per-kg."""
+    if not isinstance(instructions, dict):
+        return instructions
+    mapping = _REFERENCE_DENOMINATORS.get(str(instructions.get('reference_format') or '').lower())
+    if mapping is None:
+        return instructions
+    try:
+        price = Decimal(str(instructions['reference_price'])) * mapping[0]
+    except (KeyError, ArithmeticError, ValueError):
+        return instructions
+    if not price.is_finite():
+        return instructions
+    # Six decimals keep sub-cent unit prices exact without 28-digit tails.
+    price = price.quantize(Decimal('0.000001')).normalize()
+    return dict(instructions, reference_format=mapping[1], reference_price=str(price))
+
+
 class MercadonaPricing:
     id = 'mercadona'
     operations = frozenset({'search_products', 'get_quote'})
@@ -206,11 +230,7 @@ class MercadonaPricing:
             return self._catalog, datetime.fromtimestamp(self._loaded_at, timezone.utc), stale
 
     def _quote(self, pid, product, observed, stale):
-        instructions = product.get('price_instructions')
-        # The catalog quotes eggs per dozen (dz), with nominal size in ud.
-        if isinstance(instructions, dict) and instructions.get('reference_format') == 'dz' and instructions.get('size_format') == 'ud':
-            instructions = dict(instructions, reference_format='ud',
-                                reference_price=str(Decimal(str(instructions['reference_price'])) / 12))
+        instructions = _normalize_reference(product.get('price_instructions'))
         package = package_from_mercadona(instructions)
         q = package.quantity
         factors = {'g': Decimal('.001'), 'kg': Decimal(1),
@@ -229,6 +249,12 @@ class MercadonaPricing:
             reasons.append('unknown')
         if units.get(q.unit) != units.get(package.reference_unit):
             normalized = None
+        if (normalized is None and amount is not None and amount > 0 and package.package_price is not None
+                and units.get(q.unit) is not None):
+            # Unknown reference denominator: derive from the package itself.
+            normalized = package.package_price / amount
+            reasons = [r for r in reasons if r not in ('unknown', 'unknown_unit')]
+            reasons.append('derived_unit_price')
         if stale:
             reasons.append('stale_catalog')
         if self._partial:
