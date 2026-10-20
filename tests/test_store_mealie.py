@@ -186,7 +186,8 @@ class MealieWrites(unittest.TestCase):
         servers = [FastMCP("one"), FastMCP("two")]
         for server, name in zip(servers, ("one", "two")):
             register_tools(server, {"SABOR_TOOLSETS": "core",
-                "MEALIE_BASE_URL": f"https://{name}.invalid", "MEALIE_API_TOKEN": name})
+                "MEALIE_BASE_URL": f"https://{name}.invalid", "MEALIE_API_TOKEN": name,
+                "SABOR_NORMALIZE_IMPORTS": "false"})
         created = Mock(status_code=201, text='"soup"')
         created.json.return_value = "soup"
         read = Mock(status_code=200)

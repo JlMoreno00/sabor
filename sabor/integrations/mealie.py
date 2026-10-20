@@ -213,10 +213,20 @@ def _normalization_result(import_result: dict[str, Any], slug: str | None, enabl
 
 
 def _normalize_imported_recipe(slug: str) -> dict[str, Any]:
-    """Conservatively parse all ingredients and patch only confident food matches."""
+    """Compatibility boundary for legacy direct callers."""
+    from types import SimpleNamespace
+    return normalize_imported_recipe(slug, requests, config.MEALIE_BASE_URL,
+        config.MEALIE_API_TOKEN, SimpleNamespace(
+            ingredient_parser=config.SABOR_INGREDIENT_PARSER,
+            normalize_confidence=config.SABOR_NORMALIZE_CONFIDENCE))
+
+
+def normalize_imported_recipe(slug, session, base_url, token, settings):
+    """Parse using only supplied instance dependencies."""
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
     try:
-        recipe_response = requests.get(
-            f"{config.MEALIE_BASE_URL}/api/recipes/{slug}", headers=_mealie_headers(), timeout=30
+        recipe_response = session.get(
+            f"{base_url}/api/recipes/{slug}", headers=headers, timeout=30
         )
         if not (200 <= recipe_response.status_code < 300):
             return {"ok": False, "warning": f"normalization_recipe_read_http_{recipe_response.status_code}"}
@@ -229,9 +239,9 @@ def _normalize_imported_recipe(slug: str) -> dict[str, Any]:
         texts = [_ingredient_source_text(item) for item in originals]
         if not all(texts):
             return {"ok": False, "warning": "normalization_missing_source_text"}
-        parsed_response = requests.post(
-            f"{config.MEALIE_BASE_URL}/api/parser/ingredients", headers=_mealie_headers(),
-            json={"parser": config.SABOR_INGREDIENT_PARSER, "ingredients": texts}, timeout=60,
+        parsed_response = session.post(
+            f"{base_url}/api/parser/ingredients", headers=headers,
+            json={"parser": settings.ingredient_parser, "ingredients": texts}, timeout=60,
         )
         if not (200 <= parsed_response.status_code < 300):
             return {"ok": False, "warning": f"normalization_parser_http_{parsed_response.status_code}"}
@@ -261,7 +271,7 @@ def _normalize_imported_recipe(slug: str) -> dict[str, Any]:
                 confidence = float(confidence)
             except (TypeError, ValueError):
                 confidence = 0.0
-            if not isinstance(food, dict) or not food.get("id") or confidence < config.SABOR_NORMALIZE_CONFIDENCE:
+            if not isinstance(food, dict) or not food.get("id") or confidence < settings.normalize_confidence:
                 retained = dict(original)
                 if not retained.get("originalText"):
                     retained["originalText"] = _ingredient_source_text(original)
@@ -290,9 +300,9 @@ def _normalize_imported_recipe(slug: str) -> dict[str, Any]:
         if not accepted and not traceability_updates:
             return {"ok": True, "slug": slug, "status": "retained_originals", "accepted": 0}
         merged = [_sanitize_ingredient_references(item) for item in merged]
-        patch_response = requests.patch(
-            f"{config.MEALIE_BASE_URL}/api/recipes/{slug}",
-            headers=_mealie_headers(),
+        patch_response = session.patch(
+            f"{base_url}/api/recipes/{slug}",
+            headers=headers,
             json={"recipeIngredient": merged},
             timeout=30,
         )

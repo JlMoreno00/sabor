@@ -29,6 +29,10 @@ class Settings:
     nutrition_enabled: bool
     memory_file: str = field(repr=False)
 
+    normalize_imports: bool = True
+    ingredient_parser: str = 'openai'
+    normalize_confidence: float = 0.75
+
     @property
     def mealie_configured(self):
         return bool(self.mealie_base_url and self.mealie_api_token)
@@ -79,4 +83,7 @@ def load_settings(env: Mapping[str, str]) -> Settings:
                     get('VIDEO_RECIPE_GEMINI_MODEL') or 'gemini-2.5-flash-lite', provider,
                     get('BRING_EMAIL'), get('BRING_PASSWORD'), get('SPOONACULAR_API_KEY'),
                     get('SABOR_MERCADONA_ENABLED').lower() == 'true',
-                    get('SABOR_NUTRITION_ENABLED').lower() == 'true', get('MEMORY_FILE', 'MEMORY.md'))
+                    get('SABOR_NUTRITION_ENABLED').lower() == 'true', get('MEMORY_FILE', 'MEMORY.md'),
+                    get('SABOR_NORMALIZE_IMPORTS', 'true').lower() == 'true',
+                    get('SABOR_INGREDIENT_PARSER', 'openai'),
+                    float(get('SABOR_NORMALIZE_CONFIDENCE', '0.75')))

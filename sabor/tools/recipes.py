@@ -216,10 +216,18 @@ def _create(ctx, draft, structured):
     try:
         ref = ctx.store.create_recipe(draft)
         result = _public(ref)
-        # D2b must inject normalization and nutrition before registered writes
-        # can use them. Legacy direct calls alone retain the global helpers.
         if getattr(ctx.store, "session", None) is requests:
             return mealie._normalization_result(result, ref.slug, enabled=structured)
+        if structured:
+            normalizer = getattr(ctx.store, "normalize_imported", None)
+            if ctx.settings.normalize_imports and ref.slug and normalizer:
+                normalized = normalizer(ref.slug)
+                result["normalization"] = normalized
+                if not normalized.get("ok"):
+                    result["normalization_warning"] = (normalized.get("warning") or
+                        normalized.get("error") or "normalization_failed")
+            # Preserve the legacy nutrition gates until the J2 isolation slice.
+            result = mealie.nutrition._nutrition_after_import(result, ref.slug)
         return result
     except StoreError as exc:
         return store_error_envelope(exc)

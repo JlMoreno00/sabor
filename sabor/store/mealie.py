@@ -68,10 +68,18 @@ class MealieRecipeStore:
     id = "mealie"
     operations: frozenset[str] = frozenset(("search_recipes", "get_recipe", "suggest_recipes", "create_recipe", "update_recipe"))
 
-    def __init__(self, base_url, token, session=None):
+    def __init__(self, base_url, token, session=None, settings=None):
+        from sabor.core.config import load_settings
+        self.settings = settings if settings is not None else load_settings({})
+        self._token = token
         self.base_url = base_url.rstrip("/")
         self.session = session if session is not None else requests.Session()
         self._headers = {"Authorization": f"Bearer {token}"}
+
+    def normalize_imported(self, slug):
+        from sabor.integrations.mealie import normalize_imported_recipe
+        return normalize_imported_recipe(slug, self.session, self.base_url,
+                                         self._token, self.settings)
 
     def _unsupported(self, *args, **kwargs):
         raise StoreError("unsupported_operation", self.id)
