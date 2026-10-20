@@ -114,7 +114,12 @@ class VideoTests(unittest.TestCase):
         from sabor.importing import video as v
         with self.assertRaises(t.ImportErrorResult) as ctx:
             v.download('https://www.tiktok.com/a', Path('/unused'))
-        self.assertIn('Envia el video como archivo', str(ctx.exception.result))
+        error = ctx.exception.result['error']
+        self.assertEqual(error['code'], 'unsupported_operation')
+        # Only suggest inputs import_recipe accepts: no file upload or local path.
+        self.assertIn("kind='text'", error['message'])
+        self.assertIn('transcripción', error['message'])
+        self.assertNotIn('archivo', error['message'])
 
     def test_caption_parsing_and_successful_gemini_cleanup(self):
         from sabor.importing import video as v
