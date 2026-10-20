@@ -164,3 +164,76 @@ class RecipeRouting(unittest.TestCase):
             schemas = [tool.parameters for tool in tools if tool is not None]
             self.assertEqual(schemas[0], schemas[1])
             self.assertNotIn("ctx", schemas[0]["properties"])
+
+
+class MealieWrites(unittest.TestCase):
+    def test_patch_allowlist_and_no_put(self):
+        from sabor.store import RecipePatch
+        session = Mock()
+        session.patch.return_value.status_code = 204
+        store = MealieRecipeStore("https://one.invalid", "token", session)
+        store.update_recipe("s", RecipePatch({"tags": [], "description": None}))
+        self.assertEqual(session.patch.call_args.kwargs["json"], {"tags": [], "description": None})
+        session.put.assert_not_called()
+        with self.assertRaises(StoreError):
+            store.update_recipe("s", RecipePatch({"slug": "bad"}))
+        self.assertEqual(session.patch.call_count, 1)
+
+
+    def test_two_instances_create_preview_confirm(self):
+        from mcp.server.fastmcp import FastMCP
+        from sabor.server import register_tools
+        servers = [FastMCP("one"), FastMCP("two")]
+        for server, name in zip(servers, ("one", "two")):
+            register_tools(server, {"SABOR_TOOLSETS": "core",
+                "MEALIE_BASE_URL": f"https://{name}.invalid", "MEALIE_API_TOKEN": name})
+        created = Mock(status_code=201, text='"soup"')
+        created.json.return_value = "soup"
+        read = Mock(status_code=200)
+        read.json.return_value = {"name": "Old", "tags": [{"id": "old", "name": "Old"}]}
+        with patch("requests.Session.post", return_value=created) as post, \
+             patch("requests.Session.get", return_value=read), \
+             patch("requests.Session.patch", return_value=Mock(status_code=204)) as patcher, \
+             patch("requests.Session.put") as put, \
+             patch("sabor.integrations.mealie._normalization_result",
+                   side_effect=AssertionError("global normalization")):
+            for server in servers:
+                tool = server._tool_manager.get_tool("create_recipe")
+                assert tool is not None
+                result = tool.fn(name="Soup", ingredients=["1 tomato"], tags=["hot"])
+                self.assertEqual(result, {"ok": True, "status": 201, "body": '"soup"', "slug": "soup"})
+                payload = json.loads(post.call_args.kwargs["json"]["data"])
+                self.assertEqual(payload["recipeIngredient"], ["1 tomato"])
+                self.assertEqual(payload["keywords"], ["hot"])
+                update = server._tool_manager.get_tool("update_recipe")
+                assert update is not None
+                result = update.fn("soup", {"tags": []})
+                self.assertEqual(result["data"]["changes"]["tags"],
+                    {"before": [{"id": "old", "name": "Old"}], "after": [], "full_replacement": True})
+            patcher.assert_not_called()
+            for server in servers:
+                update = server._tool_manager.get_tool("update_recipe")
+                assert update is not None
+                self.assertEqual(update.fn("soup", {"name": "New", "tags": []}, True),
+                    {"ok": True, "data": {"slug": "soup", "changed_fields": ["name", "tags"]}})
+            self.assertEqual([c.args[0] for c in post.call_args_list],
+                ["https://one.invalid/api/recipes/create/html-or-json",
+                 "https://two.invalid/api/recipes/create/html-or-json"])
+            self.assertEqual([c.kwargs["headers"]["Authorization"] for c in patcher.call_args_list],
+                ["Bearer one", "Bearer two"])
+            self.assertTrue(all(c.kwargs["json"] == {"name": "New", "tags": []}
+                                for c in patcher.call_args_list))
+            put.assert_not_called()
+
+    def test_write_errors_are_typed(self):
+        from sabor.store import RecipeDraft, RecipePatch
+        session = Mock()
+        store = MealieRecipeStore("https://one.invalid", "token", session)
+        session.post.return_value.status_code = 401
+        with self.assertRaises(StoreError) as caught:
+            store.create_recipe(RecipeDraft(name="Soup"))
+        self.assertEqual(caught.exception.code, "authentication_failed")
+        session.patch.side_effect = requests.Timeout("secret")
+        with self.assertRaises(StoreError) as caught:
+            store.update_recipe("s", RecipePatch({"name": "Soup"}))
+        self.assertEqual(caught.exception.code, "timeout")

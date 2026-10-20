@@ -2,8 +2,8 @@
 
 import json
 from typing import Any
-from dataclasses import fields, is_dataclass
-from sabor.store import RecipeSearch, SuggestionQuery, StoreError, store_error_envelope
+from dataclasses import dataclass, fields, is_dataclass
+from sabor.store import RecipeDraft, RecipePatch, RecipeSearch, SuggestionQuery, StoreError, store_error_envelope
 import requests
 import sabor.config as config
 import sabor.integrations.mealie as mealie
@@ -55,7 +55,7 @@ def _defer(operation, argument) -> Any:
     return lambda ctx: _store_read(ctx, operation, argument)
 
 
-def _public(value):
+def _public(value) -> Any:
     if hasattr(value, "to_public"):
         return value.to_public()
     if is_dataclass(value):
@@ -109,29 +109,28 @@ _PATCH_FIELDS = frozenset((
 _ARRAY_FIELDS = frozenset(("recipeIngredient", "recipeInstructions", "tags", "recipeCategory"))
 
 
-@tool("core", requires=mealie_ready)
+@tool("core", requires=mealie_ready, uses_context=True)
 def update_recipe(slug: str, patch: dict, confirm: bool = False) -> dict[str, Any]:
     """Preview or PATCH selected fields. Arrays replace whole lists, not individual entries."""
     if not isinstance(patch, dict) or not patch or patch.keys() - _PATCH_FIELDS:
         return fail("invalid_argument", "Provide a nonempty patch containing only editable fields.")
-    if err := _configured():
-        return err
+    return _defer_update(slug, patch, confirm)
+
+
+def _update(ctx, slug, patch, confirm):
+    if ctx.store is None:
+        return fail("provider_unconfigured", "Mealie is not configured.", "mealie")
     try:
         if not confirm:
-            response, err = _request(requests.get, f"/{slug}")
-            if err:
-                return err
-            before = _object(response.json())
+            before = _public(ctx.store.get_recipe(slug))
             changes = {key: dict(before=before.get(key), after=value,
                                  full_replacement=key in _ARRAY_FIELDS)
                        for key, value in patch.items()}
             return preview(dict(slug=slug, changed_fields=list(patch), changes=changes))
-        _, err = _request(requests.patch, f"/{slug}", json=patch)
-        if err:
-            return err
+        ctx.store.update_recipe(slug, RecipePatch(patch))
         return ok(dict(slug=slug, changed_fields=list(patch)))
-    except Exception as exc:
-        return errors.from_exception(exc, "mealie")
+    except StoreError as exc:
+        return store_error_envelope(exc)
 
 
 @tool("core", requires=mealie_ready, uses_context=True)
@@ -151,7 +150,7 @@ def suggest_recipes(
     return _defer("suggest_recipes", query)
 
 
-@tool("core")
+@tool("core", uses_context=True)
 def create_recipe(
     name: str,
     description: str | None = None,
@@ -163,8 +162,6 @@ def create_recipe(
     source_url: str | None = None,
 ) -> dict[str, Any]:
     """Create a recipe in Mealie using structured fields, not URL import."""
-    if err := mealie._check_mealie():
-        return err
     try:
         structured_values = (
             description,
@@ -202,21 +199,38 @@ def create_recipe(
                     "recipeYield": "2 raciones",
                 }
             )
-        wrapped_payload = {"data": json.dumps(jsonld_recipe, ensure_ascii=False)}
-        r = requests.post(
-            f"{config.MEALIE_BASE_URL}/api/recipes/create/html-or-json",
-            headers=mealie._mealie_headers(),
-            json=wrapped_payload,
-            timeout=60,
-        )
-        result = {
-            "ok": 200 <= r.status_code < 300,
-            "status": r.status_code,
-            "body": r.text[:2000],
-        }
-        return mealie._normalization_result(result, mealie._response_slug(r), enabled=is_structured) if result["ok"] else result
-    except Exception as e:
-        return {"ok": False, "error": f"create_failed: {e}"}
+        draft = _CreateDraft(name=name, jsonld=jsonld_recipe)
+        return _defer_create(draft, is_structured)
+    except Exception as exc:
+        return errors.from_exception(exc, "mealie")
+
+
+@dataclass(frozen=True)
+class _CreateDraft(RecipeDraft):
+    jsonld: dict | None = None
+
+
+def _create(ctx, draft, structured):
+    if ctx.store is None:
+        return {"ok": False, "error": "missing_MEALIE_API_TOKEN"}
+    try:
+        ref = ctx.store.create_recipe(draft)
+        result = _public(ref)
+        # D2b must inject normalization and nutrition before registered writes
+        # can use them. Legacy direct calls alone retain the global helpers.
+        if getattr(ctx.store, "session", None) is requests:
+            return mealie._normalization_result(result, ref.slug, enabled=structured)
+        return result
+    except StoreError as exc:
+        return store_error_envelope(exc)
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+def _defer_update(slug, patch, confirm) -> Any:
+    return lambda ctx: _update(ctx, slug, patch, confirm)
+
+
+def _defer_create(draft, structured) -> Any:
+    return lambda ctx: _create(ctx, draft, structured)

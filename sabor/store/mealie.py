@@ -2,6 +2,7 @@
 
 Write/calendar/list support is added in subsequent bounded migration slices.
 """
+import json
 import requests
 from typing import Any, cast
 from dataclasses import dataclass
@@ -9,7 +10,7 @@ from copy import deepcopy
 
 from sabor.core import errors
 from sabor.store import (Ingredient, Instruction, NamedRef, Page, Recipe,
-                         RecipeSummary, StoreError, Suggestion)
+                         RecipeSummary, RecipeRef, StoreError, Suggestion)
 
 
 def _object(value):
@@ -45,6 +46,8 @@ class _MealieSuggestion(Suggestion):
 def _ref(value):
     if value is None:
         return None
+    if isinstance(value, str):
+        return _MealieStringRef(name=value)
     value = _object(value)
     return _MealieRef(value.get("id"), value.get("name"), deepcopy(value))
 
@@ -54,7 +57,7 @@ def _refs(value):
         return None
     if not isinstance(value, list):
         raise ValueError("Expected references")
-    return tuple(cast(NamedRef, _ref(_object(row))) for row in value)
+    return tuple(cast(NamedRef, _ref(row)) for row in value)
 
 
 def _summary(value):
@@ -63,7 +66,7 @@ def _summary(value):
 
 class MealieRecipeStore:
     id = "mealie"
-    operations: frozenset[str] = frozenset(("search_recipes", "get_recipe", "suggest_recipes"))
+    operations: frozenset[str] = frozenset(("search_recipes", "get_recipe", "suggest_recipes", "create_recipe", "update_recipe"))
 
     def __init__(self, base_url, token, session=None):
         self.base_url = base_url.rstrip("/")
@@ -74,8 +77,6 @@ class MealieRecipeStore:
         raise StoreError("unsupported_operation", self.id)
 
     # Explicitly unavailable until their bounded migration units land.
-    create_recipe = _unsupported
-    update_recipe = _unsupported
     get_mealplan = _unsupported
     set_mealplan_entry = _unsupported
     delete_mealplan_entry = _unsupported
@@ -188,3 +189,65 @@ class MealieRecipeStore:
             return rows
 
         return self._read("/suggestions", suggestions, params=params)
+
+
+    def _write(self, method, path, payload, timeout=30):
+        try:
+            response = method(f"{self.base_url}/api/recipes{path}",
+                              headers=self._headers, json=payload, timeout=timeout)
+            if not 200 <= response.status_code < 300:
+                raise StoreError(errors.from_http(response.status_code, self.id)["error"]["code"], self.id)
+            return response
+        except StoreError:
+            raise
+        except Exception as exc:
+            raise StoreError(errors.from_exception(exc, self.id)["error"]["code"], self.id) from None
+
+    def create_recipe(self, draft):
+        payload = getattr(draft, "jsonld", None)
+        if payload is None:
+            payload = {"@context": "https://schema.org", "@type": "Recipe", "name": draft.name}
+            for key in ("description", "recipeYield", "totalTime"):
+                value = getattr(draft, key)
+                if value is not None:
+                    payload[key] = value
+            if draft.recipeIngredient is not None:
+                payload["recipeIngredient"] = [row.originalText or row.display or row.note or ""
+                                                for row in draft.recipeIngredient]
+            if draft.recipeInstructions is not None:
+                payload["recipeInstructions"] = [row.text for row in draft.recipeInstructions]
+            if draft.tags is not None:
+                payload["keywords"] = [row.name for row in draft.tags]
+        response = self._write(self.session.post, "/create/html-or-json",
+                               {"data": json.dumps(payload, ensure_ascii=False)}, 60)
+        try:
+            body = response.json()
+            slug = body.strip() if isinstance(body, str) else body.get("slug")
+            return _CreatedRecipe(slug=slug, result={
+                "ok": True, "status": response.status_code, "body": response.text[:2000], "slug": slug})
+        except Exception:
+            raise StoreError("invalid_response", self.id) from None
+
+    def update_recipe(self, slug, patch):
+        allowed = {"name", "description", "recipeYield", "recipeServings", "totalTime",
+                   "prepTime", "cookTime", "recipeIngredient", "recipeInstructions",
+                   "tags", "recipeCategory"}
+        changes = dict(patch.changes)
+        if not changes or changes.keys() - allowed:
+            raise StoreError("invalid_argument", self.id)
+        self._write(self.session.patch, f"/{slug}", changes)
+        return RecipeRef(slug=slug)
+
+
+@dataclass(frozen=True)
+class _CreatedRecipe(RecipeRef):
+    result: dict | None = None
+
+    def to_public(self):
+        return deepcopy(self.result)
+
+
+@dataclass(frozen=True)
+class _MealieStringRef(NamedRef):
+    def to_public(self):
+        return self.name
