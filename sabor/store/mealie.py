@@ -79,6 +79,31 @@ class MealieRecipeStore(MealieShoppingListsMixin):
         self.session = session if session is not None else requests.Session()
         self._headers = {"Authorization": f"Bearer {token}"}
 
+    native_import_kinds = frozenset({'url', 'image'})
+
+    def _native_import(self, path, **kwargs):
+        try:
+            response = self.session.post(self.base_url + '/api/recipes' + path,
+                                         headers=self._headers, timeout=45, **kwargs)
+            if not 200 <= response.status_code < 300:
+                raise StoreError(errors.from_http(response.status_code, self.id)['error']['code'], self.id)
+            return response.json()
+        except StoreError:
+            raise
+        except Exception as exc:
+            raise StoreError(errors.from_exception(exc, self.id)['error']['code'], self.id) from None
+
+    def preview_url(self, source):
+        return self._native_import('/test-scrape-url', json={'url': source, 'useOpenAI': False})
+
+    def import_url(self, source):
+        return self._native_import('/create/url', json=dict(url=source, includeTags=True, includeCategories=True))
+
+    def import_image(self, content, mime, language):
+        return self._native_import('/create/image',
+            files=[('images', ('recipe-image', content, mime))],
+            params={'translateLanguage': language})
+
     def normalize_imported(self, slug):
         from sabor.integrations.mealie import normalize_imported_recipe
         return normalize_imported_recipe(slug, self.session, self.base_url,

@@ -54,6 +54,13 @@ def describe(registry: 'Registry | AppContext', registered_tools, version: str) 
             else:
                 row.update(kinds=['shopping_list'], operations=['targets', 'plan', 'apply'])
             rows.append(row)
+        if name == 'import' and enabled:
+            native = getattr(registry.recipe_store, 'native_import_kinds', frozenset())
+            for kind in sorted(native):
+                rows.append({'id': 'mealie', 'kinds': [kind],
+                             'operations': ['preview', 'commit'] if kind == 'url' else ['commit'],
+                             'limitations': [] if kind == 'url' else [
+                                 'Image import uses Mealie-owned OpenAI configuration; preview is not supported.']})
         capability = {'configured': enabled, 'adapters': rows}
         if not enabled:
             capability['reason'] = registry.disabled_toolsets[name]

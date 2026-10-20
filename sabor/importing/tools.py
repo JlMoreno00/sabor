@@ -5,7 +5,7 @@ import math
 import os
 import socket
 from urllib.parse import urljoin, urlsplit
-from typing import NoReturn
+from typing import NoReturn, cast, Any
 
 import requests
 import urllib3
@@ -88,8 +88,9 @@ class OpenAIImportProvider:
 
     def preview(self, request):
         if request.get('kind') == 'video':
-            from .video import preview_video
-            return preview_video(request['source'], self.cfg, request)
+            from .video import preview_video, OpenAICompatibleVideo
+            return preview_video(request['source'], self.cfg, request,
+                                 extractor=OpenAICompatibleVideo(self.cfg))
         cfg = self.cfg
         headers = {'Content-Type': 'application/json'}
         if cfg.llm_api_key:
@@ -209,7 +210,7 @@ def image_bytes(url):
     reject('invalid_argument', 'Too many image redirects.')
 
 
-@tool('import', requires=lambda s: s.mealie_configured or s.llm_configured or s.gemini_configured)
+@tool('import', requires=lambda s: s.mealie_configured or s.llm_configured or s.gemini_configured, uses_context=True)
 def import_recipe(source: str, kind: str = 'auto', dry_run: bool = True,
                   language: str = 'en', max_recipes: int = 8,
                   min_confidence: float = 0.55) -> dict:
@@ -217,6 +218,10 @@ def import_recipe(source: str, kind: str = 'auto', dry_run: bool = True,
 
     Image creation has no read-only preview. Local media paths are unsupported.
     """
+    return cast(Any, lambda ctx: _import_recipe(ctx, source, kind, dry_run, language, max_recipes, min_confidence))
+
+
+def _import_recipe(ctx, source, kind, dry_run, language, max_recipes, min_confidence):
     provider = 'sabor'
     created = []
     try:
@@ -228,19 +233,21 @@ def import_recipe(source: str, kind: str = 'auto', dry_run: bool = True,
             reject('invalid_argument', 'Invalid import arguments.')
         detected = detect(source)
         kind = detected if kind == 'auto' else kind
-        cfg = settings()
-        from .video import select_video, preview_video, tag_video
-        provider = select_video(cfg).id if kind == 'video' else ('openai_compatible' if kind == 'text' else 'mealie')
+        cfg = ctx.settings
+        from .video import tag_video
+        video_provider = next((a for a in ctx.registry.imports if a.id == ctx.registry.video_provider), None)
+        provider = (video_provider.id if video_provider else 'sabor') if kind == 'video' else ('openai_compatible' if kind == 'text' else 'mealie')
         limitations = []
-        if (kind not in ('text', 'video') or not dry_run) and not cfg.mealie_configured:
+        if (kind not in ('text', 'video') or not dry_run) and ctx.store is None:
             reject('provider_unconfigured', 'Mealie is not configured.', 'mealie')
+        if kind in ('url', 'image') and not getattr(ctx.store, 'native_import_kinds', frozenset()):
+            reject('unsupported_operation', 'Native import is unsupported by this recipe store.', provider)
         if kind == 'image':
             http_url(source)
             if dry_run:
                 reject('unsupported_operation', 'Mealie image import has no read-only preview.', provider)
             content, mime = image_bytes(source)
-            result = request(requests.post, '/create/image', cfg,
-                files=[('images', ('recipe-image', content, mime))], params={'translateLanguage': language})
+            result = ctx.store.import_image(content, mime, language)
             # Mealie's OpenAPI leaves the 201 body schema unspecified.
             if isinstance(result, str) and result.strip():
                 result = [result]
@@ -249,7 +256,7 @@ def import_recipe(source: str, kind: str = 'auto', dry_run: bool = True,
             return ok({'preview': False, 'kind': kind, 'provider': provider, 'created': result})
         if kind == 'url':
             http_url(source)
-            data = request(requests.post, '/test-scrape-url', cfg, json={'url': source, 'useOpenAI': False})
+            data = ctx.store.preview_url(source)
             if data == 'recipe_scrapers was unable to scrape this URL':
                 reject('not_found', 'Mealie could not extract a recipe at this URL.', provider)
             if isinstance(data, str):
@@ -261,20 +268,26 @@ def import_recipe(source: str, kind: str = 'auto', dry_run: bool = True,
                 'times': {k: data.get(k) for k in ('totalTime', 'prepTime', 'cookTime')}, 'image': data.get('image')}]
             dropped = 0
         elif kind == 'video':
-            extracted = preview_video(source, cfg, dict(language=language, max_recipes=max_recipes,
-                min_confidence=min_confidence))
+            if video_provider is None:
+                reject('provider_unconfigured', 'Video extraction provider is not configured.')
+            extracted = video_provider.preview(dict(source=source, kind='video', language=language,
+                max_recipes=max_recipes, min_confidence=min_confidence))
             candidates, dropped = extracted['candidates'], extracted['dropped']
             limitations = extracted['limitations']
         else:
             if not cfg.llm_configured:
                 reject('provider_unconfigured', 'Text extraction requires an LLM.', provider)
-            extracted = OpenAIImportProvider(cfg).preview(dict(source=source, language=language,
+            extractor = next((a for a in ctx.registry.imports if 'text' in a.kinds), None)
+            if extractor is None:
+                reject('provider_unconfigured', 'Text extraction requires an LLM.', provider)
+            extracted = extractor.preview(dict(source=source, kind='text', language=language,
                 max_recipes=max_recipes, min_confidence=min_confidence))
             candidates, dropped = extracted['candidates'], extracted['dropped']
         skips = []
         if not dry_run:
             for c in candidates:
-                slug = duplicate(c['name'], cfg)
+                recipe = {}
+                slug = store_duplicate(c['name'], ctx.store)
                 if slug:
                     if kind == 'url':
                         reject('conflict', 'An exact normalized recipe name already exists.', 'mealie', {'slug': slug})
@@ -289,7 +302,15 @@ def import_recipe(source: str, kind: str = 'auto', dry_run: bool = True,
                     path, payload = '/create/html-or-json', {'data': json.dumps(recipe)}
                 extraction_provider = provider
                 provider = 'mealie'
-                slug = request(requests.post, path, cfg, json=payload)
+                if kind == 'url':
+                    slug = ctx.store.import_url(source)
+                else:
+                    from sabor.store import RecipeDraft, Ingredient, Instruction
+                    draft = RecipeDraft(name=c['name'], description=recipe['description'],
+                        recipeYield=c['servings'],
+                        recipeIngredient=tuple(Ingredient(originalText=x) for x in c['ingredients']),
+                        recipeInstructions=tuple(Instruction(text=x) for x in c['steps']))
+                    slug = ctx.store.create_recipe(draft).slug
                 if not isinstance(slug, str) or not slug.strip():
                     raise ValueError('Invalid created slug')
                 created.append(slug)
@@ -301,8 +322,25 @@ def import_recipe(source: str, kind: str = 'auto', dry_run: bool = True,
     except ImportErrorResult as exc:
         return errors.partial(created, ['remaining'], provider) if created else exc.result
     except Exception as exc:
+        from sabor.store import StoreError
+        if isinstance(exc, StoreError) and not created:
+            return fail(exc.code, 'Recipe store import failed.', exc.provider)
         if created:
             return errors.partial(created, ['remaining'], provider)
         if isinstance(exc, ValueError) and provider == 'sabor':
             return fail('invalid_argument', 'Invalid import source or arguments.')
         return errors.from_exception(exc, provider)
+
+
+def store_duplicate(name, store):
+    from sabor.store import RecipeSearch
+    for number in range(1, 1001):
+        page = store.search_recipes(RecipeSearch(query=name, page=number, per_page=100))
+        for item in page.items:
+            if ' '.join(item.name.casefold().split()) == ' '.join(name.casefold().split()):
+                if not isinstance(item.slug, str):
+                    raise ValueError('Invalid slug')
+                return item.slug
+        if number >= page.total_pages:
+            return None
+    raise ValueError('Search budget exceeded')

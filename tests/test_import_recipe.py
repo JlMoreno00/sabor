@@ -6,7 +6,21 @@ from sabor.importing import tools as t
 
 
 class ImportTests(unittest.TestCase):
+    def context_patch(self):
+        from sabor.core.context import build_context
+        from sabor.store.mealie import MealieRecipeStore
+        from sabor.importing.video import GeminiNativeVideo
+        def context():
+            cfg = t.settings()
+            return build_context(cfg, store_factory=lambda s: MealieRecipeStore(
+                s.mealie_base_url, s.mealie_api_token, session=t.requests),
+                import_factories=(t.OpenAIImportProvider, GeminiNativeVideo))
+        p = patch('sabor.core.context.default_context', side_effect=context)
+        p.start()
+        self.addCleanup(p.stop)
+
     def setUp(self):
+        self.context_patch()
         self.settings = load_settings({'MEALIE_BASE_URL': 'http://mealie', 'MEALIE_API_TOKEN': 'test',
             'SABOR_LLM_BASE_URL': 'http://localhost:11434/v1', 'SABOR_LLM_MODEL': 'test'})
         self.p = patch.object(t, 'settings', return_value=self.settings)
@@ -17,7 +31,7 @@ class ImportTests(unittest.TestCase):
         self.addCleanup(network.stop)
 
     def response(self, data):
-        return Mock(status_code=200, json=Mock(return_value=data))
+        return Mock(status_code=200, text=json.dumps(data), json=Mock(return_value=data))
 
     def test_detection(self):
         for source, kind in [('https://example.org/a', 'url'), ('soup', 'text'),
@@ -39,10 +53,10 @@ class ImportTests(unittest.TestCase):
     @patch.object(t.requests, 'post')
     def test_duplicate_and_commit(self, post, get):
         post.return_value = self.response({'name': ' Soup '})
-        get.return_value = self.response({'items': [{'name': 'soup', 'slug': 'soup'}], 'total_pages': 1})
+        get.return_value = self.response({'items': [{'name': 'soup', 'slug': 'soup'}], 'total_pages': 1, 'total': 0, 'page': 1, 'per_page': 100})
         self.assertEqual(t.import_recipe('https://example.org', dry_run=False)['error']['code'], 'conflict')
         self.assertEqual(post.call_count, 1)
-        get.return_value = self.response({'items': [], 'total_pages': 1})
+        get.return_value = self.response({'items': [], 'total_pages': 1, 'total': 0, 'page': 1, 'per_page': 100})
         post.side_effect = [self.response({'name': 'Soup'}), self.response('soup')]
         self.assertEqual(t.import_recipe('https://example.org', dry_run=False)['data']['created'], ['soup'])
         self.assertEqual(post.call_args.kwargs['json'], {'url': 'https://example.org', 'includeTags': True, 'includeCategories': True})
@@ -69,7 +83,7 @@ class ImportTests(unittest.TestCase):
     def test_jsonld(self, post, get):
         candidate = dict(name='Soup', ingredients=['salt'], steps=['Mix'], servings='2', notes='', confidence=.8)
         post.side_effect = [self.response({'choices': [{'message': {'content': json.dumps({'recipes': [candidate]})}}]}), self.response('soup')]
-        get.return_value = self.response({'items': [], 'total_pages': 1})
+        get.return_value = self.response({'items': [], 'total_pages': 1, 'total': 0, 'page': 1, 'per_page': 100})
         self.assertTrue(t.import_recipe('soup', dry_run=False)['ok'])
         payload = json.loads(post.call_args.kwargs['json']['data'])
         self.assertEqual(payload['recipeIngredient'], ['salt'])
@@ -156,7 +170,7 @@ class ImportTests(unittest.TestCase):
     def test_partial_commit(self, post, get):
         c = dict(name='Soup', ingredients=['salt'], steps=['Mix'], servings='2', notes='', confidence=.8)
         post.side_effect = [self.response({'choices': [{'message': {'content': json.dumps({'recipes': [c, dict(c, name='Stew')]})}}]}), self.response('soup'), Mock(status_code=500)]
-        get.return_value = self.response({'items': [], 'total_pages': 1})
+        get.return_value = self.response({'items': [], 'total_pages': 1, 'total': 0, 'page': 1, 'per_page': 100})
         result = t.import_recipe('two recipes', dry_run=False)
         self.assertEqual(result['error']['code'], 'partial_failure')
         self.assertEqual(result['data']['completed'], ['soup'])

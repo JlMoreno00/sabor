@@ -97,7 +97,7 @@ class GeminiNativeVideo:
         self.cfg = cfg
 
     def preview(self, request):
-        return preview_video(request['source'], self.cfg, request)
+        return preview_video(request['source'], self.cfg, request, extractor=self)
 
     def extract(self, path, captions, request):
         upload = gemini_client._upload_to_gemini(path)
@@ -152,10 +152,10 @@ def select_video(cfg) -> VideoExtractor:
     reject('provider_unconfigured', 'Video extraction provider is not configured.', provider)
 
 
-def preview_video(source, cfg, request):
+def preview_video(source, cfg, request, extractor=None):
     with TemporaryDirectory() as tmp:
         media, captions = download(source, Path(tmp))
-        return select_video(cfg).extract(media, captions, request)
+        return (extractor or select_video(cfg)).extract(media, captions, request)
 
 
 def tag_video(slug):

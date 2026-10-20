@@ -13,6 +13,19 @@ ENV = {'SABOR_LLM_BASE_URL': 'http://localhost:11434/v1', 'SABOR_LLM_MODEL': 'vi
 
 
 class VideoTests(unittest.TestCase):
+    def setUp(self):
+        from sabor.core.context import build_context
+        from sabor.store.mealie import MealieRecipeStore
+        from sabor.importing.video import GeminiNativeVideo
+        def context():
+            cfg = t.settings()
+            return build_context(cfg, store_factory=lambda s: MealieRecipeStore(
+                s.mealie_base_url, s.mealie_api_token, session=t.requests),
+                import_factories=(t.OpenAIImportProvider, GeminiNativeVideo))
+        p = patch('sabor.core.context.default_context', side_effect=context)
+        p.start()
+        self.addCleanup(p.stop)
+
     def test_selection_matrix(self):
         from sabor.importing.video import select_video
         for env, expected in [(ENV, 'gemini_native'),
@@ -81,7 +94,7 @@ class VideoTests(unittest.TestCase):
         from sabor.importing import video as v
         cfg = load_settings(dict(ENV, MEALIE_BASE_URL='http://mealie', MEALIE_API_TOKEN='test'))
         extraction = dict(candidates=[C], dropped=0, limitations=[])
-        with patch.object(t, 'settings', return_value=cfg), patch.object(v, 'preview_video', return_value=extraction), patch.object(t, 'duplicate', return_value='old') as dup, patch.object(t, 'request', return_value='new') as req, patch.object(v, 'tag_video') as tag:
+        with patch.object(t, 'settings', return_value=cfg), patch.object(v, 'preview_video', return_value=extraction), patch.object(t, 'store_duplicate', return_value='old') as dup, patch('sabor.store.mealie.MealieRecipeStore.create_recipe', return_value=SimpleNamespace(slug='new')) as req, patch.object(v, 'tag_video') as tag:
             result = t.import_recipe('https://youtu.be/a', dry_run=False)
             self.assertEqual(result['data']['skips'][0]['reason'], 'duplicate')
             req.assert_not_called()
