@@ -121,6 +121,18 @@ def _words(text):
     return set(re.findall(r'[^\W\d_]+', text.casefold())) - {'de', 'the', 'of'}
 
 
+def _checkout_cost(required, unit, quote):
+    """Price of the whole packages needed to cover `required` (base units)."""
+    if {'kg': 'g', 'l': 'ml', 'unit': 'ud'}.get(quote.package_unit) != unit:
+        return None
+    size, price = quote.package_quantity, quote.package_price
+    if not (isinstance(size, Decimal) and isinstance(price, Decimal) and size.is_finite()
+            and price.is_finite() and size > 0 and price >= 0):
+        return None
+    factor = Decimal(1) if unit == 'ud' else Decimal(1000)
+    return (required / factor / size).to_integral_value(rounding=ROUND_CEILING) * price
+
+
 def estimate(source, store_ctx: RetailContext, recipe_store, pricing, product_overrides=None,
              match_policy='cheapest') -> CostEstimate:
     if match_policy not in ('cheapest', 'strict'):
@@ -161,15 +173,20 @@ def estimate(source, store_ctx: RetailContext, recipe_store, pricing, product_ov
                         if candidate_quote.food is not False and dimension_unit in (None, q.unit):
                             candidates.append(product.id)
                             price = candidate_quote.normalized_unit_price
-                            if dimension_unit == q.unit and isinstance(price, Decimal) and price.is_finite() and price >= 0:
-                                comparable.append((price, product.name, product.id))
+                            checkout = _checkout_cost(required, q.unit, candidate_quote)
+                            if (dimension_unit == q.unit and checkout is not None and isinstance(price, Decimal)
+                                    and price.is_finite() and price >= 0):
+                                comparable.append((checkout, price, product.name, product.id))
                 candidates = list(dict.fromkeys(candidates))
                 evidence.append('whole_word')
             if len(candidates) > 1 and match_policy == 'cheapest' and key not in overrides and comparable:
+                # Cheapest = lowest checkout cost for the required quantity (whole
+                # packages), then lowest unit price; per line, before grouping.
                 comparable.sort()
-                selected = comparable[0][2]
-                alternatives = tuple(dict(product_id=pid, name=name, normalized_unit_price=price)
-                                     for price, name, pid in comparable[1:6])
+                selected = comparable[0][3]
+                alternatives = tuple(dict(product_id=pid, name=name, normalized_unit_price=price,
+                                          checkout_cost=checkout)
+                                     for checkout, price, name, pid in comparable[1:6])
                 reasons.append('auto_selected_cheapest')
             else:
                 selected = candidates[0] if len(candidates) == 1 else None

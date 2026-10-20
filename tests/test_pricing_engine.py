@@ -106,6 +106,33 @@ class EngineTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.run_estimate(items(rice()), match_policy='bad')
 
+    def test_cheapest_minimizes_checkout_cost(self):
+        # 1 l needed: a 6 l pack is cheaper per litre (0.81) but costs 4.86 at the
+        # checkout; the 1 l bottle (0.95) is what the user should pay.
+        quotes = {'bulk': (D('4.86'), D(6), D('.81')), 'bottle': (D('.95'), D(1), D('.95')),
+                  'twin': (D('1.80'), D(2), D('.90'))}
+        self.pricing.products = [Product(pid, 'leche', 'fixture') for pid in quotes]
+        base = self.pricing.quote
+
+        def quote(product_id, store):
+            price, size, unit_price = quotes[product_id]
+            return replace(base, product_id=product_id, package_price=price, package_quantity=size,
+                           package_unit='l', normalized_unit_price=unit_price)
+        setattr(self.pricing, 'get_quote', quote)
+        result = self.run_estimate(items(dict(name='leche', quantity='1', unit='l')))
+        line = result.lines[0]
+        assert line.quote is not None
+        self.assertEqual(line.quote.product_id, 'bottle')
+        self.assertEqual(result.procurement_subtotal, D('.95'))
+        self.assertEqual(result.consumption_subtotal, D('.95'))
+        self.assertEqual([a['product_id'] for a in line.alternatives], ['twin', 'bulk'])
+        self.assertEqual(line.alternatives[0]['checkout_cost'], D('1.80'))
+        # Ties on checkout cost fall back to the lower unit price.
+        quotes['twin'] = (D('.95'), D(2), D('.475'))
+        tied = self.run_estimate(items(dict(name='leche', quantity='1', unit='l'))).lines[0].quote
+        assert tied is not None
+        self.assertEqual(tied.product_id, 'twin')
+
     def test_whole_word_and_dimension(self):
         self.pricing.products = [Product('salsa', 'salsa', 'fixture')]
         self.assertIsNone(self.run_estimate(items(dict(name='sal', quantity='1', unit='g'))).consumption_subtotal)

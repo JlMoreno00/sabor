@@ -4,7 +4,7 @@ import unittest
 from dataclasses import asdict
 from datetime import datetime, timezone
 from decimal import Decimal
-from unittest.mock import Mock, patch, mock_open
+from unittest.mock import Mock, patch
 from typing import Any
 
 import requests
@@ -73,13 +73,17 @@ class MercadonaTests(unittest.TestCase):
         self.assertEqual(milk.alternatives[0]['name'], 'Leche semidesnatada Hacendado')
         self.assertEqual(milk.uncertainty.level, 'estimated')
         self.assertIn('auto_selected_cheapest', milk.uncertainty.reasons)
-        self.assertEqual(flour.consumption, Decimal('.2') * Decimal('.59'))
+        # 200 g: the 1 kg bag (0.72 at checkout) beats the 5 kg bag (2.95), even
+        # though the big bag is cheaper per kilo.
+        assert flour.quote is not None
+        self.assertEqual(flour.quote.product_id, '29100')
+        self.assertEqual(flour.consumption, Decimal('.2') * Decimal('.72'))
         self.assertEqual(eggs.consumption, Decimal('1.32'))
         self.assertIn('assumed_count', eggs.uncertainty.reasons)
         self.assertIsNone(salt.consumption)
         self.assertEqual(result.coverage['costed'], 3)
         self.assertFalse(result.complete)
-        self.assertEqual(result.procurement_subtotal, Decimal('6.40'))
+        self.assertEqual(result.procurement_subtotal, Decimal('.81') + Decimal('.72') + Decimal('2.64'))
         strict = run(match_policy='strict')
         self.assertIn('ambiguous_match', strict.lines[0].uncertainty.reasons)
         overridden = run(product_overrides={'items:0': '10381'}).lines[0].quote
@@ -87,6 +91,31 @@ class MercadonaTests(unittest.TestCase):
         self.assertEqual(overridden.product_id, '10381')
         self.assertNotIn('cosmetic', [p.id for p in self.provider.search_products(ProductQuery('leche'), self.store)])
         self.assertFalse(self.provider.get_quote('cosmetic', self.store).food)
+
+    def test_real_reference_denominators(self):
+        # Real catalog formats (counted on the cached mad1 catalog): dc = dozen
+        # (8 products), 100 ml (395) and 100 g (91) reference denominators.
+        self.products = [
+            item('eggs6', 'Huevos grandes L', unit_size=6.0, size_format='ud', unit_price='1.80',
+                 reference_price='3.60', reference_format='dc'),
+            item('juice', 'Zumo de naranja', unit_size=1.0, size_format='l', unit_price='1.95',
+                 reference_price='0.195', reference_format='100 ml'),
+            item('ham', 'Jamón cocido', unit_size=0.25, size_format='kg', unit_price='2.50',
+                 reference_price='1.000', reference_format='100 g'),
+            item('odd', 'Producto raro', unit_size=2.0, size_format='l', unit_price='3.00',
+                 reference_price='9', reference_format='lv')]
+        self.provider._refresh()
+        eggs = self.provider.get_quote('eggs6', self.store)
+        self.assertEqual((eggs.package_unit, eggs.normalized_unit_price), ('unit', Decimal('.30')))
+        self.assertNotIn('unknown', eggs.uncertainty_reasons)
+        juice = self.provider.get_quote('juice', self.store)
+        self.assertEqual((juice.package_unit, juice.normalized_unit_price), ('l', Decimal('1.950')))
+        ham = self.provider.get_quote('ham', self.store)
+        self.assertEqual((ham.package_unit, ham.normalized_unit_price), ('kg', Decimal('10.000')))
+        # Unknown denominators fall back to package price / package amount, flagged.
+        odd = self.provider.get_quote('odd', self.store)
+        self.assertEqual(odd.normalized_unit_price, Decimal('1.5'))
+        self.assertIn('derived_unit_price', odd.uncertainty_reasons)
 
     def test_ttl_refresh(self):
         self.assertEqual(self.quote().package_price, Decimal('17.25'))
