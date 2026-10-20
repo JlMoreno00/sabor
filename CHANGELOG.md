@@ -1,5 +1,12 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- TikTok video imports no longer suggest uploading a file, which `import_recipe`
+  cannot accept; the error now suggests pasting the caption or transcript with
+  `kind='text'` (#10).
+
 ## [0.3.0] - 2026-10-20
 
 ### Added
