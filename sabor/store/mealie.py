@@ -65,11 +65,12 @@ def _summary(value):
 
 
 from sabor.store.mealie_shopping import MealieShoppingListsMixin  # noqa: E402
+from sabor.store.mealie_items import MealieShoppingItemsMixin  # noqa: E402
 
 
-class MealieRecipeStore(MealieShoppingListsMixin):
+class MealieRecipeStore(MealieShoppingItemsMixin, MealieShoppingListsMixin):
     id = "mealie"
-    operations: frozenset[str] = frozenset(("search_recipes", "get_recipe", "suggest_recipes", "create_recipe", "update_recipe", "get_mealplan", "set_mealplan_entry", "delete_mealplan_entry", "get_shopping_lists", "create_shopping_list", "delete_shopping_list"))
+    operations: frozenset[str] = frozenset(("search_recipes", "get_recipe", "suggest_recipes", "create_recipe", "update_recipe", "get_mealplan", "set_mealplan_entry", "delete_mealplan_entry", "get_shopping_lists", "create_shopping_list", "delete_shopping_list", "get_shopping_items", "add_shopping_items", "add_recipe_occurrences", "check_shopping_items", "remove_shopping_items"))
 
     def __init__(self, base_url, token, session=None, settings=None):
         from sabor.core.config import load_settings
@@ -113,11 +114,6 @@ class MealieRecipeStore(MealieShoppingListsMixin):
         raise StoreError("unsupported_operation", self.id)
 
     # Explicitly unavailable until their bounded migration units land.
-    get_shopping_items = _unsupported
-    add_shopping_items = _unsupported
-    add_recipe_occurrences = _unsupported
-    check_shopping_items = _unsupported
-    remove_shopping_items = _unsupported
     get_or_create_tag = _unsupported
     tag_recipe = _unsupported
     add_recipe_comment = _unsupported

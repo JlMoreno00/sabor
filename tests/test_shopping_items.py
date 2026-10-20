@@ -1,5 +1,8 @@
 """Shopping item contracts with no network access."""
 import unittest
+import requests
+from typing import Any, cast
+from test_store_shopping_items import item_store_class  # pyright: ignore[reportMissingImports]
 from unittest.mock import Mock, patch
 
 from sabor.tools import shopping_items as tools
@@ -13,8 +16,13 @@ ITEM = {"id": "a", "shoppingListId": LIST, "checked": False,
 
 class ShoppingItemsTests(unittest.TestCase):
     def setUp(self):
-        self.patch = patch.object(tools, "requests")
-        self.http = self.patch.start()
+        self.addCleanup(patch.stopall)
+        patch('sabor.store.mealie.MealieRecipeStore', item_store_class()).start()
+        patch('sabor.config.MEALIE_BASE_URL', 'https://test.invalid').start()
+        patch('sabor.config.MEALIE_API_TOKEN', 'test-token').start()
+        self.patch = patch.multiple(requests, get=Mock(), put=Mock(), delete=Mock())
+        self.patch.start()
+        self.http = cast(Any, requests)
         self.addCleanup(self.patch.stop)
         self.http.get.return_value = Mock(status_code=200)
         self.http.get.return_value.json.return_value = {"listItems": [dict(ITEM)]}
@@ -80,7 +88,7 @@ class ShoppingItemsTests(unittest.TestCase):
 
     def test_invalid_paging_empty_ids_and_foreign_response(self):
         for kwargs in ({"page": 0}, {"per_page": 101}):
-            self.assertFalse(tools.get_shopping_list_items(LIST, **kwargs)["ok"])
+            self.assertFalse(tools.get_shopping_list_items(LIST, **cast(Any, kwargs))["ok"])
         self.assertFalse(tools.check_shopping_list_items(LIST, [])["ok"])
         self.http.get.return_value.json.return_value = {"listItems": [dict(ITEM, shoppingListId="other")]}
         self.assertFalse(tools.check_shopping_list_items(LIST, ["a"])["ok"])

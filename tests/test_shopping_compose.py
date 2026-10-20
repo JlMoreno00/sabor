@@ -1,5 +1,7 @@
 """Offline composition contracts; never call Mealie."""
 import unittest
+import requests
+from test_store_shopping_items import item_store_class  # pyright: ignore[reportMissingImports]
 from unittest.mock import Mock, patch
 from sabor.tools import shopping_items as mod
 
@@ -18,8 +20,12 @@ def page(entries, number=1, total=1, count=None):
 
 class ComposeTests(unittest.TestCase):
     def setUp(self):
-        self.get = patch.object(mod.requests, "get").start()
-        self.post = patch.object(mod.requests, "post").start()
+        self.addCleanup(patch.stopall)
+        patch('sabor.store.mealie.MealieRecipeStore', item_store_class()).start()
+        patch('sabor.config.MEALIE_BASE_URL', 'https://test.invalid').start()
+        patch('sabor.config.MEALIE_API_TOKEN', 'test-token').start()
+        self.get = patch.object(requests, "get").start()
+        self.post = patch.object(requests, "post").start()
         self.addCleanup(patch.stopall)
         self.post.return_value = response({"createdItems": [{"id": "item"}]})
 
@@ -67,7 +73,7 @@ class ComposeTests(unittest.TestCase):
 
     def test_mealplan_pagination(self):
         entry = {"id": 1, "recipe": {"id": RID, "slug": "rice"}}
-        self.get.side_effect = [page([entry], 1, 2, 2), page([entry], 2, 2, 2)]
+        self.get.side_effect = [page([entry], 1, 2, 2), page([{**entry, "id": 2}], 2, 2, 2)]
         self.assertTrue(self.mealplan()["ok"])
         self.assertEqual(self.get.call_args.kwargs["params"]["page"], 2)
         self.assertEqual(self.get.call_args.kwargs["params"]["start_date"], "2026-01-01")
