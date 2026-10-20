@@ -15,6 +15,7 @@ from sabor.core.toolsets import catalog
 
 # SHA-256 of ast.dump(arguments) + the exact uncleaned docstring, before moving.
 BASELINE_CONTRACT = {
+    "import_recipe": "080a64f54626874585abb9b1f77efbe35163d83dd8f0f9bfb11c0f6751d051d4",
     "add_to_shopping_list": "3efe414918d389283ef0b3394126399f907c51e5116752ca4f8b4aef5d87ca1c",
     "check_shopping_list_items": "e3f57862d4c913fa3b448c4f5ebf0354b2c90e1bb28ea414efa8b99039597d99",
     "get_shopping_list_items": "6394c56a022f72ddc4a7b49a8fa1103a7eda6be90c23c3a68e53cd9243bd3931",
@@ -80,7 +81,7 @@ class ModuleContractTests(unittest.TestCase):
     def test_registered_tool_names_match_baseline(self):
         names = [fn.__name__ for group, fn, requires in catalog]
         self.assertEqual(set(names), set(BASELINE_CONTRACT))
-        self.assertEqual(len(names), 58)
+        self.assertEqual(len(names), 59)
         register_tools()
         self.assertEqual(
             [fn.__name__ for group, fn, requires in catalog], names,

@@ -25,7 +25,7 @@ mcp = FastMCP(
 
 TOOL_MODULES = (
     "sabor.integrations.mealie",
-    "sabor.tools.recipes",
+    "sabor.tools.recipes", "sabor.importing.tools",
     "sabor.tools.shopping",
     "sabor.tools.shopping_items",
     "sabor.tools.mealplan",
@@ -46,7 +46,9 @@ def register_tools(server=None, env=None) -> None:
     server = mcp if server is None else server
     if server in _registered:
         return
-    registry = Registry(load_settings(os.environ if env is None else env))
+    settings = load_settings(os.environ if env is None else env)
+    from sabor.importing.tools import OpenAIImportProvider
+    registry = Registry(settings, import_factories=(OpenAIImportProvider,) if settings.llm_configured else ())
     for module_name in TOOL_MODULES:
         import_module(module_name)
     names = []
