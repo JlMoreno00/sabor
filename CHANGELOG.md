@@ -1,5 +1,86 @@
 # Changelog
 
+## [0.2.0] - 2026-10-20
+
+### Added
+- Capability registry, configurable toolsets and always-on discovery.
+- Filtered/paginated recipe search, food/tool suggestions, structured recipe
+  reads and confirmed partial recipe updates.
+- Shopping item read/check/remove and list composition from recipes or inclusive
+  meal-plan dates with explicit servings scaling.
+- Unified URL/text/image/video import with Gemini-native and OpenAI-compatible
+  video adapters; provider-neutral shopping sync backed by Bring!.
+
+### Changed
+- Sabor is a kitchen-intelligence layer on top of Mealie, not a tool-count race.
+- Results use `{ok:true,data:{...}}` or sanitized
+  `{ok:false,error:{code,message,provider}}`; unwrap `data`, including legacy calls.
+- Tool descriptions are English. Ingredients and instructions retain structure.
+- Sync reads a Mealie source list; both append and replace preview by default.
+- Legacy domains require explicit opt-in. Refresh MCP discovery after restart.
+
+### Removed
+- Ten duplicate/legacy tool names, with no compatibility aliases (table below).
+- Independent wild-mode URL scraping and arbitrary caller-supplied Bring item
+  strings. Populate a Mealie list first.
+- Local-file video inputs are not supported by the unified importer.
+
+### Security
+- Sanitized error classification and discovery redaction; no upstream response
+  bodies, exception text or credentials in public errors.
+- Image downloads validate public addresses and redirects with pinned-IP TLS.
+- Explicit preview/confirmation boundaries for destructive operations and sync;
+  unknown targets never fall back. External processing still needs user consent.
+
+### Migration from 0.1.x
+
+This is a breaking 0.x release. Back up local memory/sidecar and Mealie separately.
+Pin 0.1.1 if a client cannot migrate; there are no deprecated aliases.
+
+| Removed name | Replacement call |
+|---|---|
+| `scrape_recipe` | `import_recipe(source=url, kind="url", dry_run=True)` |
+| `import_recipe_to_mealie` | `import_recipe(source=url, kind="url", dry_run=False)` |
+| `analyze_video_recipes` | `import_recipe(source=url, kind="video", dry_run=True)` |
+| `import_video_recipes_to_mealie` | `import_recipe(source=url, kind="video", dry_run=False)` |
+| `add_items_to_shopping_list` | `add_to_shopping_list(list_id=id, items=[...])` |
+| `add_recipe_ingredients_to_list` | `add_to_shopping_list(list_id=id, recipe_slugs=[slug])` |
+| `bring_get_lists` | `get_shopping_sync_targets(provider="bring")` |
+| `bring_sync_list` | `sync_shopping_list(mealie_list_id=id, target={"provider":"bring","list_id":target_id}, mode="replace", confirm=False)` |
+| `bring_add_items` | `sync_shopping_list(mealie_list_id=id, target={"provider":"bring","list_id":target_id}, mode="append", confirm=False)` |
+| `spoonacular_search_by_nutrients` | `spoonacular_search_recipes(query="", max_calories=..., min_protein_g=...)` |
+
+Map the nutrient search's `max_calories_kcal` to `max_calories`; retain the
+other matching nutrient filters using the new schema. Import commits now require
+explicit `dry_run=False`. For sync, create/populate the Mealie source first,
+resolve the target, preview, ask, then repeat with `confirm=True`.
+
+Environment changes:
+- `SABOR_TOOLSETS` defaults to `core,import,shopping_sync`; explicitly empty
+  means discovery only. Credentials no longer opt legacy tools in.
+- `SABOR_MERCADONA_ENABLED=true` is required alongside `legacy_pricing`.
+- `SABOR_LLM_BASE_URL`, `SABOR_LLM_MODEL`, `SABOR_LLM_API_KEY` configure
+  compatible text/video processing. Remote endpoints require all three;
+  localhost/127.0.0.1 may omit the key.
+- `SABOR_VIDEO_PROVIDER` selects `gemini_native` or `openai_compatible`.
+  Unset prefers configured Gemini, then compatible. Native Gemini requires the
+  existing `GEMINI_API_KEY`; `VIDEO_RECIPE_GEMINI_MODEL` keeps its 0.1.x default `gemini-2.5-flash-lite`.
+- Existing normalization/nutrition settings remain, but the unified importer
+  does not currently run the old post-import normalization/nutrition hooks.
+
+To keep the **remaining 0.1 domains** (not removed aliases), select all legacy sets:
+
+```dotenv
+SABOR_TOOLSETS=core,import,shopping_sync,legacy_spoonacular,legacy_pricing,legacy_memory,legacy_nutrition,legacy_catalog
+SABOR_MERCADONA_ENABLED=true
+```
+
+Keep the corresponding Mealie, Spoonacular, Gemini and Bring! credentials and
+existing nutrition flags. No selection restores the removed names or old result
+shape. Update structured recipe consumers, list parameter names and approval
+flows using the [current reference](README.md).
+
+
 ## [Unreleased]
 
 ## [0.1.1] - 2026-10-19

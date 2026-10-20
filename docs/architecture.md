@@ -53,10 +53,31 @@ Gemini's documented automatic deletion after 48 hours, or until an operator
 removes it through the provider. A failed upload initialization/finalization may
 also leave provider-side state that Sabor cannot identify for cleanup.
 
-## Import and Normalization Flow
+## Capability registry and public envelopes (0.2)
+
+`core/config.py` validates settings; `core/registry.py` builds immutable provider
+metadata; `server.py` collects decorated functions, intersects requested toolsets
+with readiness, applies per-tool requirements and registers discovery once.
+There are no startup credential probes. Legacy modules remain imported by the
+server; selection is not a plugin-loading/security sandbox.
+
+Import adapters implement extraction/preview; the unified importer owns Mealie
+commits. Native URL/image paths are orchestrated directly. Gemini-native uses
+whole-video audio/vision; OpenAI-compatible uses frames and captions. Selection
+is explicit or Gemini-first when configured. Sync adapters implement
+targets/plan/apply; the orchestrator reads Mealie, resolves a unique target,
+previews and confirms a rebuilt current plan. Bring! is the only sync provider.
+
+Public success is `{ok:true,data:{...}}`; errors use
+`{ok:false,error:{code,message,provider}}` with optional safe partial outcomes.
+Legacy registration wrappers preserve signatures while adapting envelopes.
+No raw upstream bodies, exception text or secrets belong in errors/logs.
+Discovery intentionally omits model IDs as well as credentials/private URLs.
+
+## Structured Creation and Normalization Flow
 
 ```text
-URL, structured recipe, or video recipe
+Structured recipe creation
   -> create recipe in Mealie
   -> use the slug returned by Mealie
   -> fetch the created recipe
@@ -74,8 +95,11 @@ normalization failure is attached as a warning and does not turn a successful
 recipe import into a failure. Placeholder-only legacy recipes skip
 normalization.
 
-`SABOR_INGREDIENT_PARSER=openai` is a Mealie parser selector. Sabor does not
-read `OPENAI_API_KEY` and does not call OpenAI directly.
+`SABOR_INGREDIENT_PARSER=openai` selects a Mealie parser for the legacy
+normalization path. Unified import does not currently invoke normalization or
+nutrition hooks and has no `normalize` parameter. Its text/video adapter calls
+the explicitly configured compatible LLM directly using `SABOR_LLM_*`, not
+`OPENAI_API_KEY`.
 
 ## Spanish Catalog Flow
 
@@ -105,7 +129,7 @@ Mealie recipe and normalized ingredients
   -> PATCH Mealie only after explicit publication and policy checks
 ```
 
-New structured/imported recipes and recipe-backed weekly entries use a shared
+Structured creation and recipe-backed weekly entries use a shared
 `ensure_recipe_nutrition` orchestration path. Fixed 64-stripe process-local lock
 sets bound lock memory while preserving same-key serialization; unrelated keys
 can collide and serialize, but never bypass correctness checks. Structural

@@ -21,3 +21,19 @@ acordado una solicitud de feedback.
 Si falla una escritura, informa qué parte se guardó y cuál no. No afirmes
 sincronización completa ni repitas automáticamente un comentario duplicable.
 Nunca publiques el perfil privado en un chat grupal.
+
+## Disponibilidad y resultados (0.2)
+
+Antes de usar Sabor llama `sabor_capabilities()` y comprueba
+`data.registered_tools`. Desenvuelve `data` cuando `ok=true`; con `ok=false`
+revisa `error.code` y cualquier resultado parcial. Las herramientas de memoria
+requieren selección explícita de `legacy_memory` en `SABOR_TOOLSETS` por el
+operador; no cambies configuración desde el chat. Si no están disponibles,
+explica la limitación sin afirmar que guardaste nada.
+
+Para escrituras con preview: muestra → pregunta → confirma con `confirm=True`
+o `dry_run=False`, según el esquema. Otros guardados también requieren permiso.
+Para enviar compra a Bring!, construye primero una lista Mealie con
+`add_to_shopping_list`, descubre destinos y previsualiza `sync_shopping_list`;
+solo confirma después de aprobación. Nunca sincronices cadenas sueltas como
+fuente alternativa a Mealie.

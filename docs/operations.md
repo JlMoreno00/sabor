@@ -5,8 +5,12 @@ backfills, catalog apply, or publication as a deployment smoke test.
 
 ## Configuration Authority
 
-Runtime values are read by `sabor_mcp.py` at import time. Restart the service
-after changing them. `docker-compose.yml` loads `.env`, with no explicit environment block. An automatically loaded
+Registration authority is `sabor/core/config.py`: `load_settings` validates the
+startup environment and `sabor/server.py` freezes the registry once per server.
+`sabor/config.py` separately reads legacy/integration and transport defaults at
+import time. Set Mealie URL explicitly: registration does not inherit the legacy
+localhost URL default. Restart the service and refresh MCP client discovery
+after changes. `docker-compose.yml` loads `.env`, with no explicit environment block. An automatically loaded
 `docker-compose.override.yml` can override those values; override environment
 entries win over `.env`.
 
@@ -20,11 +24,11 @@ The executable runtime, `.env.example`, and `mcp-manifest.json` all use
 | `SABOR_HOST` | `0.0.0.0` | Server | Compose publishes only to host loopback |
 | `SABOR_HOST_PORT` | `9170` (Compose) | Docker host binding | Optional, non-secret; loopback only |
 | `SABOR_PORT` | `8080` | Server | Must match container port and health check unless all are changed together |
-| `MEALIE_BASE_URL` | `http://localhost:9925` | Mealie tools | Remove trailing slash; use the container-reachable URL in Compose |
+| `MEALIE_BASE_URL` | Empty for registration; legacy client defaults localhost | Mealie tools | Remove trailing slash; use the container-reachable URL in Compose |
 | `MEALIE_API_TOKEN` | Empty | Authenticated Mealie tools | Bearer token; secret |
 | `SPOONACULAR_API_KEY` | Empty | Spoonacular tools and nutrition profile fetches | Secret |
 | `GEMINI_API_KEY` | Empty | Video analysis/import | Secret |
-| `VIDEO_RECIPE_GEMINI_MODEL` | `gemini-2.5-flash-lite` | Video analysis | Code has bounded fallback models |
+| `VIDEO_RECIPE_GEMINI_MODEL` | `gemini-2.5-flash-lite` | Native video | Same default as 0.1.x; set it to pin another Gemini model |
 | `VIDEO_RECIPE_WORKDIR` | `/tmp/video-recipe-mcp` | Video URL processing | Temporary downloaded media |
 | `BRING_EMAIL` | Empty | Bring! tools | Account identifier; treat as sensitive |
 | `BRING_PASSWORD` | Empty | Bring! tools | Secret |
@@ -58,7 +62,9 @@ The executable runtime, `.env.example`, and `mcp-manifest.json` all use
 | `SABOR_NUTRITION_AUTO_ON_IMPORT` | `false` | Calculate after successful import |
 | `SABOR_NUTRITION_AUTO_PUBLISH` | `false` | Publish an automatic import calculation |
 
-Boolean variables accept `1`, `true`, `yes`, or `on`, case-insensitively. Numeric
+Legacy boolean variables accept `1`, `true`, `yes`, or `on`, case-insensitively.
+The new registration flags `SABOR_MERCADONA_ENABLED` and its nutrition snapshot
+accept only `true` (case-insensitive); use literal `true` consistently. Numeric
 variables are parsed during import; invalid values prevent startup.
 
 Bring requests also send a public web-client identifier embedded in the source.
@@ -68,6 +74,47 @@ commit](https://github.com/miaucl/bring-api/blob/e3c9aeb51a866735647874dbf1c112e
 its declaration has a line-scoped secret-scan exemption so scanners do not mask
 real findings elsewhere. `BRING_EMAIL` and `BRING_PASSWORD` remain protected
 configuration.
+
+## Toolset and provider configuration (0.2)
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `SABOR_TOOLSETS` | `core,import,shopping_sync` | Comma-separated allowlist; empty = discovery only; unknown names fail startup |
+| `SABOR_LLM_BASE_URL` | Empty | Compatible endpoint, including /v1 where required |
+| `SABOR_LLM_MODEL` | Empty | Explicit compatible model |
+| `SABOR_LLM_API_KEY` | Empty | Required remotely; localhost/127.0.0.1 may omit |
+| `SABOR_VIDEO_PROVIDER` | Empty | Auto: configured Gemini then compatible; explicit choice has no fallback |
+| `SABOR_MERCADONA_ENABLED` | `false` | Explicit readiness for selected legacy pricing |
+
+Endpoint examples: OpenAI `https://api.openai.com/v1`; Gemini-compatible
+`https://generativelanguage.googleapis.com/v1beta/openai/`; Ollama
+`http://localhost:11434/v1`. Models must support the requested media; compatible
+video uses frames/captions, not whole-video audio. Native Gemini requires its
+existing key plus an explicit model. Inside Docker, localhost means the Sabor
+container; use an intentionally trusted reachable service address and key.
+
+Select legacy domains explicitly; credentials alone do not register them:
+
+```dotenv
+SABOR_TOOLSETS=core,import,shopping_sync,legacy_spoonacular,legacy_pricing,legacy_memory,legacy_nutrition,legacy_catalog
+SABOR_MERCADONA_ENABLED=true
+```
+
+Core/catalog need Mealie. Spoonacular needs its key; memory/nutrition can register
+locally, with existing nutrition operation gates unchanged. Sync tools need both
+Bring credentials and Mealie; partial Bring credentials fail startup.
+Import can register with Mealie alone or an LLM/Gemini preview provider.
+Mealie image import uses Mealie-owned OpenAI configuration and cannot preview.
+
+## Redaction policy
+
+Discovery never returns credentials, private URLs, paths, account identifiers,
+list contents or operator-selected model IDs. Error envelopes and logs must not
+contain raw upstream bodies, exception text, auth headers or arbitrary model
+output. Report stable `error.code` / `error.provider` and sanitized outcomes.
+Do not print resolved environments, signed URLs, user memory, captions or footage
+in support reports. A sanitized error does not make a full recipe/list safe to
+publish: successful business data remains private.
 
 ## Preflight
 
@@ -121,14 +168,17 @@ curl -fsS -X POST \
 ```
 
 An MCP initialize response proves process and transport availability. It does
-not prove Mealie or provider credentials. Verify integrations with read-only
+not prove Mealie or provider credentials. Call `sabor_capabilities()` first,
+unwrap `data`, compare `registered_tools` and disabled reasons with the intended
+configuration. Discovery reports configured, not healthy; it performs no network
+probe. Verify integrations with read-only
 tools through an MCP client and never use mutation tools as health checks.
 
 ## Disabled-First Nutrition Rollout
 
 The safe sequence is deliberately staged:
 
-1. Keep all four safety flags false and deploy the normal service.
+1. Select `legacy_nutrition` explicitly; keep all four safety flags false and deploy the normal service.
 2. Back up the Sabor data volume and confirm Mealie has its own independent
    backup and rollback plan.
 3. Enable only `SABOR_NUTRITION_ENABLED=true`; keep auto-on-import,
@@ -150,8 +200,8 @@ Edit `.env` to change nutrition flags, checking for conflicting values in any
 local override. Restart after changes; never print the resolved environment.
 
 The same existing flags control just-in-time behavior. The master flag gates
-recipe-backed weekly scheduling. `AUTO_ON_IMPORT` enables enrichment after a
-successful structured, URL, or video import, and `AUTO_PUBLISH` permits only
+recipe-backed weekly scheduling. `AUTO_ON_IMPORT` enables the existing structured-creation enrichment path;
+the unified URL/text/image/video importer currently does not invoke that hook, and `AUTO_PUBLISH` permits only
 eligible, unprotected, Sabor-owned or empty nutrition to be published. No flag
 enables estimate publication unless `PUBLISH_ESTIMATES` is separately true; its
 checked-in default remains false. There is no queue, workflow table, or backfill
