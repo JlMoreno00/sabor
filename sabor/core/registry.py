@@ -4,6 +4,8 @@ from types import MappingProxyType
 from typing import Any, Callable, Literal, Mapping, Protocol
 
 from .config import ConfigError, Settings, TOOLSETS
+from sabor.store import RecipeStore
+from sabor.pricing.provider import PricingProvider
 
 
 class ImportProvider(Protocol):
@@ -27,6 +29,8 @@ class ShoppingSyncProvider(Protocol):
 @dataclass(frozen=True, init=False)
 class Registry:
     settings: Settings
+    recipe_store: RecipeStore | None
+    pricings: tuple[PricingProvider, ...]
     imports: tuple[ImportProvider, ...]
     syncs: tuple[ShoppingSyncProvider, ...]
     video_provider: str | None
@@ -34,13 +38,19 @@ class Registry:
     disabled_toolsets: Mapping[str, str]
 
     def __init__(self, settings: Settings, *,
+                 store_factory: Callable[[Settings], RecipeStore] | None = None,
+                 pricing_factories: tuple[Callable[[Settings], PricingProvider], ...] = (),
                  import_factories: tuple[Callable[[Settings], ImportProvider], ...] = (),
                  sync_factories: tuple[Callable[[Settings], ShoppingSyncProvider], ...] = ()):
         # Caller supplies only configured factories; no dynamic plugin imports.
         imports = tuple(factory(settings) for factory in import_factories)
         syncs = tuple(factory(settings) for factory in sync_factories)
+        recipe_store = store_factory(settings) if store_factory else None
+        # SABOR_MERCADONA_ENABLED is Mercadona readiness, not a health probe.
+        pricings = tuple(factory(settings) for factory in pricing_factories)
+        pricings = tuple(p for p in pricings if p.id != 'mercadona' or settings.mercadona_enabled)
         ids, kinds = set(), set()
-        for adapter in (*imports, *syncs):
+        for adapter in (*imports, *syncs, *pricings):
             if adapter.id in ids:
                 raise ConfigError('Duplicate adapter ID')
             ids.add(adapter.id)
@@ -57,7 +67,7 @@ class Registry:
         video_owners = [a for a in imports if 'video' in a.kinds]
         if len(video_owners) > 1 and any(a.id not in available for a in video_owners):
             raise ConfigError('Duplicate import kind ownership')
-        ready = dict(core=settings.mealie_configured,
+        ready = dict(core=settings.mealie_configured, pricing=bool(pricings),
                      import_=bool(settings.mealie_configured or settings.llm_configured or settings.gemini_configured),
                      shopping_sync=bool(settings.bring_email and settings.bring_password),
                      legacy_spoonacular=bool(settings.spoonacular_api_key),
@@ -68,6 +78,7 @@ class Registry:
         disabled = {t: ('not_requested' if t not in settings.requested_toolsets else 'missing_configuration')
                     for t in TOOLSETS if t not in enabled}
         for key, value in dict(settings=settings, imports=imports, syncs=syncs,
+                               recipe_store=recipe_store, pricings=pricings,
                                video_provider=video, enabled_toolsets=enabled,
                                disabled_toolsets=MappingProxyType(disabled)).items():
             object.__setattr__(self, key, value)

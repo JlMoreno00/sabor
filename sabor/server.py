@@ -5,7 +5,7 @@ import os
 from weakref import WeakKeyDictionary
 
 from sabor.core.config import load_settings
-from sabor.core.registry import Registry
+from sabor.core.context import build_context
 from sabor.core.capabilities import describe
 from sabor.core.toolsets import catalog
 from sabor.core.legacy import legacy_envelope
@@ -48,9 +48,10 @@ def register_tools(server=None, env=None) -> None:
     from sabor.importing.tools import OpenAIImportProvider
     from sabor.importing.video import GeminiNativeVideo
     from sabor.sync.bring import BringSyncProvider
-    registry = Registry(settings, import_factories=((OpenAIImportProvider,) if settings.llm_configured else ())
+    context = build_context(settings, store_factory=None, pricing_factories=(), import_factories=((OpenAIImportProvider,) if settings.llm_configured else ())
                         + ((GeminiNativeVideo,) if settings.gemini_configured else ()),
                         sync_factories=(BringSyncProvider,) if settings.bring_email and settings.bring_password else ())
+    registry = context.registry
     for module_name in TOOL_MODULES:
         import_module(module_name)
     names = []
@@ -70,7 +71,7 @@ def register_tools(server=None, env=None) -> None:
 
     def sabor_capabilities() -> dict:
         """Describe configured toolsets and the actual registered tool surface."""
-        result = describe(registry, names, "0.2.0")
+        result = describe(context, names, "0.2.0")
         result["data"]["warnings"].extend(skipped)
         return result
 

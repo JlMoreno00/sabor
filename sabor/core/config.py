@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 from typing import Mapping
 from urllib.parse import urlsplit
 
-TOOLSETS = ('core', 'import', 'shopping_sync', 'legacy_spoonacular',
+TOOLSETS = ('core', 'import', 'shopping_sync', 'pricing', 'legacy_spoonacular',
             'legacy_pricing', 'legacy_memory', 'legacy_nutrition', 'legacy_catalog')
 
 

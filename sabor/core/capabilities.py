@@ -1,5 +1,8 @@
 """Discovery projects static, non-sensitive metadata only, never adapter state."""
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
+
+if TYPE_CHECKING:
+    from .context import AppContext
 
 from .envelope import ok
 from .registry import ImportProvider
@@ -12,13 +15,23 @@ VIDEO_LIMITATIONS = {
 }
 
 
-def describe(registry: Registry, registered_tools, version: str) -> dict:
+def describe(registry: 'Registry | AppContext', registered_tools, version: str) -> dict:
     """Names/version are trusted registration metadata, not user/provider output.
 
     Model IDs are deliberately omitted: operator-selected strings may themselves
     contain secrets or paths. No configuration strings are copied to discovery.
     """
+    # Accept the application context while retaining Registry callers for 0.2.
+    registry = cast(Registry, getattr(registry, 'registry', registry))
     capabilities = {}
+    for name, adapters in (('recipe_store', (registry.recipe_store,) if registry.recipe_store else ()),
+                           ('pricing', registry.pricings)):
+        capabilities[name] = {
+            'configured': bool(adapters),
+            'adapters': [{'id': a.id, 'operations': sorted(a.operations),
+                          'limitations': []} for a in adapters],
+        }
+
     for name, adapters in (('import', registry.imports), ('shopping_sync', registry.syncs)):
         enabled = name in registry.enabled_toolsets
         rows = []
