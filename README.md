@@ -71,11 +71,13 @@ per-call backend URL or tenant selector.
 
 An `AppContext` binds settings, store, registry and pricing providers to registered
 tools. Mealie sessions, Mercadona catalog caches and Bring authentication/cache
-state are instance-owned. This supports single-tenant self-hosting, **not shared-
-process multi-tenant hosting**: legacy nutrition/memory/catalog services and some
-compatibility paths still read global configuration; nutrition-after-import,
-video post-create tagging and Gemini helpers retain global reads. Use separate
-processes/containers, credentials and data volumes for independent households.
+state are instance-owned. Every registered tool binds the server's configuration;
+nutrition services, caches and locks, memory paths, Gemini credentials, video
+tagging and Bring catalog overrides are isolated between registrations. This is
+**not a multi-tenant security boundary**: legacy Mercadona promotion/catalog state
+and direct-call compatibility globals remain process-wide. Use separate
+processes/containers, credentials and data volumes for untrusted households;
+isolated registrations must use distinct memory and nutrition database paths.
 Direct Python compatibility calls are not equivalent to registered app contexts.
 
 Discovery exposes `data.capabilities.recipe_store` and `pricing` with adapter IDs

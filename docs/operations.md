@@ -44,10 +44,17 @@ state. Discovery's `capabilities.recipe_store` lists operations; the old
 `data.mealie.configured` field is deprecated. Native URL import supports preview
 and commit; image is commit-only. Configuration discovery does not probe health.
 
-Run independent households in separate processes/containers with distinct
-credentials and data volumes. Shared-process multi-tenant hosting is not
-supported: legacy services, nutrition-after-import, video tagging, Gemini helpers
-and direct-call compatibility paths retain global configuration dependencies.
+Each registration freezes configuration from its supplied environment mapping.
+Nutrition services/locks, memory paths, Gemini credentials, video tagging and
+Bring catalog overrides are instance-owned. Give independent registrations
+distinct `MEMORY_FILE` and `SABOR_NUTRITION_DB` paths; identical paths intentionally
+share persistence. `BRING_CATALOG_DIR` is captured at registration, before the
+installed-package discovery fallback, not reread from the process environment.
+
+Run untrusted households in separate processes/containers with distinct
+credentials and data volumes. This is not a multi-tenant security boundary:
+legacy Mercadona catalog/promotion state and unbound direct-call compatibility
+globals remain process-wide.
 Future store adapters are not available by setting an invented backend variable.
 
 ## Pricing operations
@@ -122,9 +129,10 @@ authorization token. Todoist remains planned for 0.3.1.
 | `SABOR_NUTRITION_AUTO_PUBLISH` | `false` | Publish an automatic import calculation |
 
 Legacy boolean variables accept `1`, `true`, `yes`, or `on`, case-insensitively.
-The new registration flags `SABOR_MERCADONA_ENABLED` and its nutrition snapshot
-accept only `true` (case-insensitive); use literal `true` consistently. Numeric
-variables are parsed during import; invalid values prevent startup.
+`SABOR_NUTRITION_ENABLED` uses that same parser for registered and direct calls.
+`SABOR_MERCADONA_ENABLED` accepts only `true` (case-insensitive). Numeric variables
+are parsed during registration (or compatibility import); invalid values prevent
+startup.
 
 Bring requests also send a public web-client identifier embedded in the source.
 It is not an account credential or confidential API secret. The same identifier
