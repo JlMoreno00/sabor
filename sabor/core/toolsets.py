@@ -43,9 +43,7 @@ def use_context(context: Any = None, *, factory: Callable[[], Any] | None = None
 
 def bind_context(fn, context):
     """Run a context-aware tool with an explicit context, keeping its MCP schema."""
-    if not getattr(fn, "uses_context", False):
-        return fn
-    implementation = fn.__wrapped__
+    implementation = fn.__wrapped__ if getattr(fn, "uses_context", False) else fn
 
     @wraps(fn)
     def bound(*args, **kwargs):
@@ -68,8 +66,12 @@ def tool(toolset: str, requires: Callable[[Settings], bool] | None = None,
             @wraps(original)
             def direct(*args, **kwargs):
                 from . import context
-                with use_context(factory=context.default_context):
-                    return original(*args, **kwargs)
+                try:
+                    current_context()
+                except LookupError:
+                    with use_context(factory=context.default_context):
+                        return original(*args, **kwargs)
+                return original(*args, **kwargs)
 
             setattr(direct, "__signature__", signature(original))
             setattr(direct, "uses_context", True)

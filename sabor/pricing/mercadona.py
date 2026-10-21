@@ -5,6 +5,7 @@ Product summaries and quotes share the last successful catalog observation.
 """
 import json
 import math
+from contextvars import copy_context
 import os
 from pathlib import Path
 import time
@@ -195,7 +196,7 @@ class MercadonaPricing:
                     or (self._loaded_at is not None and
                         self.clock() - self._loaded_at < self.ttl_seconds)):
                 return
-            self._thread = Thread(target=self._background_refresh, daemon=True)
+            self._thread = Thread(target=copy_context().run, args=(self._background_refresh,), daemon=True)
             self._thread.start()
 
     def _background_refresh(self):

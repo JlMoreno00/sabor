@@ -2,7 +2,7 @@
 
 from typing import Any
 import requests
-import sabor.config as config
+from sabor.core.runtime import config
 import sabor.integrations.mealie as mealie
 from sabor.core.toolsets import tool
 

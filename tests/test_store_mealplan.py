@@ -18,7 +18,10 @@ class CalendarTests(unittest.TestCase):
     def setUp(self):
         self.session = Mock()
         self.store = MealieRecipeStore("https://one", "one", self.session)
-        self.ctx = SimpleNamespace(store=self.store)
+        from sabor import config
+        from sabor.core.context import RuntimeState
+        self.ctx = SimpleNamespace(store=self.store, settings=SimpleNamespace(legacy_config=config),
+                                   state=RuntimeState())
         self.rows = [dict(id=str(i), date="2026-01-01", entryType="lunch",
                           title="", recipe={"id": "r", "slug": "rice", "name": "Rice"})
                      for i in range(2)]

@@ -40,7 +40,7 @@ class VideoTests(unittest.TestCase):
         with patch.object(v.gemini_client, '_upload_to_gemini', return_value={'ok': True, 'name': 'files/a', 'uri': 'uri', 'state': 'ACTIVE'}), patch.object(v.gemini_client, '_extract_recipes_with_gemini', side_effect=ValueError('SECRET')), patch.object(v.gemini_client, '_cleanup_gemini_file') as cleanup:
             with self.assertRaises(ValueError):
                 v.GeminiNativeVideo(load_settings(ENV)).extract(Path('unused'), '', dict(language='en', max_recipes=8))
-            cleanup.assert_called_once_with('files/a')
+            cleanup.assert_called_once_with('files/a', cfg=load_settings(ENV))
 
     def response(self, status=200):
         return Mock(status_code=status, json=lambda: {'choices': [{'message': {'content': json.dumps({'recipes': [C]})}}]})
@@ -137,8 +137,8 @@ class VideoTests(unittest.TestCase):
                 result = v.GeminiNativeVideo(load_settings(ENV)).extract(media, captions, dict(language='en', max_recipes=8, min_confidence=.55))
                 self.assertEqual(result['candidates'], [C])
                 self.assertEqual(result['limitations'], [])
-                wait.assert_called_once_with('files/a')
-                cleanup.assert_called_once_with('files/a')
+                wait.assert_called_once_with('files/a', cfg=load_settings(ENV))
+                cleanup.assert_called_once_with('files/a', cfg=load_settings(ENV))
 
     def test_only_video_import_tag_is_added(self):
         from sabor.importing import video as v

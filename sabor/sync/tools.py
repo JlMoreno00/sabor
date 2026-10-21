@@ -27,11 +27,11 @@ def _direct_context():
     from sabor.core.config import load_settings
     from sabor.core.context import default_context
     ctx = default_context()
-    if ctx.registry.syncs:
+    if ctx.registry.syncs and not isinstance(ctx.registry.syncs[0], BringSyncProvider):
         return ctx
-    settings = load_settings({'BRING_EMAIL': config.BRING_EMAIL,
-                              'BRING_PASSWORD': config.BRING_PASSWORD})
-    adapter = BringSyncProvider(settings)
+    settings = ctx.settings if ctx.registry.syncs else load_settings({
+        'BRING_EMAIL': config.BRING_EMAIL, 'BRING_PASSWORD': config.BRING_PASSWORD})
+    adapter = ctx.registry.syncs[0] if ctx.registry.syncs else BringSyncProvider(settings)
     # Direct calls rebuild dependencies; bind their previews to credential identity.
     adapter.scope = hmac.new(_DIRECT_SCOPE_KEY, json.dumps(
         [settings.bring_email, settings.bring_password]).encode(), 'sha256').hexdigest()

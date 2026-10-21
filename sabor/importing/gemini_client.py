@@ -6,10 +6,11 @@ import time
 from pathlib import Path
 from typing import Any
 import requests
-import sabor.config as config
+from sabor.core.runtime import config
 
-def _upload_to_gemini(filepath: Path) -> dict[str, Any]:
-    init_url = f"{config._GEMINI_BASE}/upload/v1beta/files?key={config.GEMINI_API_KEY}"
+def _upload_to_gemini(filepath: Path, *, cfg=None) -> dict[str, Any]:
+    runtime = cfg.legacy_config if cfg is not None else config
+    init_url = f"{runtime._GEMINI_BASE}/upload/v1beta/files?key={runtime.GEMINI_API_KEY}"
     meta = {"file": {"display_name": filepath.stem}}
     r = requests.post(
         init_url,
@@ -58,8 +59,9 @@ def _upload_to_gemini(filepath: Path) -> dict[str, Any]:
     }
 
 
-def _wait_for_gemini_processing(file_name: str, max_wait: int = 120) -> bool:
-    url = f"{config._GEMINI_BASE}/v1beta/{file_name}?key={config.GEMINI_API_KEY}"
+def _wait_for_gemini_processing(file_name: str, max_wait: int = 120, *, cfg=None) -> bool:
+    runtime = cfg.legacy_config if cfg is not None else config
+    url = f"{runtime._GEMINI_BASE}/v1beta/{file_name}?key={runtime.GEMINI_API_KEY}"
     for _ in range(max_wait // 5):
         try:
             r = requests.get(url, timeout=30)
@@ -75,18 +77,20 @@ def _wait_for_gemini_processing(file_name: str, max_wait: int = 120) -> bool:
     return False
 
 
-def _cleanup_gemini_file(file_name: str) -> None:
+def _cleanup_gemini_file(file_name: str, *, cfg=None) -> None:
+    runtime = cfg.legacy_config if cfg is not None else config
     try:
         requests.delete(
-            f"{config._GEMINI_BASE}/v1beta/{file_name}?key={config.GEMINI_API_KEY}", timeout=15
+            f"{runtime._GEMINI_BASE}/v1beta/{file_name}?key={runtime.GEMINI_API_KEY}", timeout=15
         )
     except Exception:
         pass
 
 
 def _extract_recipes_with_gemini(
-    file_uri: str, language: str, max_recipes: int
+    file_uri: str, language: str, max_recipes: int, *, cfg=None
 ) -> dict[str, Any]:
+    runtime = cfg.legacy_config if cfg is not None else config
     lang_label = {"es": "espanol", "en": "English"}.get(language, language)
     prompt = f"""Analiza este video de cocina en DOS PASOS.
 
@@ -115,14 +119,14 @@ Reglas: Nombres en {lang_label}. NO inventes cantidades. Pasos detallados.
 Devuelve SOLO el JSON valido."""
 
     models = []
-    for m in [config.GEMINI_MODEL] + config._GEMINI_FALLBACK_MODELS:
+    for m in [runtime.GEMINI_MODEL] + runtime._GEMINI_FALLBACK_MODELS:
         if m and m not in models:
             models.append(m)
     for model_name in models:
         try:
             r = requests.post(
-                f"{config._GEMINI_BASE}/v1beta/models/{model_name}:generateContent",
-                params={"key": config.GEMINI_API_KEY},
+                f"{runtime._GEMINI_BASE}/v1beta/models/{model_name}:generateContent",
+                params={"key": runtime.GEMINI_API_KEY},
                 headers={"Content-Type": "application/json"},
                 json={
                     "contents": [

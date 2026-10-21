@@ -78,7 +78,7 @@ class LegacyEnvelopeTests(unittest.TestCase):
             path.write_text("example memory", encoding="utf-8")
             with patch.object(config, "MEMORY_FILE", path):
                 server = FastMCP("test")
-                register_tools(server, {"SABOR_TOOLSETS": "legacy_memory"})
+                register_tools(server, {"SABOR_TOOLSETS": "legacy_memory", "MEMORY_FILE": str(path)})
                 direct = read_memory()
                 tool = server._tool_manager.get_tool("read_memory")
                 assert tool is not None
