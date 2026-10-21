@@ -144,8 +144,10 @@ uncosted. No automatic serving-count inference or pantry subtraction occurs.
   stale observations remain uncertainties, not purchase guarantees.
 - `product_overrides` maps returned line `key` values to selected product IDs;
   inspect candidates first. There is no cross-retailer fallback or mixed-currency
-  total. `source_digest` includes quote observations: it is not a stable
-  source-only identity and must not substitute for sync's `preview_digest`.
+  total. Compare `source_digest` to tell whether the resolved source (line
+  keys, names, required quantities and units) changed; it ignores price
+  refreshes. `quote_digest` also covers quote observations and changes on every
+  catalog refresh. Neither substitutes for sync's `preview_digest`.
 
 ## Choose the tool surface
 
