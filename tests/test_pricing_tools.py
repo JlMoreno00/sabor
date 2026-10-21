@@ -3,6 +3,7 @@ import asyncio
 import json
 import unittest
 from dataclasses import replace
+from decimal import Decimal as D
 from unittest.mock import patch
 from mcp.server.fastmcp import FastMCP
 from sabor.core.config import load_settings
@@ -93,6 +94,19 @@ class PricingToolTests(unittest.TestCase):
         self.assertIn('source_digest', result['data'])
         server = self.server_for((self.provider,), with_store=False)
         self.assertEqual(self.call('estimate_cost', server=server, source={'kind': 'recipe', 'slug': 'rice'})['error']['code'], 'provider_unconfigured')
+
+    def test_source_digest_ignores_quote_refresh(self):
+        source = {'kind': 'recipe', 'slug': 'rice'}
+        first = self.call('estimate_cost', source=source)['data']
+        self.provider.quote = replace(self.provider.quote, package_price=D('3'),
+                                      normalized_unit_price=D('3'))
+        second = self.call('estimate_cost', source=source)['data']
+        self.assertEqual(first['source_digest'], second['source_digest'])
+        self.assertNotEqual(first['quote_digest'], second['quote_digest'])
+        self.store.create_recipe(Recipe(slug='more-rice', recipeIngredient=(
+            Ingredient(quantity=500, unit=NamedRef(name='g'), food=NamedRef(name='rice')),)))
+        third = self.call('estimate_cost', source={'kind': 'recipe', 'slug': 'more-rice'})['data']
+        self.assertNotEqual(second['source_digest'], third['source_digest'])
 
     def test_no_secrets_and_no_missing_price_zero(self):
         with patch.object(self.provider, 'get_quote', side_effect=RuntimeError('private-secret-token')):

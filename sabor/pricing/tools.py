@@ -33,6 +33,11 @@ def _public(value) -> Any:
     return value
 
 
+def _digest(value):
+    return hashlib.sha256(json.dumps(
+        value, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+
+
 def _run(ctx, store, operation, argument, overrides=None, match_policy='cheapest'):
     if not ctx.pricing:
         return fail('provider_unconfigured', 'Pricing is not configured.')
@@ -56,8 +61,13 @@ def _run(ctx, store, operation, argument, overrides=None, match_policy='cheapest
             data = _public(result)
             for key in ('consumption_subtotal', 'procurement_subtotal'):
                 data[key] = present_money(getattr(result, key))
-            data['source_digest'] = hashlib.sha256(json.dumps(
-                _public(result.lines), sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+            # source_digest identifies the resolved source only; quote_digest
+            # changes with any price observation (catalog refresh).
+            source = [{k: _public(getattr(line, k)) for k in
+                       ('key', 'name', 'required_quantity', 'base_unit')}
+                      for line in result.lines]
+            data['source_digest'] = _digest(source)
+            data['quote_digest'] = _digest(_public(result.lines))
         elif operation == 'search_products':
             data = {'items': [_public(p) | {'quote': _public(pricing.get_quote(p.id, retail))}
                               for p in pricing.search_products(argument, retail)]}

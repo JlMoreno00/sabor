@@ -1,5 +1,12 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- `estimate_cost` `source_digest` now hashes only the resolved source (line key,
+  name, required quantity and base unit), so catalog refreshes no longer change
+  it. The new `quote_digest` covers quote observations (#8).
+
 ## [0.3.0] - 2026-10-20
 
 ### Added

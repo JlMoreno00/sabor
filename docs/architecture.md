@@ -112,7 +112,8 @@ preview needs its own approval; Bring replace can clear all target purchase
 entries, not just Sabor-created ones. Without a digest only current-call snapshot
 checks apply (`digest_checked=false`). Remote apply is not atomic; inspect partial
 outcomes and reconcile uncertain writes before retrying. Cost `source_digest`
-includes quote observations and is unrelated to sync authorization.
+hashes only the resolved source lines; `quote_digest` also hashes quote
+observations. Both are unrelated to sync authorization.
 
 ## Structured Creation and Normalization Flow
 
