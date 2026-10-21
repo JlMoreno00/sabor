@@ -12,6 +12,7 @@ import urllib3
 from sabor.core import errors
 from sabor.core.config import load_settings
 from sabor.core.envelope import fail, ok
+from sabor.core.redaction import sanitize
 from sabor.core.toolsets import tool
 
 
@@ -322,16 +323,28 @@ def _import_recipe(ctx, source, kind, dry_run, language, max_recipes, min_confid
         return ok(dict(preview=dry_run, kind=kind, provider=provider, candidates=candidates,
                        dropped=dropped, created=created, skips=skips, limitations=limitations) | hooks)
     except ImportErrorResult as exc:
-        return errors.partial(created, ['remaining'], provider) if created else exc.result
+        return partial(ctx, created, provider) if created else exc.result
     except Exception as exc:
         from sabor.store import StoreError
         if isinstance(exc, StoreError) and not created:
             return fail(exc.code, 'Recipe store import failed.', exc.provider)
         if created:
-            return errors.partial(created, ['remaining'], provider)
+            return partial(ctx, created, provider)
         if isinstance(exc, ValueError) and provider == 'sabor':
             return fail('invalid_argument', 'Invalid import source or arguments.')
         return errors.from_exception(exc, provider)
+
+
+def partial(ctx, created, provider):
+    """Return partial_failure after running the post-commit hooks on created slugs."""
+    try:
+        hooks = after_commit(ctx, created)
+    except Exception:
+        hooks = {'normalization': {}, 'nutrition': {}, 'warnings': [
+            {'slug': None, 'code': 'post_commit_hooks_failed', 'warning': 'post_commit_hooks_failed'}]}
+    result = errors.partial(created, ['remaining'], provider)
+    result['data'].update(sanitize(hooks))
+    return result
 
 
 def after_commit(ctx, slugs):
