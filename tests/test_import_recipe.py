@@ -199,3 +199,86 @@ class ImportTests(unittest.TestCase):
         self.assertEqual(_registered[server].imports[0].id, 'openai_compatible')
         adapters = server.tools['sabor_capabilities']()['data']['capabilities']['import']['adapters']
         self.assertIn('openai_compatible', [a['id'] for a in adapters])
+
+
+class ImportPostCommitTests(unittest.TestCase):
+    """Committed imports run the same normalization and nutrition hooks as create_recipe."""
+    EMPTY = {'items': [], 'total_pages': 1, 'total': 0, 'page': 1, 'per_page': 100}
+    context_patch = ImportTests.context_patch
+    response = ImportTests.response
+
+    def setUp(self):
+        ImportTests.setUp(self)
+        from sabor.store.mealie import MealieRecipeStore
+        normalize = patch.object(MealieRecipeStore, 'normalize_imported', autospec=True,
+                                 return_value={'ok': True, 'status': 'normalized'})
+        self.normalize = normalize.start()
+        self.addCleanup(normalize.stop)
+        nutrition = patch('sabor.tools.nutrition._nutrition_after_import',
+                          side_effect=lambda result, slug: dict(result, nutrition={'ok': True}))
+        self.nutrition = nutrition.start()
+        self.addCleanup(nutrition.stop)
+
+    def assert_hooks(self, result, slug):
+        self.assertTrue(result['ok'], result)
+        self.assertEqual(result['data']['normalization'], {slug: {'ok': True, 'status': 'normalized'}})
+        self.assertEqual(result['data']['nutrition'], {slug: {'ok': True}})
+        self.assertEqual(result['data']['warnings'], [])
+        self.assertEqual(self.normalize.call_args.args[1], slug)
+        self.assertEqual(self.nutrition.call_args.args[1], slug)
+
+    @patch.object(t.requests, 'get')
+    @patch.object(t.requests, 'post')
+    def test_text_commit_normalizes(self, post, get):
+        candidate = dict(name='Soup', ingredients=['salt'], steps=['Mix'], servings='2', notes='', confidence=.8)
+        post.side_effect = [self.response({'choices': [{'message': {'content': json.dumps({'recipes': [candidate]})}}]}),
+                            self.response('soup')]
+        get.return_value = self.response(self.EMPTY)
+        self.assert_hooks(t.import_recipe('soup', dry_run=False), 'soup')
+
+    @patch.object(t.requests, 'get')
+    @patch.object(t.requests, 'post')
+    def test_url_commit_normalizes(self, post, get):
+        post.side_effect = [self.response({'name': 'Soup'}), self.response('soup')]
+        get.return_value = self.response(self.EMPTY)
+        self.assert_hooks(t.import_recipe('https://example.org', dry_run=False), 'soup')
+
+    @patch.object(t.socket, 'getaddrinfo', return_value=[(2, 1, 6, '', ('93.184.216.34', 443))])
+    @patch.object(t, 'image_response', create=True)
+    @patch.object(t.requests, 'post')
+    def test_image_commit_normalizes(self, post, fetch, dns):
+        fetch.return_value = Mock(status=200, headers={'Content-Type': 'image/png'})
+        fetch.return_value.stream.return_value = [b'png']
+        post.return_value = self.response('soup')
+        post.return_value.status_code = 201
+        self.assert_hooks(t.import_recipe('https://example.org/a.png', 'image', False), 'soup')
+
+    @patch.object(t.requests, 'get')
+    @patch.object(t.requests, 'post')
+    def test_normalization_warning_keeps_import(self, post, get):
+        self.normalize.return_value = {'ok': False, 'warning': 'normalization_parser_http_500'}
+        self.nutrition.side_effect = lambda result, slug: dict(
+            result, nutrition={'ok': False}, nutrition_warning={'code': 'nutrition_calculation_failed'})
+        post.side_effect = [self.response({'name': 'Soup'}), self.response('soup')]
+        get.return_value = self.response(self.EMPTY)
+        result = t.import_recipe('https://example.org', dry_run=False)
+        self.assertEqual(result['data']['created'], ['soup'])
+        self.assertEqual(result['data']['warnings'], [
+            {'slug': 'soup', 'code': 'normalization_warning', 'warning': 'normalization_parser_http_500'},
+            {'slug': 'soup', 'code': 'nutrition_warning', 'warning': {'code': 'nutrition_calculation_failed'}}])
+
+    @patch.object(t.requests, 'get')
+    @patch.object(t.requests, 'post')
+    def test_normalization_disabled_and_preview(self, post, get):
+        post.return_value = self.response({'name': 'Soup'})
+        self.assertNotIn('normalization', t.import_recipe('https://example.org')['data'])
+        from dataclasses import replace
+        self.p.stop()
+        with patch.object(t, 'settings', return_value=replace(self.settings, normalize_imports=False)):
+            post.side_effect = [self.response({'name': 'Soup'}), self.response('soup')]
+            get.return_value = self.response(self.EMPTY)
+            result = t.import_recipe('https://example.org', dry_run=False)
+        self.assertEqual(result['data']['normalization'], {})
+        self.normalize.assert_not_called()
+        self.assertEqual(self.nutrition.call_count, 1)
+        self.p.start()

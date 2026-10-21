@@ -6,6 +6,10 @@
 - `estimate_cost` `source_digest` now hashes only the resolved source (line key,
   name, required quantity and base unit), so catalog refreshes no longer change
   it. The new `quote_digest` covers quote observations (#8).
+- `import_recipe(dry_run=False)` now applies the same ingredient normalization
+  and nutrition-after-import gate as `create_recipe` for url, text, video and
+  image imports, reported per slug in `normalization`, `nutrition` and
+  `warnings` (#7).
 
 ## [0.3.0] - 2026-10-20
 

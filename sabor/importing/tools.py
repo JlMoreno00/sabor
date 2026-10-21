@@ -253,7 +253,8 @@ def _import_recipe(ctx, source, kind, dry_run, language, max_recipes, min_confid
                 result = [result]
             if not isinstance(result, list) or any(not isinstance(s, str) or not s.strip() for s in result):
                 raise ValueError('Invalid image result')
-            return ok({'preview': False, 'kind': kind, 'provider': provider, 'created': result})
+            return ok({'preview': False, 'kind': kind, 'provider': provider, 'created': result}
+                      | after_commit(ctx, result))
         if kind == 'url':
             http_url(source)
             data = ctx.store.preview_url(source)
@@ -317,8 +318,9 @@ def _import_recipe(ctx, source, kind, dry_run, language, max_recipes, min_confid
                 if kind == 'video':
                     tag_video(slug)
                     provider = extraction_provider
+        hooks = {} if dry_run else after_commit(ctx, created)
         return ok(dict(preview=dry_run, kind=kind, provider=provider, candidates=candidates,
-                       dropped=dropped, created=created, skips=skips, limitations=limitations))
+                       dropped=dropped, created=created, skips=skips, limitations=limitations) | hooks)
     except ImportErrorResult as exc:
         return errors.partial(created, ['remaining'], provider) if created else exc.result
     except Exception as exc:
@@ -330,6 +332,32 @@ def _import_recipe(ctx, source, kind, dry_run, language, max_recipes, min_confid
         if isinstance(exc, ValueError) and provider == 'sabor':
             return fail('invalid_argument', 'Invalid import source or arguments.')
         return errors.from_exception(exc, provider)
+
+
+def after_commit(ctx, slugs):
+    """Apply create_recipe's normalization and nutrition hooks to committed slugs.
+
+    Hook failures are reported as warnings and never fail the import.
+    """
+    from sabor.tools import nutrition
+    normalizer = getattr(ctx.store, 'normalize_imported', None)
+    normalization, enriched, warnings = {}, {}, []
+    for slug in slugs:
+        if ctx.settings.normalize_imports and normalizer:
+            try:
+                normalized = normalizer(slug)
+            except Exception:
+                normalized = {'ok': False, 'warning': 'normalization_failed'}
+            normalization[slug] = normalized
+            if not normalized.get('ok'):
+                warnings.append({'slug': slug, 'code': 'normalization_warning', 'warning':
+                    normalized.get('warning') or normalized.get('error') or 'normalization_failed'})
+        result = nutrition._nutrition_after_import({}, slug)
+        if 'nutrition' in result:
+            enriched[slug] = result['nutrition']
+        if 'nutrition_warning' in result:
+            warnings.append({'slug': slug, 'code': 'nutrition_warning', 'warning': result['nutrition_warning']})
+    return {'normalization': normalization, 'nutrition': enriched, 'warnings': warnings}
 
 
 def store_duplicate(name, store):
