@@ -43,7 +43,7 @@ not automatic retries or an assumed cross-system rollback.
 | Import: URL | Mealie native scraper | Real read-only extraction preview; unsupported sites fail without paid-provider fallback |
 | Import: text | OpenAI-compatible endpoint + model (+ key remotely) | Typed recipe extraction; preview can incur LLM charges |
 | Import: image | Mealie-native image import, using Mealie's OpenAI configuration | Explicit `kind="image"`, public image URL; no preview: `dry_run=True` returns `unsupported_operation` |
-| Import: video | `gemini_native` or `openai_compatible` | URL download; up to 100 MiB / 10 minutes; no playlists or local paths; TikTok URLs unsupported |
+| Import: video | `gemini_native` or `openai_compatible` | URL download; up to 100 MiB / 10 minutes; no playlists or local paths; TikTok URLs unsupported (paste the caption/transcript with `kind='text'`) |
 | Shopping sync | Bring! email + password **and Mealie** | Only unchecked source items; does not check off Mealie items |
 | Pricing | `pricing` toolset + `SABOR_MERCADONA_ENABLED=true` | Read-only quantity-aware estimates; Mercadona only in 0.3.0 |
 | Legacy | Explicit toolset selection plus provider configuration | Promotions, memory, nutrition and Spanish catalog |

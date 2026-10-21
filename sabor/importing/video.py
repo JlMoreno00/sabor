@@ -25,7 +25,8 @@ class VideoExtractor(Protocol):
 def download(source, root):
     host = (urlsplit(source).hostname or '').lower()
     if host == 'tiktok.com' or host.endswith('.tiktok.com'):
-        reject('unsupported_operation', 'TikTok bloquea descargas. Envia el video como archivo.')
+        reject('unsupported_operation', 'TikTok bloquea descargas. Pega el caption o la transcripción '
+               "del video como texto: import_recipe(source=<texto>, kind='text').")
     if urlsplit(source).scheme not in ('http', 'https'):
         reject('unsupported_operation', 'Upload guidance: local media paths are not enabled.')
     import yt_dlp
