@@ -1,5 +1,7 @@
 """Collect unchanged tool functions without registering them at import time."""
-from typing import Callable
+from contextlib import contextmanager
+from contextvars import ContextVar
+from typing import Any, Callable, Iterator, cast
 from functools import wraps
 from inspect import signature
 
@@ -7,16 +9,48 @@ from .config import Settings
 
 catalog: list[tuple[str, Callable, Callable[[Settings], bool] | None]] = []
 
+# The context of the tool call in progress. Each call binds its own value and
+# resets it on exit, so servers built from different Settings never share it.
+_current: ContextVar[Callable[[], Any] | None] = ContextVar("sabor_context", default=None)
+
+
+def current_context() -> Any:
+    """Return the context bound to the running tool call.
+
+    Raises LookupError outside a bound call; tools never fall back to globals.
+    """
+    provider = _current.get()
+    if provider is None:
+        raise LookupError("No Sabor context is bound to this call.")
+    return provider()
+
+
+@contextmanager
+def use_context(context: Any = None, *, factory: Callable[[], Any] | None = None) -> Iterator[None]:
+    """Bind a context, or a lazily built one, for the duration of a call."""
+    built = [context] if factory is None else []
+
+    def provider():
+        if not built:
+            built.append(cast(Callable[[], Any], factory)())
+        return built[0]
+    token = _current.set(provider)
+    try:
+        yield
+    finally:
+        _current.reset(token)
+
 
 def bind_context(fn, context):
-    """Bind deferred context calls without changing the public MCP schema."""
+    """Run a context-aware tool with an explicit context, keeping its MCP schema."""
     if not getattr(fn, "uses_context", False):
         return fn
+    implementation = fn.__wrapped__
 
     @wraps(fn)
     def bound(*args, **kwargs):
-        result = fn.__wrapped__(*args, **kwargs)
-        return result(context) if callable(result) else result
+        with use_context(context):
+            return implementation(*args, **kwargs)
 
     setattr(bound, "__signature__", signature(fn))
     return bound
@@ -24,18 +58,18 @@ def bind_context(fn, context):
 
 def tool(toolset: str, requires: Callable[[Settings], bool] | None = None,
          *, uses_context: bool = False):
-    """Collect tools; context-aware bodies defer execution until a context is bound."""
+    """Collect tools; context-aware bodies read current_context() after validation."""
     def collect(fn):
         if uses_context:
-            # Context-aware bodies return a deferred callable after validation.
-            # Direct callers get a fresh compatibility context, never a singleton.
+            # Direct Python callers get a fresh compatibility context, built only
+            # if the body asks for it and never shared between calls.
             original = fn
 
             @wraps(original)
             def direct(*args, **kwargs):
-                from .context import default_context
-                result = original(*args, **kwargs)
-                return result(default_context()) if callable(result) else result
+                from . import context
+                with use_context(factory=context.default_context):
+                    return original(*args, **kwargs)
 
             setattr(direct, "__signature__", signature(original))
             setattr(direct, "uses_context", True)

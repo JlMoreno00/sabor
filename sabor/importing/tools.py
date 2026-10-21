@@ -5,14 +5,14 @@ import math
 import os
 import socket
 from urllib.parse import urljoin, urlsplit
-from typing import NoReturn, cast, Any
+from typing import NoReturn
 
 import requests
 import urllib3
 from sabor.core import errors
 from sabor.core.config import load_settings
 from sabor.core.envelope import fail, ok
-from sabor.core.toolsets import tool
+from sabor.core.toolsets import current_context, tool
 
 
 def settings():
@@ -218,7 +218,7 @@ def import_recipe(source: str, kind: str = 'auto', dry_run: bool = True,
 
     Image creation has no read-only preview. Local media paths are unsupported.
     """
-    return cast(Any, lambda ctx: _import_recipe(ctx, source, kind, dry_run, language, max_recipes, min_confidence))
+    return _import_recipe(current_context(), source, kind, dry_run, language, max_recipes, min_confidence)
 
 
 def _import_recipe(ctx, source, kind, dry_run, language, max_recipes, min_confidence):

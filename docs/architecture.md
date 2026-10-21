@@ -87,6 +87,19 @@ signatures and use instance stores. `AppContext` binds immutable settings,
 registry, store and pricing services without startup I/O. Discovery exposes
 `recipe_store`/`pricing` operations; the old Mealie summary is deprecated.
 
+Context-aware tools (`@tool(..., uses_context=True)`) receive their context
+explicitly per call. `bind_context(fn, context)` runs the tool inside
+`use_context(context)`, and the body reads it with `current_context()` after
+argument validation; there is no deferred-callable return convention, so a
+tool's return value is always its result. The binding is a `ContextVar` that is
+set and reset around each call, so concurrent calls and servers built from
+different `Settings` never see each other's context; outside a bound call
+`current_context()` raises `LookupError`. Public signatures, docstrings and
+FastMCP schemas are unchanged (the frozen contract test hashes their AST).
+Direct Python calls (`sabor.tools.recipes.search_recipes(...)`, `sabor_mcp`
+attributes) remain supported as a compatibility path: they bind a fresh
+`default_context()`, built lazily only when the body needs it.
+
 Mealie sessions, Bring transport/auth/cache and Mercadona caches are instance-
 owned. This is single-tenant self-hosting, not a multi-tenant security boundary:
 legacy nutrition/memory/catalog, nutrition-after-import, video tagging, Gemini

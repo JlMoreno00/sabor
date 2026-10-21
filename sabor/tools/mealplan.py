@@ -6,7 +6,7 @@ import requests
 import sabor.integrations.mealie as _mealie
 import sabor.config as config
 import sabor.tools.nutrition as nutrition
-from sabor.core.toolsets import tool
+from sabor.core.toolsets import current_context, tool
 from sabor.store import DateRange, MealEntryDraft, StoreError, store_error_envelope
 
 mealie = _mealie  # Retained direct-call patch site; never used by registered transport.
@@ -15,7 +15,7 @@ mealie = _mealie  # Retained direct-call patch site; never used by registered tr
 @tool("core", uses_context=True)
 def get_mealplan_week(start_date: str, end_date: str) -> dict[str, Any]:
     """Obtiene el plan de comidas para un rango de fechas (YYYY-MM-DD)."""
-    return _defer("read", DateRange(start_date, end_date))
+    return _calendar(current_context(), "read", DateRange(start_date, end_date))
 
 
 @tool("core", uses_context=True)
@@ -23,23 +23,19 @@ def set_mealplan_entry(
     date_str: str, entry_type: str, title: str, recipe_slug: str | None = None
 ) -> dict[str, Any]:
     """Anade una entrada al calendario de Mealie. entry_type: lunch|dinner|breakfast|side."""
-    return _defer("set", MealEntryDraft(date_str, entry_type, title, recipe_slug))
+    return _calendar(current_context(), "set", MealEntryDraft(date_str, entry_type, title, recipe_slug))
 
 
 @tool("core", uses_context=True)
 def delete_mealplan_entry(entry_id: str) -> dict[str, Any]:
     """Elimina una entrada del plan de comidas por su ID."""
-    return _defer("delete", entry_id)
+    return _calendar(current_context(), "delete", entry_id)
 
 
 @tool("core", uses_context=True)
 def clear_mealplan_week(start_date: str, end_date: str, confirm: bool = False) -> dict[str, Any]:
     """Preview entries removed in a date range; pass confirm=True to clear them."""
-    return _defer("clear", DateRange(start_date, end_date), confirm)
-
-
-def _defer(action, argument, confirm=False) -> Any:
-    return lambda ctx: _calendar(ctx, action, argument, confirm)
+    return _calendar(current_context(), "clear", DateRange(start_date, end_date), confirm)
 
 
 def _calendar(ctx, action, argument, confirm=False):
