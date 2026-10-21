@@ -3,6 +3,13 @@
 ## [Unreleased]
 
 ### Fixed
+- `estimate_cost` `source_digest` now hashes only the resolved source (line key,
+  name, required quantity and base unit), so catalog refreshes no longer change
+  it. The new `quote_digest` covers quote observations (#8).
+- `import_recipe(dry_run=False)` now applies the same ingredient normalization
+  and nutrition-after-import gate as `create_recipe` for url, text, video and
+  image imports, reported per slug in `normalization`, `nutrition` and
+  `warnings` (#7).
 - TikTok video imports no longer suggest uploading a file, which `import_recipe`
   cannot accept; the error now suggests pasting the caption or transcript with
   `kind='text'` (#10).

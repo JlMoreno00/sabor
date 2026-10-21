@@ -112,7 +112,8 @@ preview needs its own approval; Bring replace can clear all target purchase
 entries, not just Sabor-created ones. Without a digest only current-call snapshot
 checks apply (`digest_checked=false`). Remote apply is not atomic; inspect partial
 outcomes and reconcile uncertain writes before retrying. Cost `source_digest`
-includes quote observations and is unrelated to sync authorization.
+hashes only the resolved source lines; `quote_digest` also hashes quote
+observations. Both are unrelated to sync authorization.
 
 ## Structured Creation and Normalization Flow
 
@@ -136,8 +137,11 @@ recipe import into a failure. Placeholder-only legacy recipes skip
 normalization.
 
 `SABOR_INGREDIENT_PARSER=openai` selects a Mealie parser for the legacy
-normalization path. Unified import does not currently invoke normalization or
-nutrition hooks and has no `normalize` parameter. Its text/video adapter calls
+normalization path. Unified import commits (`dry_run=False`, every kind) run
+the same instance-owned normalization (`SABOR_NORMALIZE_IMPORTS`) and
+nutrition-after-import gate as `create_recipe`, reported per slug in
+`normalization`, `nutrition` and `warnings`; hook failures never fail the
+import. It has no `normalize` parameter. Its text/video adapter calls
 the explicitly configured compatible LLM directly using `SABOR_LLM_*`, not
 `OPENAI_API_KEY`.
 
