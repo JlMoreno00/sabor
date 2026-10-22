@@ -5,14 +5,15 @@ import math
 import os
 import socket
 from urllib.parse import urljoin, urlsplit
-from typing import NoReturn, cast, Any
+from typing import NoReturn
 
 import requests
 import urllib3
 from sabor.core import errors
 from sabor.core.config import load_settings
 from sabor.core.envelope import fail, ok
-from sabor.core.toolsets import tool
+from sabor.core.redaction import sanitize
+from sabor.core.toolsets import current_context, tool
 
 
 def settings():
@@ -218,7 +219,7 @@ def import_recipe(source: str, kind: str = 'auto', dry_run: bool = True,
 
     Image creation has no read-only preview. Local media paths are unsupported.
     """
-    return cast(Any, lambda ctx: _import_recipe(ctx, source, kind, dry_run, language, max_recipes, min_confidence))
+    return _import_recipe(current_context(), source, kind, dry_run, language, max_recipes, min_confidence)
 
 
 def _import_recipe(ctx, source, kind, dry_run, language, max_recipes, min_confidence):
@@ -254,7 +255,7 @@ def _import_recipe(ctx, source, kind, dry_run, language, max_recipes, min_confid
             if not isinstance(result, list) or any(not isinstance(s, str) or not s.strip() for s in result):
                 raise ValueError('Invalid image result')
             return ok({'preview': False, 'kind': kind, 'provider': provider, 'created': result}
-                      | after_commit(ctx, result))
+                      | run_hooks(ctx, result))
         if kind == 'url':
             http_url(source)
             data = ctx.store.preview_url(source)
@@ -318,20 +319,40 @@ def _import_recipe(ctx, source, kind, dry_run, language, max_recipes, min_confid
                 if kind == 'video':
                     tag_video(slug)
                     provider = extraction_provider
-        hooks = {} if dry_run else after_commit(ctx, created)
+        hooks = {} if dry_run else run_hooks(ctx, created)
         return ok(dict(preview=dry_run, kind=kind, provider=provider, candidates=candidates,
                        dropped=dropped, created=created, skips=skips, limitations=limitations) | hooks)
     except ImportErrorResult as exc:
-        return errors.partial(created, ['remaining'], provider) if created else exc.result
+        return partial(ctx, created, provider) if created else exc.result
     except Exception as exc:
         from sabor.store import StoreError
         if isinstance(exc, StoreError) and not created:
             return fail(exc.code, 'Recipe store import failed.', exc.provider)
         if created:
-            return errors.partial(created, ['remaining'], provider)
+            return partial(ctx, created, provider)
         if isinstance(exc, ValueError) and provider == 'sabor':
             return fail('invalid_argument', 'Invalid import source or arguments.')
         return errors.from_exception(exc, provider)
+
+
+def run_hooks(ctx, slugs):
+    """Run after_commit exactly once; a crash becomes a warning, never an import failure.
+
+    Callers invoke it after every creation succeeded or failed, so a hook crash can
+    neither re-run the hooks nor turn a completed import into partial_failure.
+    """
+    try:
+        return after_commit(ctx, slugs)
+    except Exception:
+        return {'normalization': {}, 'nutrition': {}, 'warnings': [
+            {'slug': None, 'code': 'post_commit_hooks_failed', 'warning': 'post_commit_hooks_failed'}]}
+
+
+def partial(ctx, created, provider):
+    """Return partial_failure after running the post-commit hooks on created slugs."""
+    result = errors.partial(created, ['remaining'], provider)
+    result['data'].update(sanitize(run_hooks(ctx, created)))
+    return result
 
 
 def after_commit(ctx, slugs):

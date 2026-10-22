@@ -6,7 +6,7 @@ from typing import Any
 import hashlib
 import json
 
-from sabor.core.toolsets import tool
+from sabor.core.toolsets import current_context, tool
 from sabor.core.envelope import ok, fail
 from sabor.core import errors
 from sabor.store import StoreError, store_error_envelope
@@ -92,7 +92,7 @@ def search_pricing_products(query: str, store: dict | None = None, limit: int = 
     """Read-only product search with quote provenance and uncertainty; missing prices are never zero. Decimals are JSON strings."""
     if not isinstance(query, str) or not query.strip() or type(limit) is not int or not 1 <= limit <= 50:
         return fail('invalid_argument', 'Provide a query and limit from 1 to 50.')
-    return lambda ctx: _run(ctx, store, 'search_products', ProductQuery(query, limit))
+    return _run(current_context(), store, 'search_products', ProductQuery(query, limit))
 
 
 @tool('pricing', requires=pricing_ready, uses_context=True)
@@ -100,7 +100,7 @@ def get_product_price(product_id: str, store: dict | None = None) -> Any:
     """Read-only package and unit quote with uncertainty; missing prices are never zero. Decimals are JSON strings."""
     if not isinstance(product_id, str) or not product_id.strip():
         return fail('invalid_argument', 'Provide a product ID.')
-    return lambda ctx: _run(ctx, store, 'get_quote', product_id)
+    return _run(current_context(), store, 'get_quote', product_id)
 
 
 @tool('pricing', requires=pricing_ready, uses_context=True)
@@ -116,4 +116,4 @@ def estimate_cost(source: dict, store: dict | None = None, product_overrides: di
         return fail('invalid_argument', 'Use cheapest or strict match_policy.')
     if not isinstance(source, dict) or (product_overrides is not None and not isinstance(product_overrides, dict)):
         return fail('invalid_argument', 'Provide a tagged source and optional override mapping.')
-    return lambda ctx: _run(ctx, store, 'estimate', source, product_overrides, match_policy)
+    return _run(current_context(), store, 'estimate', source, product_overrides, match_policy)

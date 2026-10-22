@@ -2,7 +2,7 @@
 
 from typing import Any
 import requests
-import sabor.config as config
+from sabor.core.runtime import config
 from sabor.core.toolsets import tool
 
 # SPOONACULAR — Helpers

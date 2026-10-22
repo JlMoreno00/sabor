@@ -2,6 +2,7 @@
 from dataclasses import dataclass, field
 from typing import Mapping
 from urllib.parse import urlsplit
+from .legacy_config import LegacyConfig, load_legacy_config
 
 TOOLSETS = ('core', 'import', 'shopping_sync', 'pricing', 'legacy_spoonacular',
             'legacy_pricing', 'legacy_memory', 'legacy_nutrition', 'legacy_catalog')
@@ -29,6 +30,7 @@ class Settings:
     nutrition_enabled: bool
     memory_file: str = field(repr=False)
 
+    legacy_config: LegacyConfig = field(default_factory=lambda: load_legacy_config({}), repr=False)
     normalize_imports: bool = True
     ingredient_parser: str = 'openai'
     normalize_confidence: float = 0.75
@@ -76,6 +78,7 @@ def load_settings(env: Mapping[str, str]) -> Settings:
     provider = get('SABOR_VIDEO_PROVIDER')
     if provider not in ('', 'gemini_native', 'openai_compatible'):
         raise ConfigError('Invalid SABOR_VIDEO_PROVIDER')
+    legacy = load_legacy_config(env)
     return Settings(requested, mealie, get('MEALIE_API_TOKEN'), llm,
                     get('SABOR_LLM_MODEL'), get('SABOR_LLM_API_KEY'),
                     get('GEMINI_API_KEY'),
@@ -83,7 +86,7 @@ def load_settings(env: Mapping[str, str]) -> Settings:
                     get('VIDEO_RECIPE_GEMINI_MODEL') or 'gemini-2.5-flash-lite', provider,
                     get('BRING_EMAIL'), get('BRING_PASSWORD'), get('SPOONACULAR_API_KEY'),
                     get('SABOR_MERCADONA_ENABLED').lower() == 'true',
-                    get('SABOR_NUTRITION_ENABLED').lower() == 'true', get('MEMORY_FILE', 'MEMORY.md'),
-                    get('SABOR_NORMALIZE_IMPORTS', 'true').lower() == 'true',
-                    get('SABOR_INGREDIENT_PARSER', 'openai'),
-                    float(get('SABOR_NORMALIZE_CONFIDENCE', '0.75')))
+                    legacy.SABOR_NUTRITION_ENABLED, str(legacy.MEMORY_FILE), legacy,
+                    legacy.SABOR_NORMALIZE_IMPORTS,
+                    legacy.SABOR_INGREDIENT_PARSER,
+                    legacy.SABOR_NORMALIZE_CONFIDENCE)

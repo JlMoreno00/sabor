@@ -5,7 +5,7 @@ import os
 from weakref import WeakKeyDictionary
 
 from sabor.core.config import load_settings
-from sabor.core.context import build_context, mealie_store_factory
+from sabor.core.context import assemble_context
 from sabor.core.capabilities import describe
 from sabor.core.toolsets import catalog, bind_context
 from sabor.core.legacy import legacy_envelope
@@ -18,7 +18,8 @@ VERSION = "0.3.0"
 
 from mcp.server.fastmcp import FastMCP
 
-from sabor.config import HOST, PORT
+HOST = os.getenv("SABOR_HOST", "0.0.0.0")
+PORT = int(os.getenv("SABOR_PORT", "8080"))
 
 mcp = FastMCP(
     "sabor",
@@ -58,19 +59,7 @@ def register_tools(server=None, env=None) -> None:
     if server in _registered:
         return
     settings = load_settings(os.environ if env is None else env)
-    from sabor.importing.tools import OpenAIImportProvider
-    from sabor.importing.video import GeminiNativeVideo
-    from sabor.sync.bring import BringSyncProvider
-    from sabor.pricing.mercadona import MercadonaPricing
-    from sabor.integrations.mercadona import MERCADONA_WAREHOUSE
-    context = build_context(settings, store_factory=mealie_store_factory if settings.mealie_configured else None,
-                        pricing_factories=(lambda s: MercadonaPricing(
-                            warehouse=MERCADONA_WAREHOUSE,
-                            cache_path=_mercadona_cache_path(MERCADONA_WAREHOUSE)),)
-                        if settings.mercadona_enabled else (),
-                        import_factories=((OpenAIImportProvider,) if settings.llm_configured else ())
-                        + ((GeminiNativeVideo,) if settings.gemini_configured else ()),
-                        sync_factories=(BringSyncProvider,) if settings.bring_email and settings.bring_password else ())
+    context = assemble_context(settings)
     registry = context.registry
     for module_name in TOOL_MODULES:
         import_module(module_name)
@@ -85,7 +74,8 @@ def register_tools(server=None, env=None) -> None:
         provider = {"legacy_memory": "memory", "legacy_pricing": "mercadona",
                     "legacy_spoonacular": "spoonacular", "legacy_catalog": "mealie",
                     "legacy_nutrition": "nutrition"}.get(group)
-        server.add_tool(legacy_envelope(fn, provider) if group.startswith("legacy_") else bind_context(fn, context))
+        registered = legacy_envelope(fn, provider) if group.startswith("legacy_") else fn
+        server.add_tool(bind_context(registered, context))
         names.append(fn.__name__)
     names.append("sabor_capabilities")
 

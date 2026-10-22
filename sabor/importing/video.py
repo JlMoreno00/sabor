@@ -101,20 +101,20 @@ class GeminiNativeVideo:
         return preview_video(request['source'], self.cfg, request, extractor=self)
 
     def extract(self, path, captions, request):
-        upload = gemini_client._upload_to_gemini(path)
+        upload = gemini_client._upload_to_gemini(path, cfg=self.cfg)
         name = upload.get('name')
         try:
             if not upload.get('ok') or not name or not upload.get('uri'):
                 reject('upstream_error', 'Video upload failed.', self.id)
-            if upload.get('state') != 'ACTIVE' and not gemini_client._wait_for_gemini_processing(name):
+            if upload.get('state') != 'ACTIVE' and not gemini_client._wait_for_gemini_processing(name, cfg=self.cfg):
                 reject('upstream_error', 'Video processing failed.', self.id)
-            result = gemini_client._extract_recipes_with_gemini(upload['uri'], request['language'], request['max_recipes'])
+            result = gemini_client._extract_recipes_with_gemini(upload['uri'], request['language'], request['max_recipes'], cfg=self.cfg)
             if not result.get('ok'):
                 reject('invalid_response', 'Video extraction failed.', self.id)
             return dict(validate_recipes(result['recipes'], request), limitations=[])
         finally:
             if name:
-                gemini_client._cleanup_gemini_file(name)
+                gemini_client._cleanup_gemini_file(name, cfg=self.cfg)
 
 
 class OpenAICompatibleVideo:

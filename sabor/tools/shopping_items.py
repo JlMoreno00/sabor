@@ -2,12 +2,11 @@
 from uuid import UUID
 from datetime import date
 from dataclasses import dataclass
-from typing import cast
 
 from sabor.store import (StoreError, store_error_envelope, ItemDraft, RecipeOccurrence, DateRange)
 from sabor.core import errors
 from sabor.core.envelope import fail, ok, preview
-from sabor.core.toolsets import mealie_ready, tool
+from sabor.core.toolsets import current_context, mealie_ready, tool
 
 @dataclass(frozen=True)
 class _ResolvedOccurrence(RecipeOccurrence):
@@ -71,7 +70,7 @@ def add_to_shopping_list(list_id: str, items: list[str] | None = None,
 
     Items remain unparsed notes; recipe scaling uses the explicit servings multiplier.
     """
-    return cast(dict, lambda ctx: _run(ctx, _add_to_shopping_list, list_id, items, recipe_slugs, mealplan_start, mealplan_end, servings_multiplier))
+    return _run(current_context(), _add_to_shopping_list, list_id, items, recipe_slugs, mealplan_start, mealplan_end, servings_multiplier)
 
 
 def _add_to_shopping_list(ctx, list_id: str, items: list[str] | None = None,
@@ -150,7 +149,7 @@ def _add_to_shopping_list(ctx, list_id: str, items: list[str] | None = None,
 def get_shopping_list_items(list_id: str, checked: bool | None = None,
                             page: int = 1, per_page: int = 100) -> dict:
     """Read one list's items, optionally filter checked state, then paginate locally."""
-    return cast(dict, lambda ctx: _run(ctx, _get_shopping_list_items, list_id, checked, page, per_page))
+    return _run(current_context(), _get_shopping_list_items, list_id, checked, page, per_page)
 
 
 def _get_shopping_list_items(ctx, list_id: str, checked: bool | None = None,
@@ -177,7 +176,7 @@ def _get_shopping_list_items(ctx, list_id: str, checked: bool | None = None,
 @tool("core", requires=mealie_ready, uses_context=True)
 def check_shopping_list_items(list_id: str, item_ids: list[str], checked: bool = True) -> dict:
     """Set checked state only after verifying every requested item belongs to the list."""
-    return cast(dict, lambda ctx: _run(ctx, _check_shopping_list_items, list_id, item_ids, checked))
+    return _run(current_context(), _check_shopping_list_items, list_id, item_ids, checked)
 
 
 def _check_shopping_list_items(ctx, list_id: str, item_ids: list[str], checked: bool = True) -> dict:
@@ -198,7 +197,7 @@ def _check_shopping_list_items(ctx, list_id: str, item_ids: list[str], checked: 
 @tool("core", requires=mealie_ready, uses_context=True)
 def remove_shopping_list_items(list_id: str, item_ids: list[str], confirm: bool = False) -> dict:
     """Preview item removal; confirm=True deletes exactly the verified item IDs."""
-    return cast(dict, lambda ctx: _run(ctx, _remove_shopping_list_items, list_id, item_ids, confirm))
+    return _run(current_context(), _remove_shopping_list_items, list_id, item_ids, confirm)
 
 
 def _remove_shopping_list_items(ctx, list_id: str, item_ids: list[str], confirm: bool = False) -> dict:

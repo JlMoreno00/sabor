@@ -2,7 +2,20 @@
 
 ## [Unreleased]
 
+### Changed
+- Context-aware tools receive their `AppContext` explicitly per call through
+  `bind_context`/`use_context` and `current_context()`, instead of returning a
+  deferred `lambda ctx` that the binder executed. Public signatures, docstrings
+  and MCP schemas are unchanged; direct Python calls still build a fresh
+  compatibility context (#4).
+
 ### Fixed
+- Registered tools now isolate compatibility configuration, Gemini/video tagging,
+  nutrition services and keyed/provider locks, correction stages, Bring catalog
+  overrides and memory paths per AppContext (#3). Every registered tool binds
+  context; workers copy it explicitly. Direct calls retain patchable defaults
+  and share provider assembly with registration. Legacy Mercadona catalog and
+  promotion state remains process-wide; this is not a security boundary.
 - `estimate_cost` `source_digest` now hashes only the resolved source (line key,
   name, required quantity and base unit), so catalog refreshes no longer change
   it. The new `quote_digest` covers quote observations (#8).
@@ -13,6 +26,12 @@
 - TikTok video imports no longer suggest uploading a file, which `import_recipe`
   cannot accept; the error now suggests pasting the caption or transcript with
   `kind='text'` (#10).
+- `import_recipe` `partial_failure` now runs the same normalization and
+  nutrition hooks on the recipes it already created and reports them in
+  `data.normalization`, `data.nutrition` and `data.warnings`; a hook crash adds
+  a `post_commit_hooks_failed` warning instead of hiding the partial result. On
+  a complete import a hook crash no longer re-runs the hooks or reports
+  `partial_failure`/`upstream_error`: the import stays `ok` with that warning (#25).
 
 ## [0.3.0] - 2026-10-20
 

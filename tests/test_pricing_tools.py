@@ -32,7 +32,7 @@ class PricingToolTests(unittest.TestCase):
             store_factory=(lambda s: self.store) if with_store else None,
             pricing_factories=tuple(lambda s, p=p: p for p in providers))
         server = FastMCP('pricing-test')
-        with patch('sabor.server.build_context', return_value=context):
+        with patch('sabor.server.assemble_context', return_value=context):
             register_tools(server, {'SABOR_MERCADONA_ENABLED': 'true', 'SABOR_TOOLSETS': 'pricing'})
         return server
 

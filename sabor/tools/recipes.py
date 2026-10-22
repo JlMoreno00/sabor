@@ -5,9 +5,9 @@ from typing import Any
 from dataclasses import dataclass, fields, is_dataclass
 from sabor.store import RecipeDraft, RecipePatch, RecipeSearch, SuggestionQuery, StoreError, store_error_envelope
 import requests
-import sabor.config as config
+from sabor.core.runtime import config
 import sabor.integrations.mealie as mealie
-from sabor.core.toolsets import tool, mealie_ready
+from sabor.core.toolsets import current_context, tool, mealie_ready
 from sabor.core.envelope import ok, preview, fail
 from sabor.core import errors
 
@@ -50,11 +50,6 @@ def _tuple(value):
     return None if value is None else tuple(value)
 
 
-def _defer(operation, argument) -> Any:
-    """Internal context callback consumed by the tool decorator, not MCP data."""
-    return lambda ctx: _store_read(ctx, operation, argument)
-
-
 def _public(value) -> Any:
     if hasattr(value, "to_public"):
         return value.to_public()
@@ -92,13 +87,13 @@ def search_recipes(
         return fail("invalid_argument", "Invalid pagination or sorting arguments.")
     filters = RecipeSearch(query, page, per_page, _tuple(tag_ids), _tuple(category_ids),
                            _tuple(food_ids), _tuple(tool_ids), cookbook_id, require_all, sort, direction)
-    return _defer("search_recipes", filters)
+    return _store_read(current_context(), "search_recipes", filters)
 
 
 @tool("core", requires=mealie_ready, uses_context=True)
 def get_recipe(slug: str) -> dict[str, Any]:
     """Read structured ingredients, instructions, taxonomy and times; unknowns stay null."""
-    return _defer("get_recipe", slug)
+    return _store_read(current_context(), "get_recipe", slug)
 
 
 _PATCH_FIELDS = frozenset((
@@ -114,7 +109,7 @@ def update_recipe(slug: str, patch: dict, confirm: bool = False) -> dict[str, An
     """Preview or PATCH selected fields. Arrays replace whole lists, not individual entries."""
     if not isinstance(patch, dict) or not patch or patch.keys() - _PATCH_FIELDS:
         return fail("invalid_argument", "Provide a nonempty patch containing only editable fields.")
-    return _defer_update(slug, patch, confirm)
+    return _update(current_context(), slug, patch, confirm)
 
 
 def _update(ctx, slug, patch, confirm):
@@ -147,7 +142,7 @@ def suggest_recipes(
         return fail("invalid_argument", "Invalid suggestion arguments.")
     query = SuggestionQuery(tuple(foods), _tuple(tools), max_missing_foods, max_missing_tools,
                             limit, include_foods_on_hand)
-    return _defer("suggest_recipes", query)
+    return _store_read(current_context(), "suggest_recipes", query)
 
 
 @tool("core", uses_context=True)
@@ -200,9 +195,9 @@ def create_recipe(
                 }
             )
         draft = _CreateDraft(name=name, jsonld=jsonld_recipe)
-        return _defer_create(draft, is_structured)
     except Exception as exc:
         return errors.from_exception(exc, "mealie")
+    return _create(current_context(), draft, is_structured)
 
 
 @dataclass(frozen=True)
@@ -232,13 +227,3 @@ def _create(ctx, draft, structured):
     except StoreError as exc:
         return store_error_envelope(exc)
 
-
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-
-def _defer_update(slug, patch, confirm) -> Any:
-    return lambda ctx: _update(ctx, slug, patch, confirm)
-
-
-def _defer_create(draft, structured) -> Any:
-    return lambda ctx: _create(ctx, draft, structured)

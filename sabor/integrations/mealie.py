@@ -4,7 +4,7 @@ import json
 import unicodedata
 from typing import Any
 import requests
-import sabor.config as config
+from sabor.core.runtime import config
 import sabor.tools.nutrition as nutrition
 from sabor.core.toolsets import tool
 

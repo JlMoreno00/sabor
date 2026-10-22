@@ -43,8 +43,8 @@ service, just-in-time orchestration, and publisher. Manual publication protectio
 is a separate, dominant boundary.
 
 FastMCP is configured as stateless HTTP. This means MCP session state is not
-stored in the process, but module-level provider caches and the two local data
-files are still operational state.
+stored in the process, but instance provider caches, the legacy Mercadona cache
+and the two local data files are still operational state.
 
 Gemini upload deletion is best effort, not guaranteed. Sabor attempts deletion
 after extraction and after a processing failure, but suppresses request errors,
@@ -87,11 +87,36 @@ signatures and use instance stores. `AppContext` binds immutable settings,
 registry, store and pricing services without startup I/O. Discovery exposes
 `recipe_store`/`pricing` operations; the old Mealie summary is deprecated.
 
-Mealie sessions, Bring transport/auth/cache and Mercadona caches are instance-
-owned. This is single-tenant self-hosting, not a multi-tenant security boundary:
-legacy nutrition/memory/catalog, nutrition-after-import, video tagging, Gemini
-helpers and direct-call compatibility paths still depend on global configuration.
-Separate household processes/volumes remain necessary. Selection is not sandboxing.
+Context-aware tools (`@tool(..., uses_context=True)`) receive their context
+explicitly per call. `bind_context(fn, context)` runs the tool inside
+`use_context(context)`, and the body reads it with `current_context()` after
+argument validation; there is no deferred-callable return convention, so a
+tool's return value is always its result. The binding is a `ContextVar` that is
+set and reset around each call, so concurrent calls and servers built from
+different `Settings` never see each other's context; outside a bound call
+`current_context()` raises `LookupError`. Public signatures, docstrings and
+FastMCP schemas are unchanged (the frozen contract test hashes their AST).
+Direct Python calls (`sabor.tools.recipes.search_recipes(...)`, `sabor_mcp`
+attributes) remain supported as a compatibility path: they bind a fresh
+`default_context()`, built lazily only when the body needs it.
+
+Every registered tool (including legacy envelopes and non-context core tools)
+binds its AppContext for the entire call. `core/legacy_config.py` parses the same
+mapping as Settings into a read-only compatibility namespace. The runtime proxy
+uses that namespace when bound; only unbound direct calls import `sabor.config`.
+`default_context()` shares registration's provider assembly and honors compatibility
+patches. Tool arguments, docstrings and FastMCP schemas remain unchanged.
+
+Mealie sessions, Bring transport/auth/catalogs, nutrition services and provider
+cache locks, recipe/scheduling locks and correction stages are instance-owned.
+Nutrition initializes lazily under an instance lock. Worker threads explicitly
+copy the calling context. Memory and nutrition persistence use configured paths;
+registrations pointing at the same path intentionally share external storage.
+
+This is not a multi-tenant security boundary: legacy Mercadona promotion/catalog
+state remains process-wide, as do direct-call compatibility defaults. Separate
+processes/volumes remain recommended for untrusted households. Selection is not
+sandboxing.
 
 Pricing tools resolve a tagged source (items, recipe, shopping_list or mealplan)
 through the store when needed. The engine conservatively parses quantities,
@@ -141,7 +166,8 @@ normalization path. Unified import commits (`dry_run=False`, every kind) run
 the same instance-owned normalization (`SABOR_NORMALIZE_IMPORTS`) and
 nutrition-after-import gate as `create_recipe`, reported per slug in
 `normalization`, `nutrition` and `warnings`; hook failures never fail the
-import. It has no `normalize` parameter. Its text/video adapter calls
+import. A `partial_failure` runs the same hooks on the recipes already created
+and carries those keys next to `completed` and `failed`. It has no `normalize` parameter. Its text/video adapter calls
 the explicitly configured compatible LLM directly using `SABOR_LLM_*`, not
 `OPENAI_API_KEY`.
 
