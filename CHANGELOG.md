@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Added
+- One-command install: `docker compose --profile mealie up -d` also starts a
+  pinned Mealie 3.22.0; without the profile `docker compose up -d` keeps the
+  Sabor-only behavior. Three-step README quickstart, `scripts/check-compose.py`
+  in CI, and a GHCR publish workflow that runs only manually or on `v*` tags (#33).
+
 ### Fixed
 - `mcp-manifest.json` no longer advertises Spoonacular and now lists every
   environment variable Sabor reads (adds `SABOR_TOOLSETS`, `SABOR_LLM_*`,

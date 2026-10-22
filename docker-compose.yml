@@ -1,4 +1,11 @@
-# Standalone Sabor service. Configuration comes from .env (copy .env.example).
+# Sabor, optionally with a bundled Mealie. Configuration comes from .env
+# (copy .env.example).
+#
+# - `docker compose --profile mealie up -d` (or COMPOSE_PROFILES=mealie in .env)
+#   also starts Mealie; set MEALIE_BASE_URL=http://mealie:9000 in .env.
+# - `docker compose up -d` without that profile starts only Sabor, which talks
+#   to an existing Mealie (MEALIE_BASE_URL), exactly as before.
+#
 # Deployment-specific settings (container name, extra networks, environment
 # overrides) belong in docker-compose.override.yml, which Compose loads
 # automatically and Git ignores. See docker-compose.override.example.yml.
@@ -12,7 +19,28 @@ services:
       - "host.docker.internal:host-gateway"
     volumes:
       - sabor_data:/data
+    depends_on:
+      mealie:
+        condition: service_started
+        # Not an error when the mealie profile is disabled.
+        required: false
+    restart: unless-stopped
+
+  mealie:
+    profiles: ["mealie"]
+    # Pinned to the Mealie API baseline Sabor is tested against.
+    image: ghcr.io/mealie-recipes/mealie:v3.22.0
+    ports:
+      # Change the host port in docker-compose.override.yml if 9925 is taken.
+      - "127.0.0.1:9925:9000"
+    environment:
+      ALLOW_SIGNUP: "false"
+      TZ: Europe/Madrid
+      BASE_URL: http://localhost:9925
+    volumes:
+      - mealie_data:/app/data
     restart: unless-stopped
 
 volumes:
   sabor_data:
+  mealie_data:
