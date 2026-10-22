@@ -114,7 +114,7 @@ class EngineTests(unittest.TestCase):
         line = self.run_estimate(items(rice('6', None))).lines[0]
         self.assertEqual(line.consumption, D('1.2'))
         self.assertIn('assumed_count', line.uncertainty.reasons)
-        text_line = self.run_estimate(items(dict(name='rice', text='6 rice'))).lines[0]
+        self.run_estimate(items(dict(name='rice', text='6 rice'))).lines[0]
         # Structured count inference must not invent weights for kitchen measures.
         self.assertIsNone(self.run_estimate(items(rice('6', 'cups'))).consumption_subtotal)
         with self.assertRaises(ValueError):

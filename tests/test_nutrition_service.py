@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 from nutrition.db import NutritionDB
-from nutrition.models import NutrientProfile, SPOONACULAR_PROFILE_CONFIDENCE
+from nutrition.models import SPOONACULAR_PROFILE_CONFIDENCE
 from nutrition.publisher import MealiePublisher
 from nutrition.resolver import FoodResolver
 from nutrition.service import ENGINE_VERSION, NutritionService, recipe_input_hash, stable_hash
