@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Fixed
+- `mcp-manifest.json` no longer advertises Spoonacular and now lists every
+  environment variable Sabor reads (adds `SABOR_TOOLSETS`, `SABOR_LLM_*`,
+  `SABOR_VIDEO_PROVIDER`, `SABOR_MERCADONA_ENABLED`) with real descriptions and
+  code defaults; `MEALIE_BASE_URL` no longer claims a default. A contract test
+  keeps the manifest in sync with the configuration parsers and `.env.example` (#34).
+
 ### Changed
 - Context-aware tools receive their `AppContext` explicitly per call through
   `bind_context`/`use_context` and `current_context()`, instead of returning a

@@ -2,7 +2,7 @@
   "manifest_version": "1.0",
   "name": "sabor",
   "version": "0.3.0",
-  "description": "Unified cooking MCP server — Mealie recipes, Spoonacular search, recipe scraping, video analysis, user preferences, Bring! shopping lists",
+  "description": "Cooking MCP server for Mealie: search, read, create and edit recipes, plan meals and manage shopping lists, plus recipe import from URLs, text and video. Optional integrations: Bring! shopping sync and Mercadona price estimates.",
   "transport": "streamable-http",
   "port": 8080,
   "health": {
@@ -21,204 +21,241 @@
   "env_vars": [
     {
       "name": "SABOR_HOST",
-      "description": "sabor host",
+      "description": "Address the MCP HTTP server binds to inside the container or host.",
       "required": false,
       "secret": false,
       "default": "0.0.0.0"
     },
     {
       "name": "SABOR_PORT",
-      "description": "sabor port",
+      "description": "Port of the MCP Streamable HTTP server (endpoint /mcp).",
       "required": false,
       "secret": false,
       "default": "8080"
     },
     {
       "name": "SABOR_HOST_PORT",
-      "description": "sabor host port",
+      "description": "Docker Compose only: host port published on 127.0.0.1 for the container port.",
       "required": false,
       "secret": false,
       "default": "9170"
     },
     {
-      "name": "MEALIE_BASE_URL",
-      "description": "Mealie instance URL",
-      "required": true,
+      "name": "SABOR_TOOLSETS",
+      "description": "Comma-separated toolsets to register: core, import, shopping_sync, pricing and legacy_* sets. Empty registers discovery only; unknown names fail startup.",
+      "required": false,
       "secret": false,
-      "default": "http://host.docker.internal:9925"
+      "default": "core,import,shopping_sync"
+    },
+    {
+      "name": "MEALIE_BASE_URL",
+      "description": "URL of your Mealie instance, e.g. http://host.docker.internal:9925 from Docker or http://mealie:9000 on a shared Compose network. Required by the core recipe, meal plan and shopping tools.",
+      "required": true,
+      "secret": false
     },
     {
       "name": "MEALIE_API_TOKEN",
-      "description": "Mealie API bearer token",
+      "description": "Mealie API token (Mealie > User profile > API tokens), sent as a bearer token.",
       "required": true,
       "secret": true
     },
     {
-      "name": "SPOONACULAR_API_KEY",
-      "description": "Spoonacular API key",
+      "name": "SABOR_LLM_BASE_URL",
+      "description": "Optional OpenAI-compatible endpoint for text import and portable video import, e.g. https://api.openai.com/v1 or http://localhost:11434/v1 (Ollama).",
+      "required": false,
+      "secret": false
+    },
+    {
+      "name": "SABOR_LLM_MODEL",
+      "description": "Model name for SABOR_LLM_BASE_URL; required when that endpoint is set.",
+      "required": false,
+      "secret": false
+    },
+    {
+      "name": "SABOR_LLM_API_KEY",
+      "description": "API key for SABOR_LLM_BASE_URL; required for non-localhost endpoints.",
       "required": false,
       "secret": true
     },
     {
+      "name": "SABOR_VIDEO_PROVIDER",
+      "description": "Video import provider: gemini_native or openai_compatible. Unset uses Gemini when GEMINI_API_KEY is set, otherwise the OpenAI-compatible LLM.",
+      "required": false,
+      "secret": false
+    },
+    {
       "name": "GEMINI_API_KEY",
-      "description": "Google Gemini API key for video recipes",
+      "description": "Optional Google Gemini API key for native video recipe extraction.",
       "required": false,
       "secret": true
     },
     {
       "name": "VIDEO_RECIPE_GEMINI_MODEL",
-      "description": "video recipe gemini model",
+      "description": "Gemini model used for native video extraction.",
       "required": false,
       "secret": false,
       "default": "gemini-2.5-flash-lite"
     },
     {
       "name": "VIDEO_RECIPE_WORKDIR",
-      "description": "video recipe workdir",
+      "description": "Scratch directory for downloaded video media.",
       "required": false,
       "secret": false,
       "default": "/tmp/video-recipe-mcp"
     },
     {
       "name": "BRING_EMAIL",
-      "description": "Bring! app email",
+      "description": "Optional Bring! account email for the shopping_sync toolset; set together with BRING_PASSWORD.",
       "required": false,
       "secret": true
     },
     {
       "name": "BRING_PASSWORD",
-      "description": "Bring! app password",
+      "description": "Optional Bring! account password; set together with BRING_EMAIL.",
       "required": false,
       "secret": true
     },
     {
       "name": "BRING_CATALOG_DIR",
-      "description": "bring catalog dir",
+      "description": "Optional directory with the Bring! item catalog; unset searches the installed bring-api package data.",
       "required": false,
       "secret": false
     },
     {
+      "name": "SABOR_MERCADONA_ENABLED",
+      "description": "Opt-in Mercadona pricing provider for the pricing toolset (true/false).",
+      "required": false,
+      "secret": false,
+      "default": "false"
+    },
+    {
       "name": "MERCADONA_WAREHOUSE",
-      "description": "Mercadona warehouse code (e.g. mad1, bcn1)",
+      "description": "Mercadona warehouse code used for prices, e.g. mad1 or bcn1.",
       "required": false,
       "secret": false,
       "default": "mad1"
     },
     {
+      "name": "SPOONACULAR_API_KEY",
+      "description": "Legacy, optional: key for the legacy_spoonacular toolset and the experimental nutrition provider. Not needed for the default toolsets.",
+      "required": false,
+      "secret": true
+    },
+    {
       "name": "MEMORY_FILE",
-      "description": "memory file",
+      "description": "Markdown file used by the legacy_memory toolset for preferences and pantry notes.",
       "required": false,
       "secret": false,
       "default": "/data/MEMORY.md"
     },
     {
       "name": "SABOR_NORMALIZE_IMPORTS",
-      "description": "sabor normalize imports",
+      "description": "Normalize ingredients of successful imports through Mealie (true/false).",
       "required": false,
       "secret": false,
       "default": "true"
     },
     {
       "name": "SABOR_INGREDIENT_PARSER",
-      "description": "sabor ingredient parser",
+      "description": "Mealie ingredient parser used for normalization (sent to Mealie).",
       "required": false,
       "secret": false,
       "default": "openai"
     },
     {
       "name": "SABOR_NORMALIZE_CONFIDENCE",
-      "description": "sabor normalize confidence",
+      "description": "Minimum parser confidence to accept a normalized ingredient (0-1).",
       "required": false,
       "secret": false,
       "default": "0.75"
     },
     {
       "name": "SABOR_NUTRITION_ENABLED",
-      "description": "sabor nutrition enabled",
+      "description": "Enable the experimental legacy nutrition service (true/false).",
       "required": false,
       "secret": false,
       "default": "false"
     },
     {
       "name": "SABOR_NUTRITION_DB",
-      "description": "sabor nutrition db",
+      "description": "SQLite database path for the nutrition service.",
       "required": false,
       "secret": false,
       "default": "/data/nutrition.db"
     },
     {
       "name": "SABOR_NUTRITION_PROVIDER",
-      "description": "sabor nutrition provider",
+      "description": "Reported nutrition provider selector.",
       "required": false,
       "secret": false,
       "default": "spoonacular"
     },
     {
       "name": "SABOR_NUTRITION_MIN_PROFILE_CONFIDENCE",
-      "description": "sabor nutrition min profile confidence",
+      "description": "Minimum confidence to accept a nutrition food profile (0-1).",
       "required": false,
       "secret": false,
       "default": "0.80"
     },
     {
       "name": "SABOR_NUTRITION_MIN_PUBLISH_COVERAGE",
-      "description": "sabor nutrition min publish coverage",
+      "description": "Minimum ingredient coverage required to publish nutrition to Mealie (0-1).",
       "required": false,
       "secret": false,
       "default": "0.90"
     },
     {
       "name": "SABOR_NUTRITION_MIN_PUBLISH_CONFIDENCE",
-      "description": "sabor nutrition min publish confidence",
+      "description": "Minimum confidence required to publish nutrition to Mealie (0-1).",
       "required": false,
       "secret": false,
       "default": "0.80"
     },
     {
       "name": "SABOR_NUTRITION_PUBLISH_ESTIMATES",
-      "description": "sabor nutrition publish estimates",
+      "description": "Allow publishing estimated nutrition values (true/false).",
       "required": false,
       "secret": false,
       "default": "false"
     },
     {
       "name": "SABOR_NUTRITION_PROFILE_TTL_DAYS",
-      "description": "sabor nutrition profile ttl days",
+      "description": "Days a cached nutrition profile stays fresh.",
       "required": false,
       "secret": false,
       "default": "180"
     },
     {
       "name": "SABOR_NUTRITION_NOT_FOUND_TTL_DAYS",
-      "description": "sabor nutrition not found ttl days",
+      "description": "Days a provider \"not found\" result is cached.",
       "required": false,
       "secret": false,
       "default": "30"
     },
     {
       "name": "SABOR_NUTRITION_SOURCE_LANGUAGE",
-      "description": "sabor nutrition source language",
+      "description": "Language of recipe ingredient text for nutrition matching.",
       "required": false,
       "secret": false,
       "default": "es"
     },
     {
       "name": "SABOR_NUTRITION_DEFAULT_CUP_ML",
-      "description": "sabor nutrition default cup ml",
+      "description": "Millilitres assumed for one cup.",
       "required": false,
       "secret": false,
       "default": "240"
     },
     {
       "name": "SABOR_NUTRITION_AUTO_ON_IMPORT",
-      "description": "sabor nutrition auto on import",
+      "description": "Calculate nutrition after a successful import (true/false).",
       "required": false,
       "secret": false,
       "default": "false"
     },
     {
       "name": "SABOR_NUTRITION_AUTO_PUBLISH",
-      "description": "sabor nutrition auto publish",
+      "description": "Publish the automatic import calculation to Mealie (true/false).",
       "required": false,
       "secret": false,
       "default": "false"
@@ -233,5 +270,5 @@
   ],
   "maintainer": "JL Moreno",
   "created_at": "2025-03-16",
-  "updated_at": "2026-10-19"
+  "updated_at": "2026-10-22"
 }

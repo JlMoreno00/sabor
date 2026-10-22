@@ -1,5 +1,6 @@
 import ast
 import json
+import re
 from pathlib import Path
 import unittest
 
@@ -68,6 +69,101 @@ class ManifestContractTests(unittest.TestCase):
         self.assertIn("MEALIE_API_TOKEN", runtime_env_names)
         self.assertTrue(env_vars["MEALIE_API_TOKEN"]["required"])
         self.assertTrue(env_vars["MEALIE_API_TOKEN"]["secret"])
+
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+class _RecordingEnv(dict):
+    """Mapping that records every key the configuration parsers read."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.read = set()
+
+    def get(self, key, default=None):
+        self.read.add(key)
+        return super().get(key, default)
+
+    def __getitem__(self, key):
+        self.read.add(key)
+        return super().__getitem__(key)
+
+    def __contains__(self, key):
+        self.read.add(key)
+        return super().__contains__(key)
+
+
+def _getenv_defaults():
+    """os.getenv(NAME[, default]) reads outside the parsers, with their literal defaults."""
+    found = {}
+    for path in [ROOT / "sabor_mcp.py", *sorted((ROOT / "sabor").rglob("*.py"))]:
+        if path.name == "config.py" and path.parent.name == "sabor":
+            continue  # compatibility module; mirrors load_legacy_config exactly
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+            if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                    and node.func.attr == "getenv" and node.args
+                    and isinstance(node.args[0], ast.Constant)):
+                default = node.args[1].value if len(node.args) > 1 and isinstance(node.args[1], ast.Constant) else None
+                found[node.args[0].value] = default
+    return found
+
+
+def _compose_defaults():
+    text = (ROOT / "docker-compose.yml").read_text(encoding="utf-8")
+    return dict(re.findall(r"\$\{([A-Z0-9_]+):-([^}]*)\}", text))
+
+
+def _parsed(env):
+    from sabor.core.config import load_settings
+    settings = load_settings(env)
+    return settings, dict(settings.legacy_config.values)
+
+
+class ManifestEnvironmentContractTests(unittest.TestCase):
+    """The manifest lists exactly the variables Sabor reads, with their real defaults (#34)."""
+
+    def setUp(self):
+        manifest = json.loads((ROOT / "mcp-manifest.json").read_text(encoding="utf-8"))
+        self.manifest = manifest
+        self.env_vars = {item["name"]: item for item in manifest["env_vars"]}
+
+    def test_names_match_the_configuration_readers(self):
+        from sabor.core.config import load_settings
+        recorder = _RecordingEnv()
+        load_settings(recorder)
+        runtime = recorder.read | set(_getenv_defaults()) | set(_compose_defaults())
+        self.assertEqual(set(self.env_vars), runtime)
+
+    def test_names_match_env_example(self):
+        example = {line.split("=", 1)[0].lstrip("# ").strip()
+                   for line in (ROOT / ".env.example").read_text(encoding="utf-8").splitlines()
+                   if re.match(r"^#? ?[A-Z][A-Z0-9_]*=", line)}
+        self.assertEqual(set(self.env_vars), example)
+
+    def test_defaults_are_the_code_defaults(self):
+        getenv, compose = _getenv_defaults(), _compose_defaults()
+        for name, item in self.env_vars.items():
+            with self.subTest(name=name):
+                self.assertIsInstance(item["description"], str)
+                self.assertGreater(len(item["description"]), 10)
+                for key in ("required", "secret"):
+                    self.assertIsInstance(item[key], bool)
+                if "default" not in item:
+                    continue
+                self.assertIsInstance(item["default"], str)
+                if name in compose:
+                    self.assertEqual(item["default"], compose[name])
+                elif name in getenv and getenv[name] is not None:
+                    self.assertEqual(item["default"], getenv[name])
+                else:
+                    self.assertEqual(_parsed({name: item["default"]}), _parsed({}))
+
+    def test_secrets_have_no_default_and_spoonacular_is_not_advertised(self):
+        for name, item in self.env_vars.items():
+            if item["secret"]:
+                self.assertNotIn("default", item, name)
+        self.assertNotIn("spoonacular", self.manifest["description"].casefold())
 
 
 if __name__ == "__main__":
