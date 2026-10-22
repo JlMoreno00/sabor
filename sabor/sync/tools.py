@@ -6,12 +6,11 @@ import hmac
 import json
 import secrets
 from types import SimpleNamespace
-from typing import cast
 import requests
 
 from sabor.core import errors
 from sabor.core.envelope import fail, ok, preview
-from sabor.core.toolsets import tool, bring_ready, mealie_ready
+from sabor.core.toolsets import current_context, bring_ready, mealie_ready, tool, use_context
 from sabor.store import StoreError, store_error_envelope
 from .bring import BringSyncProvider
 
@@ -22,25 +21,30 @@ def _ready(settings):
     return bring_ready(settings) and mealie_ready(settings)
 
 
+def _direct_context():
+    """Assemble compatibility dependencies for direct Python calls."""
+    import sabor.config as config
+    from sabor.core.config import load_settings
+    from sabor.core.context import default_context
+    ctx = default_context()
+    if ctx.registry.syncs:
+        return ctx
+    settings = load_settings({'BRING_EMAIL': config.BRING_EMAIL,
+                              'BRING_PASSWORD': config.BRING_PASSWORD})
+    adapter = BringSyncProvider(settings)
+    # Direct calls rebuild dependencies; bind their previews to credential identity.
+    adapter.scope = hmac.new(_DIRECT_SCOPE_KEY, json.dumps(
+        [settings.bring_email, settings.bring_password]).encode(), 'sha256').hexdigest()
+    return SimpleNamespace(store=ctx.store, registry=SimpleNamespace(syncs=(adapter,)))
+
+
 def _sync_tool(collected):
     """Use startup context when bound; assemble compatibility dependencies otherwise."""
     fn = collected.__wrapped__
     @wraps(collected)
     def direct(*args, **kwargs):
-        from sabor.core.context import default_context
-        from sabor.core.config import load_settings
-        import sabor.config as config
-        ctx = default_context()
-        if ctx.registry.syncs:
-            return fn(*args, **kwargs)(ctx)
-        settings = load_settings({'BRING_EMAIL': config.BRING_EMAIL,
-                                  'BRING_PASSWORD': config.BRING_PASSWORD})
-        adapter = BringSyncProvider(settings)
-        # Direct calls rebuild dependencies; bind their previews to credential identity.
-        adapter.scope = hmac.new(_DIRECT_SCOPE_KEY, json.dumps(
-            [settings.bring_email, settings.bring_password]).encode(), 'sha256').hexdigest()
-        return fn(*args, **kwargs)(SimpleNamespace(store=ctx.store,
-            registry=SimpleNamespace(syncs=(adapter,))))
+        with use_context(factory=_direct_context):
+            return fn(*args, **kwargs)
     # bind_context invokes __wrapped__, bypassing compatibility assembly entirely.
     direct.__wrapped__ = fn
     return direct
@@ -60,7 +64,7 @@ def _error(exc, provider):
 @tool('shopping_sync', requires=_ready, uses_context=True)
 def get_shopping_sync_targets(provider: str | None = None) -> dict:
     """List available shopping destinations without modifying them."""
-    return cast(dict, lambda ctx: _targets(ctx, provider))
+    return _targets(current_context(), provider)
 
 
 def _targets(ctx, provider):
@@ -88,7 +92,7 @@ def sync_shopping_list(mealie_list_id: str, target: dict, mode: str = 'append',
     optional digest retains current-snapshot confirmation (digest_checked=false).
     Remote edits during apply cannot be made atomic across systems.
     """
-    return cast(dict, lambda ctx: _sync(ctx, mealie_list_id, target, mode, confirm, preview_digest))
+    return _sync(current_context(), mealie_list_id, target, mode, confirm, preview_digest)
 
 
 def _digest(plan, provider, target_id, mode):

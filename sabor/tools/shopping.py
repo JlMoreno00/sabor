@@ -1,6 +1,6 @@
 """Shopping-list orchestration over the instance-owned store."""
 from typing import Any
-from sabor.core.toolsets import tool, mealie_ready
+from sabor.core.toolsets import current_context, tool, mealie_ready
 from sabor.core.envelope import fail
 from sabor.store import StoreError, store_error_envelope
 
@@ -39,35 +39,31 @@ def _run(ctx, operation, value=None, confirm=False):
         return store_error_envelope(exc)
 
 
-def _defer(operation, value=None, confirm=False) -> Any:
-    return lambda ctx: _run(ctx, operation, value, confirm)
-
-
 @tool('core', requires=mealie_ready, uses_context=True)
 def get_shopping_lists() -> dict[str, Any]:
     """Devuelve todas las listas de compra del hogar con sus IDs y nombres."""
-    return _defer('get')
+    return _run(current_context(), 'get')
 
 
 @tool('core', requires=mealie_ready, uses_context=True)
 def create_shopping_list(name: str) -> dict[str, Any]:
     """Crea una nueva lista de compra vacia con el nombre indicado."""
-    return _defer('create', name)
+    return _run(current_context(), 'create', name)
 
 
 @tool('core', requires=mealie_ready, uses_context=True)
 def delete_shopping_list(list_id: str, confirm: bool = False) -> dict[str, Any]:
     """Preview deletion of a shopping list; pass confirm=True to delete it permanently."""
-    return _defer('delete', list_id, confirm)
+    return _run(current_context(), 'delete', list_id, confirm)
 
 
 @tool('core', requires=mealie_ready, uses_context=True)
 def clear_shopping_list(list_id: str, confirm: bool = False) -> dict[str, Any]:
     """Preview removal of all shopping items; pass confirm=True to clear the list."""
-    return _defer('clear', list_id, confirm)
+    return _run(current_context(), 'clear', list_id, confirm)
 
 
 @tool('core', requires=mealie_ready, uses_context=True)
 def get_or_create_shopping_list(name: str) -> dict[str, Any]:
     """Busca una lista de compra por nombre; si no existe, la crea. Devuelve siempre el ID."""
-    return _defer('get_or_create', name)
+    return _run(current_context(), 'get_or_create', name)

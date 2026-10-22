@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Changed
+- Context-aware tools receive their `AppContext` explicitly per call through
+  `bind_context`/`use_context` and `current_context()`, instead of returning a
+  deferred `lambda ctx` that the binder executed. Public signatures, docstrings
+  and MCP schemas are unchanged; direct Python calls still build a fresh
+  compatibility context (#4).
+
 ### Fixed
 - `estimate_cost` `source_digest` now hashes only the resolved source (line key,
   name, required quantity and base unit), so catalog refreshes no longer change
