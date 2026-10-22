@@ -16,7 +16,9 @@
 - `import_recipe` `partial_failure` now runs the same normalization and
   nutrition hooks on the recipes it already created and reports them in
   `data.normalization`, `data.nutrition` and `data.warnings`; a hook crash adds
-  a `post_commit_hooks_failed` warning instead of hiding the partial result (#25).
+  a `post_commit_hooks_failed` warning instead of hiding the partial result. On
+  a complete import a hook crash no longer re-runs the hooks or reports
+  `partial_failure`/`upstream_error`: the import stays `ok` with that warning (#25).
 
 ## [0.3.0] - 2026-10-20
 

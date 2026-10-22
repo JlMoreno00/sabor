@@ -255,7 +255,7 @@ def _import_recipe(ctx, source, kind, dry_run, language, max_recipes, min_confid
             if not isinstance(result, list) or any(not isinstance(s, str) or not s.strip() for s in result):
                 raise ValueError('Invalid image result')
             return ok({'preview': False, 'kind': kind, 'provider': provider, 'created': result}
-                      | after_commit(ctx, result))
+                      | run_hooks(ctx, result))
         if kind == 'url':
             http_url(source)
             data = ctx.store.preview_url(source)
@@ -319,7 +319,7 @@ def _import_recipe(ctx, source, kind, dry_run, language, max_recipes, min_confid
                 if kind == 'video':
                     tag_video(slug)
                     provider = extraction_provider
-        hooks = {} if dry_run else after_commit(ctx, created)
+        hooks = {} if dry_run else run_hooks(ctx, created)
         return ok(dict(preview=dry_run, kind=kind, provider=provider, candidates=candidates,
                        dropped=dropped, created=created, skips=skips, limitations=limitations) | hooks)
     except ImportErrorResult as exc:
@@ -335,15 +335,23 @@ def _import_recipe(ctx, source, kind, dry_run, language, max_recipes, min_confid
         return errors.from_exception(exc, provider)
 
 
+def run_hooks(ctx, slugs):
+    """Run after_commit exactly once; a crash becomes a warning, never an import failure.
+
+    Callers invoke it after every creation succeeded or failed, so a hook crash can
+    neither re-run the hooks nor turn a completed import into partial_failure.
+    """
+    try:
+        return after_commit(ctx, slugs)
+    except Exception:
+        return {'normalization': {}, 'nutrition': {}, 'warnings': [
+            {'slug': None, 'code': 'post_commit_hooks_failed', 'warning': 'post_commit_hooks_failed'}]}
+
+
 def partial(ctx, created, provider):
     """Return partial_failure after running the post-commit hooks on created slugs."""
-    try:
-        hooks = after_commit(ctx, created)
-    except Exception:
-        hooks = {'normalization': {}, 'nutrition': {}, 'warnings': [
-            {'slug': None, 'code': 'post_commit_hooks_failed', 'warning': 'post_commit_hooks_failed'}]}
     result = errors.partial(created, ['remaining'], provider)
-    result['data'].update(sanitize(hooks))
+    result['data'].update(sanitize(run_hooks(ctx, created)))
     return result
 
 

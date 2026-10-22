@@ -284,6 +284,41 @@ class ImportPostCommitTests(unittest.TestCase):
             'completed': ['soup'], 'failed': ['remaining'], 'normalization': {}, 'nutrition': {},
             'warnings': [{'slug': None, 'code': 'post_commit_hooks_failed', 'warning': 'post_commit_hooks_failed'}]})
 
+    HOOKS_FAILED = {'normalization': {}, 'nutrition': {}, 'warnings': [
+        {'slug': None, 'code': 'post_commit_hooks_failed', 'warning': 'post_commit_hooks_failed'}]}
+
+    @patch.object(t.requests, 'get')
+    @patch.object(t.requests, 'post')
+    def test_complete_import_hook_crash_runs_hooks_once_and_stays_ok(self, post, get):
+        c = dict(name='Soup', ingredients=['salt'], steps=['Mix'], servings='2', notes='', confidence=.8)
+        post.side_effect = [self.response({'choices': [{'message': {'content': json.dumps({'recipes': [c]})}}]}),
+                            self.response('soup')]
+        get.return_value = self.response(self.EMPTY)
+        self.nutrition.side_effect = RuntimeError('boom')
+        result = t.import_recipe('soup', dry_run=False)
+        self.assertTrue(result['ok'], result)
+        self.assertEqual(result['data']['created'], ['soup'])
+        self.assertEqual({k: result['data'][k] for k in self.HOOKS_FAILED}, self.HOOKS_FAILED)
+        self.assertEqual(self.normalize.call_count, 1)
+        self.assertEqual(self.nutrition.call_count, 1)
+        self.assertEqual(post.call_count, 2)
+
+    @patch.object(t.socket, 'getaddrinfo', return_value=[(2, 1, 6, '', ('93.184.216.34', 443))])
+    @patch.object(t, 'image_response', create=True)
+    @patch.object(t.requests, 'post')
+    def test_image_import_hook_crash_runs_hooks_once_and_stays_ok(self, post, fetch, dns):
+        fetch.return_value = Mock(status=200, headers={'Content-Type': 'image/png'})
+        fetch.return_value.stream.return_value = [b'png']
+        post.return_value = self.response('soup')
+        post.return_value.status_code = 201
+        self.normalize.side_effect = RuntimeError('boom')
+        self.nutrition.side_effect = RuntimeError('boom')
+        result = t.import_recipe('https://example.org/a.png', 'image', False)
+        self.assertTrue(result['ok'], result)
+        self.assertEqual(result['data']['created'], ['soup'])
+        self.assertEqual(self.nutrition.call_count, 1)
+        self.assertEqual(post.call_count, 1)
+
     @patch.object(t.requests, 'get')
     @patch.object(t.requests, 'post')
     def test_normalization_warning_keeps_import(self, post, get):
