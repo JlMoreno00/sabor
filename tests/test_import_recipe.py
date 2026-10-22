@@ -255,6 +255,72 @@ class ImportPostCommitTests(unittest.TestCase):
 
     @patch.object(t.requests, 'get')
     @patch.object(t.requests, 'post')
+    def test_partial_failure_runs_hooks_on_created(self, post, get):
+        c = dict(name='Soup', ingredients=['salt'], steps=['Mix'], servings='2', notes='', confidence=.8)
+        post.side_effect = [self.response({'choices': [{'message': {'content': json.dumps({'recipes': [c, dict(c, name='Stew')]})}}]}),
+                            self.response('soup'), Mock(status_code=500)]
+        get.return_value = self.response(self.EMPTY)
+        result = t.import_recipe('two recipes', dry_run=False)
+        self.assertFalse(result['ok'])
+        self.assertEqual(result['error']['code'], 'partial_failure')
+        self.assertEqual(result['data'], {
+            'completed': ['soup'], 'failed': ['remaining'],
+            'normalization': {'soup': {'ok': True, 'status': 'normalized'}},
+            'nutrition': {'soup': {'ok': True}}, 'warnings': []})
+        self.assertEqual([call.args[1] for call in self.normalize.call_args_list], ['soup'])
+        self.assertEqual([call.args[1] for call in self.nutrition.call_args_list], ['soup'])
+
+    @patch.object(t.requests, 'get')
+    @patch.object(t.requests, 'post')
+    def test_partial_failure_hook_crash_keeps_partial(self, post, get):
+        c = dict(name='Soup', ingredients=['salt'], steps=['Mix'], servings='2', notes='', confidence=.8)
+        post.side_effect = [self.response({'choices': [{'message': {'content': json.dumps({'recipes': [c, dict(c, name='Stew')]})}}]}),
+                            self.response('soup'), Mock(status_code=500)]
+        get.return_value = self.response(self.EMPTY)
+        self.nutrition.side_effect = RuntimeError('boom')
+        result = t.import_recipe('two recipes', dry_run=False)
+        self.assertEqual(result['error']['code'], 'partial_failure')
+        self.assertEqual(result['data'], {
+            'completed': ['soup'], 'failed': ['remaining'], 'normalization': {}, 'nutrition': {},
+            'warnings': [{'slug': None, 'code': 'post_commit_hooks_failed', 'warning': 'post_commit_hooks_failed'}]})
+
+    HOOKS_FAILED = {'normalization': {}, 'nutrition': {}, 'warnings': [
+        {'slug': None, 'code': 'post_commit_hooks_failed', 'warning': 'post_commit_hooks_failed'}]}
+
+    @patch.object(t.requests, 'get')
+    @patch.object(t.requests, 'post')
+    def test_complete_import_hook_crash_runs_hooks_once_and_stays_ok(self, post, get):
+        c = dict(name='Soup', ingredients=['salt'], steps=['Mix'], servings='2', notes='', confidence=.8)
+        post.side_effect = [self.response({'choices': [{'message': {'content': json.dumps({'recipes': [c]})}}]}),
+                            self.response('soup')]
+        get.return_value = self.response(self.EMPTY)
+        self.nutrition.side_effect = RuntimeError('boom')
+        result = t.import_recipe('soup', dry_run=False)
+        self.assertTrue(result['ok'], result)
+        self.assertEqual(result['data']['created'], ['soup'])
+        self.assertEqual({k: result['data'][k] for k in self.HOOKS_FAILED}, self.HOOKS_FAILED)
+        self.assertEqual(self.normalize.call_count, 1)
+        self.assertEqual(self.nutrition.call_count, 1)
+        self.assertEqual(post.call_count, 2)
+
+    @patch.object(t.socket, 'getaddrinfo', return_value=[(2, 1, 6, '', ('93.184.216.34', 443))])
+    @patch.object(t, 'image_response', create=True)
+    @patch.object(t.requests, 'post')
+    def test_image_import_hook_crash_runs_hooks_once_and_stays_ok(self, post, fetch, dns):
+        fetch.return_value = Mock(status=200, headers={'Content-Type': 'image/png'})
+        fetch.return_value.stream.return_value = [b'png']
+        post.return_value = self.response('soup')
+        post.return_value.status_code = 201
+        self.normalize.side_effect = RuntimeError('boom')
+        self.nutrition.side_effect = RuntimeError('boom')
+        result = t.import_recipe('https://example.org/a.png', 'image', False)
+        self.assertTrue(result['ok'], result)
+        self.assertEqual(result['data']['created'], ['soup'])
+        self.assertEqual(self.nutrition.call_count, 1)
+        self.assertEqual(post.call_count, 1)
+
+    @patch.object(t.requests, 'get')
+    @patch.object(t.requests, 'post')
     def test_normalization_warning_keeps_import(self, post, get):
         self.normalize.return_value = {'ok': False, 'warning': 'normalization_parser_http_500'}
         self.nutrition.side_effect = lambda result, slug: dict(

@@ -154,7 +154,8 @@ normalization path. Unified import commits (`dry_run=False`, every kind) run
 the same instance-owned normalization (`SABOR_NORMALIZE_IMPORTS`) and
 nutrition-after-import gate as `create_recipe`, reported per slug in
 `normalization`, `nutrition` and `warnings`; hook failures never fail the
-import. It has no `normalize` parameter. Its text/video adapter calls
+import. A `partial_failure` runs the same hooks on the recipes already created
+and carries those keys next to `completed` and `failed`. It has no `normalize` parameter. Its text/video adapter calls
 the explicitly configured compatible LLM directly using `SABOR_LLM_*`, not
 `OPENAI_API_KEY`.
 
