@@ -43,8 +43,8 @@ service, just-in-time orchestration, and publisher. Manual publication protectio
 is a separate, dominant boundary.
 
 FastMCP is configured as stateless HTTP. This means MCP session state is not
-stored in the process, but module-level provider caches and the two local data
-files are still operational state.
+stored in the process, but instance provider caches, the legacy Mercadona cache
+and the two local data files are still operational state.
 
 Gemini upload deletion is best effort, not guaranteed. Sabor attempts deletion
 after extraction and after a processing failure, but suppresses request errors,
@@ -100,11 +100,23 @@ Direct Python calls (`sabor.tools.recipes.search_recipes(...)`, `sabor_mcp`
 attributes) remain supported as a compatibility path: they bind a fresh
 `default_context()`, built lazily only when the body needs it.
 
-Mealie sessions, Bring transport/auth/cache and Mercadona caches are instance-
-owned. This is single-tenant self-hosting, not a multi-tenant security boundary:
-legacy nutrition/memory/catalog, nutrition-after-import, video tagging, Gemini
-helpers and direct-call compatibility paths still depend on global configuration.
-Separate household processes/volumes remain necessary. Selection is not sandboxing.
+Every registered tool (including legacy envelopes and non-context core tools)
+binds its AppContext for the entire call. `core/legacy_config.py` parses the same
+mapping as Settings into a read-only compatibility namespace. The runtime proxy
+uses that namespace when bound; only unbound direct calls import `sabor.config`.
+`default_context()` shares registration's provider assembly and honors compatibility
+patches. Tool arguments, docstrings and FastMCP schemas remain unchanged.
+
+Mealie sessions, Bring transport/auth/catalogs, nutrition services and provider
+cache locks, recipe/scheduling locks and correction stages are instance-owned.
+Nutrition initializes lazily under an instance lock. Worker threads explicitly
+copy the calling context. Memory and nutrition persistence use configured paths;
+registrations pointing at the same path intentionally share external storage.
+
+This is not a multi-tenant security boundary: legacy Mercadona promotion/catalog
+state remains process-wide, as do direct-call compatibility defaults. Separate
+processes/volumes remain recommended for untrusted households. Selection is not
+sandboxing.
 
 Pricing tools resolve a tagged source (items, recipe, shopping_list or mealplan)
 through the store when needed. The engine conservatively parses quantities,

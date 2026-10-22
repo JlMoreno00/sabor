@@ -10,6 +10,12 @@
   compatibility context (#4).
 
 ### Fixed
+- Registered tools now isolate compatibility configuration, Gemini/video tagging,
+  nutrition services and keyed/provider locks, correction stages, Bring catalog
+  overrides and memory paths per AppContext (#3). Every registered tool binds
+  context; workers copy it explicitly. Direct calls retain patchable defaults
+  and share provider assembly with registration. Legacy Mercadona catalog and
+  promotion state remains process-wide; this is not a security boundary.
 - `estimate_cost` `source_digest` now hashes only the resolved source (line key,
   name, required quantity and base unit), so catalog refreshes no longer change
   it. The new `quote_digest` covers quote observations (#8).

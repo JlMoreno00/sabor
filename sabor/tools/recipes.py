@@ -5,7 +5,7 @@ from typing import Any
 from dataclasses import dataclass, fields, is_dataclass
 from sabor.store import RecipeDraft, RecipePatch, RecipeSearch, SuggestionQuery, StoreError, store_error_envelope
 import requests
-import sabor.config as config
+from sabor.core.runtime import config
 import sabor.integrations.mealie as mealie
 from sabor.core.toolsets import current_context, tool, mealie_ready
 from sabor.core.envelope import ok, preview, fail

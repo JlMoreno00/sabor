@@ -148,7 +148,7 @@ _MANUAL_ALIASES: dict[str, str] = {
 }
 
 
-def _load_bring_catalog(lang: str) -> dict[str, str]:
+def _load_bring_catalog(lang: str, catalog_dir=None) -> dict[str, str]:
     """Load Bring! catalog from site-packages or bundled data."""
     search_paths = []
     # Site-packages (Docker / pip install)
@@ -161,7 +161,7 @@ def _load_bring_catalog(lang: str) -> dict[str, str]:
     search_paths.append(script_dir)
     search_paths.append(script_dir.parent / ".venv" / "lib")
     # Custom env var
-    env_catalog = os.getenv("BRING_CATALOG_DIR")
+    env_catalog = os.getenv("BRING_CATALOG_DIR") if catalog_dir is None else catalog_dir
     if env_catalog:
         search_paths.insert(0, Path(env_catalog))
 
@@ -268,7 +268,8 @@ class BringClient:
         self.client_id = "cof4Nc6D8saplXjE3h3HXqHH8m7VU2i1Gs0g85Sp"  # gitleaks:allow
         self.session = session if session is not None else requests.Session()
         self.auth = {}
-        self.catalogs = (_load_bring_catalog("es-ES"), _load_bring_catalog("en-US"))
+        directory = settings.legacy_config.BRING_CATALOG_DIR
+        self.catalogs = (_load_bring_catalog("es-ES", directory), _load_bring_catalog("en-US", directory))
 
     def _bring_login_headers(self) -> dict[str, str]:
         return {

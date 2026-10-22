@@ -4,7 +4,7 @@ import threading
 from typing import Any
 import requests
 import sabor.integrations.mealie as _mealie
-import sabor.config as config
+from sabor.core.runtime import config
 import sabor.tools.nutrition as nutrition
 from sabor.core.toolsets import current_context, tool
 from sabor.store import DateRange, MealEntryDraft, StoreError, store_error_envelope
@@ -84,7 +84,7 @@ def _calendar(ctx, action, argument, confirm=False):
 
 
 def _schedule(date_str, entry_type, title, recipe_slug, session, base_url, headers):
-    """Legacy nutrition bridge: config flag, nutrition services and locks remain global."""
+    """Schedule using bound instance nutrition state, or direct-call defaults."""
     arguments = {"date_str": date_str, "entry_type": entry_type, "title": title,
                  "recipe_slug": recipe_slug}
     continuation = nutrition._nutrition_continuation("set_mealplan_entry", arguments)
@@ -110,7 +110,7 @@ def _schedule(date_str, entry_type, title, recipe_slug, session, base_url, heade
                 if 200 <= rr.status_code < 300:
                     payload["recipeId"] = rr.json().get("id")
         key = (date_str, entry_type, recipe_slug or str(payload.get("recipeId") or ""))
-        lock = (nutrition._keyed_lock(nutrition._MEALPLAN_LOCKS, key) if recipe_slug else threading.Lock())
+        lock = (nutrition._keyed_lock(nutrition._runtime_state("mealplan_locks", nutrition._MEALPLAN_LOCKS), key) if recipe_slug else threading.Lock())
         with lock:
             if recipe_slug and config.SABOR_NUTRITION_ENABLED:
                 try:

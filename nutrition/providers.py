@@ -129,7 +129,8 @@ class SpoonacularProvider:
                  base_url: str = "https://api.spoonacular.com",
                  timeout: int = 20, profile_ttl_days: int = 180,
                  not_found_ttl_days: int = 30, session: Any = requests,
-                 sleep: Any = time.sleep, now: Any = _now):
+                 sleep: Any = time.sleep, now: Any = _now, cache_locks=None):
+        self.cache_locks = _PROVIDER_CACHE_LOCKS if cache_locks is None else cache_locks
         self.api_key = api_key
         self.db = db
         self.base_url = base_url.rstrip("/")
@@ -210,7 +211,7 @@ class SpoonacularProvider:
         had_active_cache = self._cache_active(self.db.get_cache(cache_key))
         if cached_result := self._cached_result(cache_key, force=force):
             return cached_result
-        with _provider_cache_lock(cache_key):
+        with self.cache_locks[hash(f"spoonacular:{cache_key}") % len(self.cache_locks)]:
             if cached_result := self._cached_result(
                     cache_key, force=force if had_active_cache else False):
                 return cached_result
@@ -287,7 +288,7 @@ class SpoonacularProvider:
         had_active_cache = self._cache_active(self.db.get_cache(cache_key))
         if cached_result := self._cached_result(cache_key, force=force):
             return cached_result
-        with _provider_cache_lock(cache_key):
+        with self.cache_locks[hash(f"spoonacular:{cache_key}") % len(self.cache_locks)]:
             if cached_result := self._cached_result(
                     cache_key, force=force if had_active_cache else False):
                 return cached_result

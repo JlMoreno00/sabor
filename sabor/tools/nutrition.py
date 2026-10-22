@@ -9,7 +9,7 @@ import threading
 from typing import Any
 from uuid import UUID
 import requests
-import sabor.config as config
+from sabor.core.runtime import config, instance_state
 import sabor.integrations.mealie as mealie
 from sabor.core.toolsets import tool
 
@@ -126,8 +126,28 @@ def _authoritative_mealie_food(food_id: str,
 
 
 def _nutrition_service() -> Any:
+    state = instance_state()
+    if state is None:
+        return _build_nutrition_service()
+    with state.service_lock:
+        if state.nutrition_service is None:
+            state.nutrition_service = _build_nutrition_service(instance=True)
+        return state.nutrition_service
+
+
+def _existing_nutrition_service():
+    state = instance_state()
+    return state.nutrition_service if state is not None else _NUTRITION_SERVICE_INSTANCE
+
+
+def _runtime_state(name, fallback):
+    state = instance_state()
+    return getattr(state, name) if state is not None else fallback
+
+
+def _build_nutrition_service(*, instance=False) -> Any:
     global _NUTRITION_SERVICE_INSTANCE
-    if _NUTRITION_SERVICE_INSTANCE is None:
+    if instance or _NUTRITION_SERVICE_INSTANCE is None:
         from nutrition.db import NutritionDB
         from nutrition.models import NutritionPolicy
         from nutrition.providers import SpoonacularProvider
@@ -148,6 +168,7 @@ def _nutrition_service() -> Any:
             timeout=config.SPOONACULAR_TIMEOUT,
             profile_ttl_days=config.SABOR_NUTRITION_PROFILE_TTL_DAYS,
             not_found_ttl_days=config.SABOR_NUTRITION_NOT_FOUND_TTL_DAYS,
+            **({"cache_locks": instance_state().provider_locks} if instance else {}),
         )
         resolver = FoodResolver(
             db, provider, profile_ttl_days=config.SABOR_NUTRITION_PROFILE_TTL_DAYS,
@@ -155,9 +176,12 @@ def _nutrition_service() -> Any:
             source_language=config.SABOR_NUTRITION_SOURCE_LANGUAGE,
         )
         publisher = MealiePublisher(config.MEALIE_BASE_URL, mealie._mealie_headers())
-        _NUTRITION_SERVICE_INSTANCE = NutritionService(
+        service = NutritionService(
             db, resolver=resolver, publisher=publisher, policy=policy
         )
+        if instance:
+            return service
+        _NUTRITION_SERVICE_INSTANCE = service
     return _NUTRITION_SERVICE_INSTANCE
 
 
@@ -464,12 +488,13 @@ def _nutrition_proposed_fields(candidate: dict[str, Any],
 
 def _nutrition_stage_correction(slug: str, candidate: dict[str, Any] | None,
                                 schedule: dict[str, Any] | None = None) -> dict[str, Any] | None:
-    with _NUTRITION_CORRECTION_STAGE_LOCK:
-        existing_schedule = (_NUTRITION_CORRECTION_STAGES.get(slug) or {}).get("schedule")
-        if slug not in _NUTRITION_CORRECTION_STAGES and len(_NUTRITION_CORRECTION_STAGES) >= 64:
-            _NUTRITION_CORRECTION_STAGES.pop(next(iter(_NUTRITION_CORRECTION_STAGES)))
+    stages = _runtime_state("correction_stages", _NUTRITION_CORRECTION_STAGES)
+    with _runtime_state("correction_lock", _NUTRITION_CORRECTION_STAGE_LOCK):
+        existing_schedule = (stages.get(slug) or {}).get("schedule")
+        if slug not in stages and len(stages) >= 64:
+            stages.pop(next(iter(stages)))
         active_schedule = schedule or existing_schedule
-        _NUTRITION_CORRECTION_STAGES[slug] = {
+        stages[slug] = {
             "candidate": copy.deepcopy(candidate), "schedule": copy.deepcopy(active_schedule),
         }
         return copy.deepcopy(active_schedule)
@@ -723,7 +748,7 @@ def ensure_recipe_nutrition(slug: str, trigger: Any) -> dict[str, Any]:
     }.issubset(trigger) else _nutrition_continuation(
         "nutrition_calculate_recipe", {"slug": slug, "publish": False, "force": False},
     )
-    lock = _keyed_lock(_NUTRITION_RECIPE_LOCKS, slug)
+    lock = _keyed_lock(_runtime_state("recipe_locks", _NUTRITION_RECIPE_LOCKS), slug)
     with lock:
         try:
             recipe = _nutrition_fetch_recipe(slug)
@@ -1074,8 +1099,8 @@ def nutrition_set_food_mapping(mealie_food_id: str, mealie_food_name: str,
     if apply:
         db = _nutrition_service().db
         target_valid = db.is_mapping_target_valid(mealie_food_id)
-    elif _NUTRITION_SERVICE_INSTANCE is not None:
-        db = _NUTRITION_SERVICE_INSTANCE.db
+    elif _existing_nutrition_service() is not None:
+        db = _existing_nutrition_service().db
         target_valid = db.is_mapping_target_valid(mealie_food_id)
     else:
         from nutrition.db import NutritionDB

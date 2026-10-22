@@ -1,5 +1,6 @@
 """Mercadona catalog cache and price tools."""
 
+from contextvars import copy_context
 import os
 import re
 import time
@@ -150,7 +151,7 @@ def _mercadona_load_catalog() -> tuple[bool, str]:
         all_products: list[dict] = []
         with ThreadPoolExecutor(max_workers=_MERCADONA_FETCH_WORKERS) as pool:
             futures = {
-                pool.submit(_mercadona_fetch_subcategory, sub_id, name): (sub_id, name)
+                pool.submit(copy_context().run, _mercadona_fetch_subcategory, sub_id, name): (sub_id, name)
                 for sub_id, name in tasks
                 if sub_id is not None
             }
