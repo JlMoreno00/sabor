@@ -41,8 +41,14 @@ The executable runtime, `.env.example`, and `mcp-manifest.json` all use
 ## Store and instance deployment (0.3)
 
 SQLite and Mealie are shipped RecipeStores. Without a Mealie URL, SQLite enables
-recipes, meal plans and shopping lists locally. Native URL/image import, Spanish
-catalog and legacy nutrition still require Mealie. Registered tools use an AppContext with
+recipes, meal plans, shopping lists and import locally. URL import uses offline
+recipe-scrapers with JSON-LD fallback and needs no LLM. Text requires a compatible
+LLM; image preview/commit requires a vision-capable compatible model (otherwise
+`provider_unconfigured`); video requires a configured video adapter. Native
+URL/image services, Spanish catalog and legacy nutrition still require Mealie.
+HTML downloads accept only text/html or application/xhtml+xml up to 5 MB; image
+downloads accept JPEG, PNG, WebP or GIF up to 10 MB. Both pin validated public IPs,
+revalidate redirects and ignore proxy settings. Registered tools use an AppContext with
 instance-owned Mealie session, Mercadona catalog cache and Bring transport/auth
 state. Discovery's `capabilities.recipe_store` lists operations; the old
 `data.mealie.configured` field is deprecated. Native URL import supports preview

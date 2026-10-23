@@ -83,7 +83,15 @@ server; selection is not a plugin-loading/security sandbox.
 
 Import adapters implement extraction/preview; the unified importer commits via
 the instance store. Native URL/image services remain optional Mealie extensions.
-Discovery advertises URL preview/commit and image commit-only, not image preview. Gemini-native uses
+Native discovery advertises URL preview/commit and image commit-only. Non-native
+stores use offline `recipe_scrapers.scrape_html` with JSON-LD fallback for URL
+imports, and the compatible LLM with a data-URL image content part for image
+preview/commit. Both create RecipeDrafts through the store, retaining source URL
+provenance in the description. Shared pinned-IP fetching rejects private addresses
+at every redirect, bypasses proxies and bounds streamed HTML to 5 MB and images
+to 10 MB, with explicit content-type allowlists. Scraped content is untrusted data.
+Normalization uses the store's optional hook; nutrition runs only with Mealie.
+Gemini-native uses
 whole-video audio/vision; OpenAI-compatible uses frames and captions. Selection
 is explicit or Gemini-first when configured. Sync adapters implement
 targets/plan/apply; the orchestrator reads the recipe store, resolves a unique target,

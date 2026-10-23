@@ -1,4 +1,5 @@
 """Default SQLite selection through real registration, without Mealie."""
+from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
@@ -83,9 +84,15 @@ def test_sqlite_explicit_with_mealie_and_native_import_limits(tmp_path):
     assert not data['capabilities']['import']['adapters']
     assert 'nutrition_recipe_readiness' not in tools
     assert 'spanish_catalog_status' in tools
-    for kind in ('url', 'image'):
-        result = tools['import_recipe'](source='https://example.org/recipe', kind=kind)
-        assert result['error']['code'] == 'unsupported_operation'
+    # SQLite never uses Mealie's native import, even with Mealie credentials (#38).
+    empty = (Path(__file__).parent / 'fixtures' / 'import' / 'empty.html').read_bytes()
+    with patch('sabor.importing.tools.html_bytes', return_value=(empty, 'text/html')), \
+            patch('sabor.store.mealie.MealieRecipeStore.preview_url') as native:
+        result = tools['import_recipe'](source='https://example.org/recipe', kind='url')
+    assert result['error']['code'] == 'not_found'
+    native.assert_not_called()
+    result = tools['import_recipe'](source='https://example.org/recipe.png', kind='image')
+    assert result['error']['code'] == 'provider_unconfigured'
 
 
 def test_sqlite_duplicate_search(tmp_path):

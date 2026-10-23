@@ -40,9 +40,9 @@ not automatic retries or an assumed cross-system rollback.
 | Capability | Provider / requirements | Limits |
 |---|---|---|
 | Core | Built-in SQLite, or Mealie URL + token | Recipes, suggestions, planning, shopping items and history; API baseline Mealie 3.22.0 |
-| Import: URL | Mealie native scraper | Real read-only extraction preview; unsupported sites fail without paid-provider fallback |
+| Import: URL | SQLite: offline recipe-scrapers + schema.org JSON-LD; Mealie: native scraper | Read-only preview; pages without a recipe return `not_found`; no paid-provider fallback |
 | Import: text | OpenAI-compatible endpoint + model (+ key remotely) | Typed recipe extraction; preview can incur LLM charges |
-| Import: image | Mealie-native image import, using Mealie's OpenAI configuration | Explicit `kind="image"`, public image URL; no preview: `dry_run=True` returns `unsupported_operation` |
+| Import: image | SQLite: vision-capable OpenAI-compatible LLM; Mealie: native import with Mealie's OpenAI configuration | Explicit `kind="image"`, public image URL; SQLite supports preview, Mealie remains commit-only |
 | Import: video | `gemini_native` or `openai_compatible` | URL download; up to 100 MiB / 10 minutes; no playlists or local paths; TikTok URLs unsupported (paste the caption/transcript with `kind='text'`) |
 | Shopping sync | Bring! email + password **and a recipe store** | Only unchecked source items; does not check off Mealie items |
 | Pricing | `pricing` toolset + `SABOR_MERCADONA_ENABLED=true` | Read-only quantity-aware estimates; Mercadona only in 0.3.0 |
@@ -71,8 +71,10 @@ invalid values fail startup. SQLite construction and registration perform no
 filesystem I/O. Runtime startup initializes the database before serving requests;
 direct store use initializes on first operation. Missing parent directories are
 created, and opening failures never silently fall back. Back up its data volume.
-Native URL/image import, the Spanish catalog and legacy nutrition still require
-Mealie; SQLite does not advertise those native imports or legacy nutrition.
+URL, text, video and image import work with SQLite: URL needs no LLM; text needs
+an OpenAI-compatible LLM, image needs a vision-capable compatible model, and video
+needs either video adapter above. The Spanish catalog, legacy nutrition and native
+URL/image services still require Mealie; SQLite does not advertise native imports.
 Tandoor and KitchenOwl are not implemented integrations. Existing slug/list arguments remain unchanged,
 including the historical `mealie_list_id` sync argument. There is no public
 per-call backend URL or tenant selector.
@@ -213,7 +215,8 @@ MCP schema validation can reject a call before a tool runs.
 - Import defaults to `dry_run=True`; preview may download media/upload to an
   external processor and consume quota, but does not create recipes.
   Ask for processing consent **before** sending private content.
-- Image import cannot preview; obtain explicit approval for `dry_run=False`.
+- Mealie image import cannot preview; obtain explicit approval for `dry_run=False`.
+  SQLite image preview downloads the image and sends it to the configured LLM.
 - Other writes require client-side approval even without a server flag.
   Legacy `apply`, `publish` and `execute` gates retain their separate meanings.
 - Sync accepts optional `preview_digest`. Supplying the approved preview's digest

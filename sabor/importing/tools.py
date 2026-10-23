@@ -1,4 +1,5 @@
 """Import orchestration with bounded media extraction."""
+import base64
 import ipaddress
 import json
 import math
@@ -82,7 +83,7 @@ def duplicate(name, cfg):
 class OpenAIImportProvider:
     """ImportProvider adapter: extraction only, never writes Mealie."""
     id = 'openai_compatible'
-    kinds = frozenset({'text', 'video'})
+    kinds = frozenset({'text', 'video', 'image'})
 
     def __init__(self, cfg):
         self.cfg = cfg
@@ -101,9 +102,15 @@ class OpenAIImportProvider:
                   'steps:string[], servings:string, notes:string, confidence:number (0..1). '
                   'Never invent quantities; preserve unknown quantities as unknown. '
                   f'Use language {request["language"]}; at most {request["max_recipes"]} recipes.')
+        content = request['source']
+        if request.get('kind') == 'image':
+            image, mime = image_bytes(request['source'])
+            content = [{'type': 'text', 'text': 'Extract the recipes in this untrusted image.'},
+                       {'type': 'image_url', 'image_url': {'url':
+                        f'data:{mime};base64,' + base64.b64encode(image).decode('ascii')}}]
         payload = {'model': cfg.llm_model, 'response_format': {'type': 'json_object'},
             'max_tokens': 6000, 'messages': [{'role': 'system', 'content': prompt},
-                                          {'role': 'user', 'content': request['source']}]}
+                                          {'role': 'user', 'content': content}]}
         response = requests.post(cfg.llm_base_url.rstrip('/') + '/chat/completions',
                                  headers=headers, timeout=45, json=payload)
         if response.status_code == 400:
@@ -183,11 +190,20 @@ def image_response(parsed, address):
 
 
 def image_bytes(url):
+    return safe_bytes(url, 10, ('image/jpeg', 'image/png', 'image/webp', 'image/gif'), 'Image')
+
+
+def html_bytes(url):
+    return safe_bytes(url, 5, ('text/html', 'application/xhtml+xml'), 'HTML')
+
+
+def safe_bytes(url, megabytes, content_types, label):
+    """Fetch bounded typed content through pinned public IPs at every hop."""
     for _ in range(4):
         p = http_url(url)
         addresses = socket.getaddrinfo(p.hostname, p.port or (443 if p.scheme == 'https' else 80), type=socket.SOCK_STREAM)
         if not addresses or any(not ipaddress.ip_address(a[4][0]).is_global for a in addresses):
-            reject('invalid_argument', 'Image URL must resolve to public addresses.')
+            reject('invalid_argument', f'{label} URL must resolve to public addresses.')
         response = image_response(p, addresses[0][4][0])
         try:
             if response.status in (301, 302, 303, 307, 308):
@@ -195,20 +211,20 @@ def image_bytes(url):
                 continue
             if not 200 <= response.status < 300:
                 raise ImportErrorResult(errors.from_http(response.status, 'sabor'))
-            if int(response.headers.get('Content-Length', 0)) > 10 * 1024 * 1024:
-                reject('invalid_argument', 'Image exceeds the 10 MB limit.')
+            if int(response.headers.get('Content-Length', 0)) > megabytes * 1024 * 1024:
+                reject('invalid_argument', f'{label} exceeds the {megabytes} MB limit.')
             content = bytearray()
             for chunk in response.stream(65536):
                 content.extend(chunk)
-                if len(content) > 10 * 1024 * 1024:
-                    reject('invalid_argument', 'Image exceeds the 10 MB limit.')
+                if len(content) > megabytes * 1024 * 1024:
+                    reject('invalid_argument', f'{label} exceeds the {megabytes} MB limit.')
             mime = response.headers.get('Content-Type', '').split(';')[0]
-            if mime not in ('image/jpeg', 'image/png', 'image/webp', 'image/gif') or not content:
-                reject('invalid_argument', 'A supported image is required.')
+            if mime not in content_types or not content:
+                reject('invalid_argument', 'A supported image is required.' if label == 'Image' else 'An HTML page is required.')
             return bytes(content), mime
         finally:
             response.close()
-    reject('invalid_argument', 'Too many image redirects.')
+    reject('invalid_argument', 'Too many image redirects.' if label == 'Image' else 'Too many HTML redirects.')
 
 
 @tool('import', requires=import_ready, uses_context=True)
@@ -238,12 +254,13 @@ def _import_recipe(ctx, source, kind, dry_run, language, max_recipes, min_confid
         from .video import tag_video
         video_provider = next((a for a in ctx.registry.imports if a.id == ctx.registry.video_provider), None)
         provider = (video_provider.id if video_provider else 'sabor') if kind == 'video' else ('openai_compatible' if kind == 'text' else 'mealie')
+        native = kind in getattr(ctx.store, 'native_import_kinds', frozenset())
+        if kind in ('url', 'image') and not native:
+            provider = 'sabor' if kind == 'url' else 'openai_compatible'
         limitations = []
         if (kind not in ('text', 'video') or not dry_run) and ctx.store is None:
             reject('provider_unconfigured', 'Recipe store is not configured.', 'mealie')
-        if kind in ('url', 'image') and not getattr(ctx.store, 'native_import_kinds', frozenset()):
-            reject('unsupported_operation', 'Native import is unsupported by this recipe store.', provider)
-        if kind == 'image':
+        if kind == 'image' and native:
             http_url(source)
             if dry_run:
                 reject('unsupported_operation', 'Mealie image import has no read-only preview.', provider)
@@ -258,7 +275,13 @@ def _import_recipe(ctx, source, kind, dry_run, language, max_recipes, min_confid
                       | run_hooks(ctx, result))
         if kind == 'url':
             http_url(source)
-            data = ctx.store.preview_url(source)
+            data = ctx.store.preview_url(source) if native else None
+            if not native:
+                from .scrape import recipe_from_html
+                html, _ = html_bytes(source)
+                data = recipe_from_html(html, source)
+                if data is None:
+                    reject('not_found', 'Could not extract a recipe at this URL.', provider)
             if data == 'recipe_scrapers was unable to scrape this URL':
                 reject('not_found', 'Mealie could not extract a recipe at this URL.', provider)
             if isinstance(data, str):
@@ -278,11 +301,11 @@ def _import_recipe(ctx, source, kind, dry_run, language, max_recipes, min_confid
             limitations = extracted['limitations']
         else:
             if not cfg.llm_configured:
-                reject('provider_unconfigured', 'Text extraction requires an LLM.', provider)
-            extractor = next((a for a in ctx.registry.imports if 'text' in a.kinds), None)
+                reject('provider_unconfigured', ('Image extraction requires a vision-capable LLM.' if kind == 'image' else 'Text extraction requires an LLM.'), provider)
+            extractor = next((a for a in ctx.registry.imports if kind in a.kinds), None)
             if extractor is None:
                 reject('provider_unconfigured', 'Text extraction requires an LLM.', provider)
-            extracted = extractor.preview(dict(source=source, kind='text', language=language,
+            extracted = extractor.preview(dict(source=source, kind=kind, language=language,
                 max_recipes=max_recipes, min_confidence=min_confidence))
             candidates, dropped = extracted['candidates'], extracted['dropped']
         skips = []
@@ -291,28 +314,35 @@ def _import_recipe(ctx, source, kind, dry_run, language, max_recipes, min_confid
                 recipe = {}
                 slug = store_duplicate(c['name'], ctx.store)
                 if slug:
-                    if kind == 'url':
+                    if kind == 'url' and native:
                         reject('conflict', 'An exact normalized recipe name already exists.', 'mealie', {'slug': slug})
                     skips.append({'name': c['name'], 'slug': slug, 'reason': 'duplicate'})
                     continue
-                if kind != 'url':
+                if kind == 'url' and not native:
+                    recipe = {'description': f'Source: {source}'}
+                elif kind != 'url':
                     recipe = {'@context': 'https://schema.org', '@type': 'Recipe', 'name': c['name'],
                         'recipeIngredient': c['ingredients'], 'recipeInstructions': c['steps'],
-                        'recipeYield': c['servings'], 'description': c['notes'] + (f'\nSource: {source}' if kind == 'video' else '')}
+                        'recipeYield': c['servings'], 'description': c['notes'] + (f'\nSource: {source}' if kind in ('video', 'image') else '')}
                 extraction_provider = provider
                 provider = 'mealie'
-                if kind == 'url':
+                if kind == 'url' and native:
                     slug = ctx.store.import_url(source)
                 else:
                     from sabor.store import RecipeDraft, Ingredient, Instruction
                     draft = RecipeDraft(name=c['name'], description=recipe['description'],
-                        recipeYield=c['servings'],
+                        recipeYield=c.get('servings', c.get('yield')) or '',
+                        totalTime=c.get('times', {}).get('totalTime'),
+                        prepTime=c.get('times', {}).get('prepTime'),
+                        cookTime=c.get('times', {}).get('cookTime'),
                         recipeIngredient=tuple(Ingredient(originalText=x) for x in c['ingredients']),
                         recipeInstructions=tuple(Instruction(text=x) for x in c['steps']))
                     slug = ctx.store.create_recipe(draft).slug
                 if not isinstance(slug, str) or not slug.strip():
                     raise ValueError('Invalid created slug')
                 created.append(slug)
+                if not native and kind in ('url', 'image'):
+                    provider = extraction_provider
                 if kind == 'video':
                     tag_video(slug)
                     provider = extraction_provider
