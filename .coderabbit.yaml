@@ -19,9 +19,10 @@ reviews:
     enabled: true
     # Re-review on every push to the PR.
     auto_incremental_review: true
+    # 0 = never pause auto reviews (default pauses after 5 reviewed commits).
+    auto_pause_after_reviewed_commits: 0
     drafts: false
   path_filters:
-    - "!CHANGELOG.md"
     - "!**/*.lock"
     - "!**/uv.lock"
     - "!**/poetry.lock"
