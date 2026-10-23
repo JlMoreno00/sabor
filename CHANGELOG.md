@@ -3,17 +3,13 @@
 ## [Unreleased]
 
 ### Added
+- CI `Lint (ruff)` job with a repository `ruff.toml` (pyflakes `F` and syntax
+  errors `E9`, ruff pinned to 0.17.1); existing findings fixed without behavior
+  changes (#32).
 - One-command install: `docker compose --profile mealie up -d` also starts a
   pinned Mealie 3.22.0; without the profile `docker compose up -d` keeps the
   Sabor-only behavior. Three-step README quickstart, `scripts/check-compose.py`
   in CI, and a GHCR publish workflow that runs only manually or on `v*` tags (#33).
-
-### Fixed
-- `mcp-manifest.json` no longer advertises Spoonacular and now lists every
-  environment variable Sabor reads (adds `SABOR_TOOLSETS`, `SABOR_LLM_*`,
-  `SABOR_VIDEO_PROVIDER`, `SABOR_MERCADONA_ENABLED`) with real descriptions and
-  code defaults; `MEALIE_BASE_URL` no longer claims a default. A contract test
-  keeps the manifest in sync with the configuration parsers and `.env.example` (#34).
 
 ### Changed
 - Context-aware tools receive their `AppContext` explicitly per call through
@@ -23,6 +19,11 @@
   compatibility context (#4).
 
 ### Fixed
+- `mcp-manifest.json` no longer advertises Spoonacular and now lists every
+  environment variable Sabor reads (adds `SABOR_TOOLSETS`, `SABOR_LLM_*`,
+  `SABOR_VIDEO_PROVIDER`, `SABOR_MERCADONA_ENABLED`) with real descriptions and
+  code defaults; `MEALIE_BASE_URL` no longer claims a default. A contract test
+  keeps the manifest in sync with the configuration parsers and `.env.example` (#34).
 - Registered tools now isolate compatibility configuration, Gemini/video tagging,
   nutrition services and keyed/provider locks, correction stages, Bring catalog
   overrides and memory paths per AppContext (#3). Every registered tool binds
