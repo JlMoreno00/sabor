@@ -99,18 +99,20 @@ Discovery intentionally omits model IDs as well as credentials/private URLs.
 ## Store, context and pricing boundaries
 
 RecipeStore preserves structured ingredients, source IDs, checked state and
-recipe occurrences rather than flattening upstream data. Mealie is the only
-production implementation; a fake store exercises the port, not delivery of a
-Tandoor/KitchenOwl/light backend. Registered core tools keep existing public
+recipe occurrences rather than flattening upstream data. SQLite (the built-in
+default) and Mealie are the production implementations; the in-memory fake
+store only exercises the port contract in tests. Tandoor and KitchenOwl
+backends are not implemented (#15). Registered core tools keep existing public
 signatures and use instance stores. `AppContext` binds immutable settings,
 registry, store and pricing services without startup I/O. Discovery exposes
 `recipe_store`/`pricing` operations; the old Mealie summary is deprecated.
 
-Core readiness uses a configured recipe store (Mealie or an injected
+Core readiness uses a configured recipe store (SQLite, Mealie or an injected
 `store_factory`), not Mealie credentials alone. Per-tool requirements run inside
 the existing AppContext binding; `store_ready` reads that instance's store and
-retains the Settings-based Mealie fallback for compatibility. No new global
-store state or environment selector is introduced. Tags, comments, history,
+retains the Settings-based Mealie fallback for compatibility. The backend is
+chosen per instance from Settings (`SABOR_STORE`, see Recipe store selection);
+there is no global store state. Tags, comments, history,
 shopping preview/clear and ID validation belong to the store. Core tool modules
 do not import HTTP clients. Mealie-only scheduling transport and its nutrition
 gate live in the adapter; other stores schedule without that gate. Native
