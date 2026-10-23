@@ -1,0 +1,81 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+# CodeRabbit configuration for Sabor. It has no effect until the CodeRabbit
+# GitHub App is installed on JlMoreno00/sabor (done by the maintainer).
+# Reference: https://docs.coderabbit.ai/reference/configuration
+
+language: "es-ES"
+tone_instructions: "Responde en español, de forma concisa y directa. Prioriza fallos reales, riesgos de seguridad y roturas del contrato de tools; evita comentarios de estilo que ruff ya cubre. Si algo es una sugerencia opcional, dilo."
+
+reviews:
+  # chill = balanced feedback (default). assertive "may feel nitpicky".
+  profile: "chill"
+  # false: CodeRabbit only comments and never blocks a merge. The maintainer
+  # can set it to true to let it approve/request changes automatically.
+  request_changes_workflow: false
+  high_level_summary: true
+  poem: false
+  collapse_walkthrough: true
+  auto_review:
+    enabled: true
+    # Re-review on every push to the PR.
+    auto_incremental_review: true
+    drafts: false
+  path_filters:
+    - "!CHANGELOG.md"
+    - "!**/*.lock"
+    - "!**/uv.lock"
+    - "!**/poetry.lock"
+    - "!**/package-lock.json"
+    # Verbatim copy of the official MCP registry schema, vendored for offline tests.
+    - "!tests/fixtures/mcp-server.schema.*.json"
+  path_instructions:
+    - path: "tests/test_module_contract.py"
+      instructions: >-
+        Contrato de tools congelado: el test fija nombres, argumentos y docstrings
+        de cada tool registrada mediante un hash. Cualquier cambio en este fichero
+        es bloqueante salvo que el PR lo justifique explícitamente (cambio de
+        contrato documentado en CHANGELOG según docs/versioning.md). Se mantiene
+        el argumento `mealie_list_id` de `sync_shopping_list`.
+    - path: "{sabor/**,sabor_mcp.py}"
+      instructions: >-
+        Si el PR cambia la firma o el docstring de una función decorada con
+        `@tool`, trátalo como bloqueante salvo justificación explícita (rompe
+        tests/test_module_contract.py). Regla del plan Beta A (#41): con Mealie
+        configurado, el comportamiento debe ser idéntico al actual. Nada de
+        secretos, tokens ni credenciales en código, tests o ejemplos. `ruff check .`
+        debe quedar limpio con el ruff.toml del repo. Según CONTRIBUTING.md: cada
+        cambio de comportamiento lleva su test de regresión; los tests no dependen
+        de Mealie en vivo, credenciales reales ni bases de datos persistentes; la
+        nutrición sigue desactivada por defecto; las tools que mutan datos conservan
+        su confirmación o modo dry-run; no se incluyen datos de usuario, bases de
+        datos, backups ni artefactos generados.
+    - path: "**/*.py"
+      instructions: >-
+        Sabor es AGPL-3.0-only (contribuciones bajo la misma licencia). Señala
+        dependencias nuevas con licencias incompatibles con AGPL-3.0 y cualquier
+        retirada de avisos de licencia (LICENSE, sección License del README).
+    - path: "{docker-compose*.yml,Dockerfile,.env*,examples/**}"
+      instructions: >-
+        Nada de secretos reales: los valores de ejemplo deben ser placeholders
+        evidentes. No publiques puertos fuera de 127.0.0.1 sin justificarlo.
+    - path: ".github/workflows/**"
+      instructions: >-
+        Permisos mínimos (`permissions` explícitos, por defecto `contents: read`).
+        No expongas secrets a PRs de forks (nada de `pull_request_target` con
+        checkout del código del PR). La publicación de imágenes solo por
+        `workflow_dispatch` o tags `v*`.
+  tools:
+    ruff:
+      enabled: true
+      config_file: "ruff.toml"
+    # Disabled so they do not overlap or conflict with ruff.
+    flake8:
+      enabled: false
+    pylint:
+      enabled: false
+    # Secret scanning (Betterleaks, exposed as `gitleaks` in the schema).
+    gitleaks:
+      enabled: true
+
+chat:
+  auto_reply: true
