@@ -16,6 +16,11 @@
   the registry ownership label. Not submitted to the registry yet (#35).
 
 ### Changed
+- Core readiness and tools now use the instance RecipeStore rather than requiring
+  Mealie. Tags/comments/history and scheduling HTTP live in the Mealie adapter;
+  list preview/clear and ID validation belong to stores. An injected Fake store
+  exercises all 22 core tools without Mealie; Mealie remains the only production
+  backend, with unchanged tool signatures and Mealie behavior (#36).
 - Context-aware tools receive their `AppContext` explicitly per call through
   `bind_context`/`use_context` and `current_context()`, instead of returning a
   deferred `lambda ctx` that the binder executed. Public signatures, docstrings
