@@ -6,6 +6,10 @@
 - CI `Lint (ruff)` job with a repository `ruff.toml` (pyflakes `F` and syntax
   errors `E9`, ruff pinned to 0.17.1); existing findings fixed without behavior
   changes (#32).
+- One-command install: `docker compose --profile mealie up -d` also starts a
+  pinned Mealie 3.22.0; without the profile `docker compose up -d` keeps the
+  Sabor-only behavior. Three-step README quickstart, `scripts/check-compose.py`
+  in CI, and a GHCR publish workflow that runs only manually or on `v*` tags (#33).
 
 ### Changed
 - Context-aware tools receive their `AppContext` explicitly per call through

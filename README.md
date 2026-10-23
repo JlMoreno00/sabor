@@ -222,19 +222,29 @@ MCP schema validation can reject a call before a tool runs.
 
 ## Quickstart: Docker
 
-You need Docker Compose v2, a reachable Mealie instance, and a Mealie API token.
-From the checkout:
+You need Docker with Compose v2. Nothing else: the `mealie` profile also starts
+a Mealie for Sabor (pinned to the tested Mealie 3.22.0).
 
-```bash
-cp .env.example .env
-# Edit .env: set MEALIE_BASE_URL and MEALIE_API_TOKEN.
-docker compose up -d
-```
+1. **Configure.** From the checkout run `cp .env.example .env` and set
+   `MEALIE_BASE_URL=http://mealie:9000` in `.env`.
+2. **Start and connect Mealie.** Run `docker compose --profile mealie up -d`,
+   open Mealie at `http://localhost:9925`, sign in as the administrator and
+   create an API token (profile > API Tokens > Generate). Paste it into
+   `MEALIE_API_TOKEN` in `.env`.
+3. **Apply and connect your agent.** Run
+   `docker compose --profile mealie up -d --force-recreate sabor` and register
+   `http://127.0.0.1:9170/mcp` in your MCP client
+   ([Connect your MCP client](#connect-your-mcp-client)).
 
-The example URL `http://host.docker.internal:9925` reaches Mealie on the Docker
-host. For a remote Mealie instance, set its reachable URL instead. The service
-stores local data in the `sabor_data` volume and publishes only on loopback at
-`127.0.0.1:9170` (change the host port with `SABOR_HOST_PORT`).
+Add `COMPOSE_PROFILES=mealie` to `.env` to drop `--profile mealie` from later
+commands. Already running Mealie? Leave the profile out and point
+`MEALIE_BASE_URL` at it, for example `http://host.docker.internal:9925` for a
+Mealie on the Docker host; then `docker compose up -d` starts only Sabor. Data
+persists in the `sabor_data` and `mealie_data` volumes, and both services
+publish only on loopback (`127.0.0.1:9170` and `127.0.0.1:9925`; change the
+Sabor port with `SABOR_HOST_PORT` and Mealie's in
+`docker-compose.override.yml`). Sabor is built locally until a release image
+is published to `ghcr.io/jlmoreno00/sabor`.
 
 Check the transport without running an application tool:
 
