@@ -1,13 +1,12 @@
 """Instance-local deterministic backend for port contracts, not a production store."""
-from dataclasses import fields, replace
+from dataclasses import dataclass, fields, replace, asdict
 from math import isfinite
 from . import *
 
 
 class FakeRecipeStore:
     id = "fake"
-    operations = frozenset(k for k in RecipeStore.__dict__
-                           if not k.startswith("_") and k != "suggest_recipes")
+    operations = frozenset(k for k in RecipeStore.__dict__ if not k.startswith("_"))
 
     def __init__(self):
         self.recipes, self.lists, self.entries, self.tags = {}, {}, {}, {}
@@ -57,7 +56,27 @@ class FakeRecipeStore:
         return RecipeRef(recipe.id, self.recipes[slug].name, slug)
 
     def suggest_recipes(self, query):
-        raise StoreError("unsupported_operation", self.id)
+        if (
+            type(query.limit) is not int
+            or query.limit < 1
+            or any(
+                type(value) is not int or value < 0
+                for value in (query.max_missing_foods, query.max_missing_tools)
+            )
+        ):
+            raise StoreError("invalid_argument", self.id)
+        rows = []
+        for recipe in self.recipes.values():
+            missing = tuple(
+                i.food
+                for i in recipe.recipeIngredient or ()
+                if i.food and i.food.id not in query.foods
+            )
+            if len(missing) <= query.max_missing_foods:
+                rows.append(
+                    Suggestion(recipe.id, recipe.name, recipe.slug, missing, ())
+                )
+        return rows[: query.limit]
 
     def get_mealplan(self, dates):
         return [e for e in self.entries.values() if dates.start_date <= e.date <= dates.end_date]
@@ -84,6 +103,27 @@ class FakeRecipeStore:
     def delete_shopping_list(self, list_id):
         self._get(self.lists, list_id)
         del self.lists[list_id]
+
+    def validate_shopping_list_id(self, list_id, *, adding=False):
+        if not isinstance(list_id, str) or not list_id:
+            raise StoreError("invalid_argument", self.id)
+        return list_id
+
+    def validate_recipe_id(self, recipe_id):
+        return recipe_id
+
+    def shopping_list_preview(self, list_id):
+        (name, items) = self._get(self.lists, list_id)
+        rows = [asdict(item) for item in items.values()]
+        return {"name": name, "items_to_remove": rows, "count": len(rows)}
+
+    def clear_shopping_list_items(self, list_id):
+        items = self._get(self.lists, list_id)[1]
+        count = len(items)
+        items.clear()
+        if not count:
+            return {"ok": True, "deleted": 0, "message": "Lista ya estaba vacia"}
+        return {"ok": True, "deleted": count, "status": 200}
 
     def get_shopping_items(self, list_id):
         return ShoppingSnapshot(list_id, tuple(self._get(self.lists, list_id)[1].values()))
@@ -126,12 +166,31 @@ class FakeRecipeStore:
         return WriteResult(tuple(ids))
 
     def get_or_create_tag(self, name):
-        return self.tags.setdefault(name, Tag(self._id(), name))
+        if name in self.tags:
+            return replace(self.tags[name], created=False)
+        tag = _Tag(self._id(), name, name.casefold().replace(" ", "-"), True)
+        self.tags[name] = tag
+        return tag
 
     def tag_recipe(self, slug, tags):
         recipe = self.get_recipe(slug)
-        self.recipes[slug] = replace(recipe, tags=tuple(self.get_or_create_tag(t) for t in tags))
-        return WriteResult((recipe.id,))
+        existing = {tag.id: tag for tag in recipe.tags or ()}
+        added = []
+        for name in tags:
+            tag = self.get_or_create_tag(name)
+            if tag.id not in existing:
+                existing[tag.id] = tag
+                added.append(tag.name)
+        self.recipes[slug] = replace(recipe, tags=tuple(existing.values()))
+        return _Tagged(
+            (recipe.id,),
+            {
+                "ok": True,
+                "slug": slug,
+                "tags_added": added,
+                "total_tags": len(existing),
+            },
+        )
 
     def add_recipe_comment(self, slug, text):
         self.get_recipe(slug)
@@ -144,3 +203,14 @@ class FakeRecipeStore:
         key = self._id()
         self.cooking_events[key] = (slug, subject, message)
         return key
+
+
+@dataclass(frozen=True)
+class _Tag(Tag):
+    slug: str | None = None
+    created: bool = False
+
+
+@dataclass(frozen=True)
+class _Tagged(WriteResult):
+    result: dict | None = None

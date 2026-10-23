@@ -1,16 +1,25 @@
-"""Instance-owned Mealie transport and recipe read mapping.
-
-Write/calendar/list support is added in subsequent bounded migration slices.
-"""
+"""Instance-owned Mealie transport, mapping and legacy response compatibility."""
 import json
+import unicodedata
 import requests
 from typing import Any, cast
 from dataclasses import dataclass
 from copy import deepcopy
 
 from sabor.core import errors
-from sabor.store import (Ingredient, Instruction, NamedRef, Page, Recipe,
-                         RecipeSummary, RecipeRef, StoreError, Suggestion, MealEntry)
+from sabor.store import (
+    WriteResult,
+    Ingredient,
+    Instruction,
+    NamedRef,
+    Page,
+    Recipe,
+    RecipeSummary,
+    RecipeRef,
+    StoreError,
+    Suggestion,
+    MealEntry,
+)
 
 
 def _object(value):
@@ -78,6 +87,7 @@ class MealieRecipeStore(MealieShoppingItemsMixin, MealieShoppingListsMixin):
         self._token = token
         self.base_url = base_url.rstrip("/")
         self.session = session if session is not None else requests.Session()
+        self.direct_compatibility = session is requests
         self._headers = {"Authorization": f"Bearer {token}"}
 
     native_import_kinds = frozenset({'url', 'image'})
@@ -110,14 +120,219 @@ class MealieRecipeStore(MealieShoppingItemsMixin, MealieShoppingListsMixin):
         return normalize_imported_recipe(slug, self.session, self.base_url,
                                          self._token, self.settings)
 
-    def _unsupported(self, *args, **kwargs):
-        raise StoreError("unsupported_operation", self.id)
+    def get_or_create_tag(self, name):
+        result = self._legacy_get_or_create_tag(name)
+        _check_legacy_result(result, self.id)
+        return _TagResult(result.get("id"), result.get("name"), result=result)
 
-    # Explicitly unavailable until their bounded migration units land.
-    get_or_create_tag = _unsupported
-    tag_recipe = _unsupported
-    add_recipe_comment = _unsupported
-    log_cooking_event = _unsupported
+    def tag_recipe(self, slug, tags):
+        result = self._legacy_tag_recipe(slug, tags)
+        _check_legacy_result(result, self.id)
+        return _WriteResult(result=result)
+
+    def add_recipe_comment(self, slug, text):
+        result = self._legacy_add_recipe_comment(slug, text)
+        _check_legacy_result(result, self.id)
+        return _EventId(result.get("comment_id"), result)
+
+    def log_cooking_event(self, slug, subject, message):
+        result = self._legacy_log_cooking_event(slug, subject, message)
+        _check_legacy_result(result, self.id)
+        return _EventId(result.get("event_id"), result)
+
+    def _legacy_get_or_create_tag(self, name: str) -> dict[str, Any]:
+        """Busca un tag por nombre (case-insensitive); si no existe, lo crea."""
+        try:
+            r = self.session.get(
+                f"{self.base_url}/api/organizers/tags",
+                headers={**self._headers, "Content-Type": "application/json"},
+                params={"search": name, "page": 1, "perPage": 100},
+                timeout=30,
+            )
+            if 200 <= r.status_code < 300:
+                requested_tag = "".join(
+                    char
+                    for char in unicodedata.normalize("NFKD", name.casefold())
+                    if not unicodedata.combining(char)
+                )
+                for t in r.json().get("items") or []:
+                    tag_names = (t.get("name"), t.get("slug"))
+                    if any(
+                        isinstance(value, str)
+                        and "".join(
+                            char
+                            for char in unicodedata.normalize("NFKD", value.casefold())
+                            if not unicodedata.combining(char)
+                        )
+                        == requested_tag
+                        for value in tag_names
+                    ):
+                        return {
+                            "ok": True,
+                            "id": t["id"],
+                            "name": t["name"],
+                            "slug": t.get("slug"),
+                            "created": False,
+                        }
+            r2 = self.session.post(
+                f"{self.base_url}/api/organizers/tags",
+                headers={**self._headers, "Content-Type": "application/json"},
+                json={"name": name},
+                timeout=30,
+            )
+            if not (200 <= r2.status_code < 300):
+                return {"ok": False, "status": r2.status_code, "body": r2.text[:500]}
+            data = r2.json()
+            return {
+                "ok": True,
+                "id": data.get("id"),
+                "name": data.get("name"),
+                "slug": data.get("slug"),
+                "created": True,
+            }
+        except Exception as e:
+            return {"ok": False, "error": f"get_or_create_tag_failed: {e}"}
+
+    def _legacy_tag_recipe(self, slug: str, tags: list[str]) -> dict[str, Any]:
+        """Asigna etiquetas a una receta. Conserva tags existentes y anade los nuevos."""
+        try:
+            r = self.session.get(
+                f"{self.base_url}/api/recipes/{slug}",
+                headers={**self._headers, "Content-Type": "application/json"},
+                timeout=30,
+            )
+            if not (200 <= r.status_code < 300):
+                return {
+                    "ok": False,
+                    "status": r.status_code,
+                    "error": f"recipe_not_found: {slug}",
+                }
+            existing_tags = {
+                t["id"]: {
+                    "id": t.get("id"),
+                    "name": t.get("name"),
+                    "slug": t.get("slug"),
+                }
+                for t in (r.json().get("tags") or [])
+                if t.get("id")
+            }
+            added = []
+            for tag_name in tags:
+                tag_result = self._legacy_get_or_create_tag(tag_name)
+                if not tag_result.get("ok"):
+                    return {
+                        "ok": False,
+                        "error": f"tag_resolution_failed: {tag_name}",
+                        "tag_result": tag_result,
+                    }
+                if not all(tag_result.get(field) for field in ("id", "name", "slug")):
+                    return {
+                        "ok": False,
+                        "error": f"tag_resolution_incomplete: {tag_name}",
+                        "tag_result": tag_result,
+                    }
+                tid = tag_result["id"]
+                if tid not in existing_tags:
+                    existing_tags[tid] = {
+                        "id": tid,
+                        "name": tag_result["name"],
+                        "slug": tag_result["slug"],
+                    }
+                    added.append(tag_result["name"])
+            all_tags = list(existing_tags.values())
+            rp = self.session.patch(
+                f"{self.base_url}/api/recipes/{slug}",
+                headers={**self._headers, "Content-Type": "application/json"},
+                json={"tags": all_tags},
+                timeout=30,
+            )
+            if not (200 <= rp.status_code < 300):
+                return {"ok": False, "status": rp.status_code, "body": rp.text[:500]}
+            return {
+                "ok": True,
+                "slug": slug,
+                "tags_added": added,
+                "total_tags": len(all_tags),
+            }
+        except Exception as e:
+            return {"ok": False, "error": f"tag_recipe_failed: {e}"}
+
+    def _legacy_add_recipe_comment(self, slug: str, text: str) -> dict[str, Any]:
+        """Anade un comentario a una receta en Mealie (rating, notas, feedback)."""
+        try:
+            rr = self.session.get(
+                f"{self.base_url}/api/recipes/{slug}",
+                headers={**self._headers, "Content-Type": "application/json"},
+                timeout=30,
+            )
+            if not (200 <= rr.status_code < 300):
+                return {
+                    "ok": False,
+                    "status": rr.status_code,
+                    "error": f"recipe_not_found: {slug}",
+                }
+            recipe_id = rr.json().get("id")
+            if not recipe_id:
+                return {"ok": False, "error": f"recipe_id_missing_for: {slug}"}
+            r = self.session.post(
+                f"{self.base_url}/api/comments",
+                headers={**self._headers, "Content-Type": "application/json"},
+                json={"recipeId": recipe_id, "text": text},
+                timeout=30,
+            )
+            if not (200 <= r.status_code < 300):
+                return {"ok": False, "status": r.status_code, "body": r.text[:500]}
+            return {
+                "ok": True,
+                "comment_id": r.json().get("id"),
+                "slug": slug,
+                "text": text,
+            }
+        except Exception as e:
+            return {"ok": False, "error": f"add_comment_failed: {e}"}
+
+    def _legacy_log_cooking_event(
+        self, slug: str, subject: str, message: str | None = None
+    ) -> dict[str, Any]:
+        """Registra un evento en el timeline de una receta (cooking log / historial)."""
+        try:
+            rr = self.session.get(
+                f"{self.base_url}/api/recipes/{slug}",
+                headers={**self._headers, "Content-Type": "application/json"},
+                timeout=30,
+            )
+            if not (200 <= rr.status_code < 300):
+                return {
+                    "ok": False,
+                    "status": rr.status_code,
+                    "error": f"recipe_not_found: {slug}",
+                }
+            recipe_id = rr.json().get("id")
+            if not recipe_id:
+                return {"ok": False, "error": f"recipe_id_missing_for: {slug}"}
+            payload: dict[str, Any] = {
+                "recipeId": recipe_id,
+                "subject": subject,
+                "eventType": "info",
+            }
+            if message:
+                payload["eventMessage"] = message
+            r = self.session.post(
+                f"{self.base_url}/api/recipes/timeline/events",
+                headers={**self._headers, "Content-Type": "application/json"},
+                json=payload,
+                timeout=30,
+            )
+            if not (200 <= r.status_code < 300):
+                return {"ok": False, "status": r.status_code, "body": r.text[:500]}
+            return {
+                "ok": True,
+                "event_id": r.json().get("id"),
+                "slug": slug,
+                "subject": subject,
+            }
+        except Exception as e:
+            return {"ok": False, "error": f"log_cooking_event_failed: {e}"}
 
     def _calendar_request(self, method, path="", **kwargs):
         try:
@@ -169,7 +384,7 @@ class MealieRecipeStore(MealieShoppingItemsMixin, MealieShoppingListsMixin):
 
     def set_mealplan_entry(self, entry):
         # Shared legacy gate intentionally retains nutrition config/services/locks.
-        from sabor.tools.mealplan import _schedule
+        from sabor.store.mealie_schedule import _schedule
         result = _schedule(entry.date, entry.entry_type, entry.title, entry.recipe_slug,
                            self.session, self.base_url, self._headers)
         if not result.get("ok"):
@@ -348,3 +563,29 @@ class _MealieStringRef(NamedRef):
 class _CalendarEntry(MealEntry):
     raw: dict | None = None
     result: dict | None = None
+
+
+def _check_legacy_result(result, provider):
+    if not result.get("ok"):
+        exc = StoreError("upstream_error", provider)
+        setattr(exc, "result", result)
+        raise exc
+
+
+@dataclass(frozen=True)
+class _TagResult(NamedRef):
+    result: dict | None = None
+
+
+@dataclass(frozen=True)
+class _WriteResult(WriteResult):
+    result: dict | None = None
+
+
+class _EventId(str):
+    result: dict
+
+    def __new__(cls, value, result):
+        obj = super().__new__(cls, value or "")
+        obj.result = result
+        return obj
