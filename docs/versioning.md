@@ -89,8 +89,10 @@ remain backward-compatible fixes.
 2. Review all changes since the previous tag and identify MCP, configuration,
    schema, engine, catalog, and operational effects.
 3. Update the `Unreleased` changelog entries and choose the SemVer increment.
-4. Update `mcp-manifest.json` `version`; update schema, engine, or catalog
-   versions only when their independent contracts changed.
+4. Update `mcp-manifest.json` `version`, `server.json` `version` and its
+   package `identifier` tag, and `VERSION` in `sabor/server.py` (a test keeps
+   them equal); update schema, engine, or catalog versions only when their
+   independent contracts changed.
 5. Update README, operations, architecture, and migration notes where affected.
 6. Run the complete validation suite:
 
@@ -108,6 +110,24 @@ remain backward-compatible fixes.
 10. Create an annotated tag after the release commit and review are complete.
 11. Deploy only through the reviewed deployment procedure, then verify
     transport health and read-only integrations.
+
+## Publishing the image and the MCP registry entry
+
+Nothing is published automatically from pull requests. Each external
+publication needs the maintainer's explicit approval, in this order:
+
+1. **Image.** Pushing the annotated tag `vX.Y.Z` (or running *Publish image*
+   by hand) builds `ghcr.io/jlmoreno00/sabor:X.Y.Z` with
+   `.github/workflows/publish-image.yml`. The image carries the
+   `io.modelcontextprotocol.server.name` label the registry uses to verify
+   ownership. Make the GHCR package public after the first publication.
+2. **Registry.** Only once that image exists: `server.json` describes it
+   (schema `2025-12-11`, validated offline by `tests/test_registry_server_json.py`).
+   Publish with the official `mcp-publisher` CLI: `mcp-publisher login github`
+   as `JlMoreno00`, then `mcp-publisher publish` from the repository root.
+
+Keep `server.json` environment variables in sync with `mcp-manifest.json`;
+the test fails otherwise.
 
 ## Tags and Changelog
 

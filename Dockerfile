@@ -1,5 +1,8 @@
 FROM python:3.12-slim
 
+# Ownership proof for the official MCP registry; must equal "name" in server.json.
+LABEL io.modelcontextprotocol.server.name="io.github.JlMoreno00/sabor"
+
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg curl && rm -rf /var/lib/apt/lists/*

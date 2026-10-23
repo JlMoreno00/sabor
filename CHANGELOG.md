@@ -10,6 +10,10 @@
   pinned Mealie 3.22.0; without the profile `docker compose up -d` keeps the
   Sabor-only behavior. Three-step README quickstart, `scripts/check-compose.py`
   in CI, and a GHCR publish workflow that runs only manually or on `v*` tags (#33).
+- `server.json` for the official MCP registry (`io.github.JlMoreno00/sabor`,
+  OCI package `ghcr.io/jlmoreno00/sabor`), validated offline against the
+  registry schema and kept in sync with `mcp-manifest.json`; the image carries
+  the registry ownership label. Not submitted to the registry yet (#35).
 
 ### Changed
 - Context-aware tools receive their `AppContext` explicitly per call through
