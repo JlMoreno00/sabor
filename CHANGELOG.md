@@ -15,6 +15,11 @@
   compatibility context (#4).
 
 ### Fixed
+- `mcp-manifest.json` no longer advertises Spoonacular and now lists every
+  environment variable Sabor reads (adds `SABOR_TOOLSETS`, `SABOR_LLM_*`,
+  `SABOR_VIDEO_PROVIDER`, `SABOR_MERCADONA_ENABLED`) with real descriptions and
+  code defaults; `MEALIE_BASE_URL` no longer claims a default. A contract test
+  keeps the manifest in sync with the configuration parsers and `.env.example` (#34).
 - Registered tools now isolate compatibility configuration, Gemini/video tagging,
   nutrition services and keyed/provider locks, correction stages, Bring catalog
   overrides and memory paths per AppContext (#3). Every registered tool binds
