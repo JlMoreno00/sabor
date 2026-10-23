@@ -2,9 +2,10 @@
 
 from importlib import import_module
 import os
+import sqlite3
 from weakref import WeakKeyDictionary
 
-from sabor.core.config import load_settings
+from sabor.core.config import ConfigError, load_settings
 from sabor.core.context import assemble_context
 from sabor.core.capabilities import describe
 from sabor.core.toolsets import catalog, bind_context, use_context
@@ -97,8 +98,14 @@ def register_tools(server=None, env=None, *, store_factory=None) -> None:
 
 
 def start_runtime_services(server=None) -> None:
-    """Start background work for a registered server (network I/O; runtime only)."""
+    """Initialize persistence and background work; I/O belongs to runtime only."""
     context = _contexts.get(mcp if server is None else server)
+    ensure_ready = getattr(context.store, "ensure_ready", None) if context is not None else None
+    if callable(ensure_ready):
+        try:
+            ensure_ready()
+        except (OSError, sqlite3.Error):
+            raise ConfigError("Unable to open SQLite recipe store") from None
     for provider in (context.pricing if context is not None else ()):
         start = getattr(provider, "start_background_refresh", None)
         if callable(start):

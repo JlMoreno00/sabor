@@ -3,6 +3,9 @@
 ## [Unreleased]
 
 ### Added
+- Built-in SQLite recipe store, selected by default without a Mealie URL, with
+  configurable `SABOR_STORE` / `SABOR_STORE_DB`, FTS search, meal plans and
+  shopping lists usable through Bring! previews without Mealie (#37).
 - CI `Lint (ruff)` job with a repository `ruff.toml` (pyflakes `F` and syntax
   errors `E9`, ruff pinned to 0.17.1); existing findings fixed without behavior
   changes (#32).

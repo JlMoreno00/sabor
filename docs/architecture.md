@@ -1,9 +1,27 @@
 # Sabor Architecture
 
 Sabor is one stateless FastMCP HTTP process around multiple external systems,
-plus two local persistence concerns. The configured RecipeStore owns cooking
-data; Sabor owns orchestration and optional evidence. Mealie remains the only
-production store.
+plus local recipe, memory and nutrition persistence. The configured RecipeStore owns cooking
+data; Sabor owns orchestration and optional evidence. SQLite is the built-in default without a Mealie URL; Mealie remains supported.
+
+## Recipe store selection
+
+`load_settings` selects explicit `SABOR_STORE=sqlite|mealie`, otherwise Mealie
+when `MEALIE_BASE_URL` is non-empty, SQLite otherwise. `SABOR_STORE_DB` defaults
+to `/data/sabor.db`. Assembly constructs an instance-owned SQLite store from
+Settings, never a global path or connection. SQLite uses versioned forward-only
+migrations, FTS5 search (also import duplicate detection), WAL and a connection
+per call. Construction and context assembly perform no filesystem I/O. A per-instance
+lock guards lazy initialization and migrations; `start_runtime_services` calls
+`ensure_ready()` before serving requests, failing safely if opening fails.
+Direct store operations initialize on first use and sanitize I/O failures.
+Distinct database paths isolate registrations; shared paths intentionally
+share persistence. Startup open errors are sanitized and never trigger fallback.
+
+Core recipes, meal plans and shopping lists work without Mealie. Native URL/image
+import and Spanish catalog remain Mealie-only; `legacy_nutrition` is unavailable
+with SQLite. Discovery lists the active `recipe_store` adapter and operations;
+`data.mealie.configured` still reflects Mealie credentials, not the selected store.
 
 ## System Boundaries
 
@@ -45,7 +63,7 @@ is a separate, dominant boundary.
 
 FastMCP is configured as stateless HTTP. This means MCP session state is not
 stored in the process, but instance provider caches, the legacy Mercadona cache
-and the two local data files are still operational state.
+and the local data files are still operational state.
 
 Gemini upload deletion is best effort, not guaranteed. Sabor attempts deletion
 after extraction and after a processing failure, but suppresses request errors,

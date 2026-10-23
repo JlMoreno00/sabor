@@ -16,6 +16,7 @@ BRING = {'BRING_EMAIL': 'private@example.com', 'BRING_PASSWORD': 'secret-bring'}
 class RegistrationTests(unittest.TestCase):
     def register(self, env):
         server = FastMCP('test')
+        env = {'SABOR_STORE': 'mealie', **env}
         register_tools(server, env)
         tools = {t.name: t for t in server._tool_manager.list_tools()}
         before = list(tools)

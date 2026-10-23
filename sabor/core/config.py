@@ -31,6 +31,8 @@ class Settings:
     memory_file: str = field(repr=False)
 
     legacy_config: LegacyConfig = field(default_factory=lambda: load_legacy_config({}), repr=False)
+    store: str = 'sqlite'
+    store_db: str = field(default='/data/sabor.db', repr=False)
     normalize_imports: bool = True
     ingredient_parser: str = 'openai'
     normalize_confidence: float = 0.75
@@ -78,6 +80,9 @@ def load_settings(env: Mapping[str, str]) -> Settings:
     provider = get('SABOR_VIDEO_PROVIDER')
     if provider not in ('', 'gemini_native', 'openai_compatible'):
         raise ConfigError('Invalid SABOR_VIDEO_PROVIDER')
+    store = get('SABOR_STORE') or ('mealie' if mealie else 'sqlite')
+    if store not in ('sqlite', 'mealie'):
+        raise ConfigError('Invalid SABOR_STORE')
     legacy = load_legacy_config(env)
     return Settings(requested, mealie, get('MEALIE_API_TOKEN'), llm,
                     get('SABOR_LLM_MODEL'), get('SABOR_LLM_API_KEY'),
@@ -87,6 +92,7 @@ def load_settings(env: Mapping[str, str]) -> Settings:
                     get('BRING_EMAIL'), get('BRING_PASSWORD'), get('SPOONACULAR_API_KEY'),
                     get('SABOR_MERCADONA_ENABLED').lower() == 'true',
                     legacy.SABOR_NUTRITION_ENABLED, str(legacy.MEMORY_FILE), legacy,
+                    store, get('SABOR_STORE_DB') or '/data/sabor.db',
                     legacy.SABOR_NORMALIZE_IMPORTS,
                     legacy.SABOR_INGREDIENT_PARSER,
                     legacy.SABOR_NORMALIZE_CONFIDENCE)

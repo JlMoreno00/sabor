@@ -41,6 +41,19 @@
           "isSecret": false
         },
         {
+          "name": "SABOR_STORE",
+          "description": "Recipe backend: sqlite or mealie. Unset selects mealie when MEALIE_BASE_URL is non-empty, otherwise sqlite.",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "SABOR_STORE_DB",
+          "description": "SQLite recipe database path; parent directories are created at startup. Persist and back up its data volume.",
+          "default": "/data/sabor.db",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
           "name": "MEALIE_BASE_URL",
           "description": "URL of your Mealie instance, e.g. http://host.docker.internal:9925 from Docker or http://mealie:9000 on a shared Compose network. Required by the core recipe, meal plan and shopping tools.",
           "isRequired": true,

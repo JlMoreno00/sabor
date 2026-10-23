@@ -139,7 +139,7 @@ def test_mealie_shopping_recipe_id_policy_is_preserved(recipe_id):
 
 def test_missing_store_still_disables_core():
     server = FastMCP("no-store")
-    register_tools(server, {"SABOR_TOOLSETS": "core"})
+    register_tools(server, {"SABOR_TOOLSETS": "core", "SABOR_STORE": "mealie"})
     assert {tool.name for tool in server._tool_manager.list_tools()} == {
         "sabor_capabilities"
     }

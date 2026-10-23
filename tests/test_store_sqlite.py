@@ -57,7 +57,7 @@ def test_interrupted_migration(tmp_path):
 
     with patch("sabor.store.sqlite_schema.MIGRATIONS", (MIGRATIONS[0], (2, interrupted))):
         with pytest.raises(sqlite3.OperationalError):
-            SqliteRecipeStore(path)
+            SqliteRecipeStore(path).ensure_ready()
     with sqlite3.connect(path) as db:
         assert db.execute("SELECT version FROM schema_version").fetchall() == [(1,)]
         assert not db.execute("SELECT name FROM sqlite_master WHERE name='recipe_search'").fetchall()

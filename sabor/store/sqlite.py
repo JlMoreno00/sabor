@@ -6,6 +6,7 @@ import json
 from math import isfinite
 from pathlib import Path
 import sqlite3
+import threading
 import unicodedata
 
 from . import (NamedRef, Ingredient, Instruction, Recipe, RecipeOccurrence,
@@ -78,12 +79,30 @@ class SqliteRecipeStore:
 
     def __init__(self, path):
         self.path = Path(path)
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        with self._connect() as db:
-            migrate(db)
+        self._ready = False
+        self._initialization_lock = threading.Lock()
+
+    def ensure_ready(self):
+        """Initialize once per instance; startup callers handle raw I/O errors."""
+        with self._initialization_lock:
+            if not self._ready:
+                directory = self.path.parent
+                directory.mkdir(parents=True, exist_ok=True)
+                with self._connection() as connection:
+                    migrate(connection)
+                self._ready = True
 
     @contextmanager
     def _connect(self):
+        try:
+            self.ensure_ready()
+            with self._connection() as db:
+                yield db
+        except (OSError, sqlite3.Error):
+            raise StoreError("upstream_error", self.id) from None
+
+    @contextmanager
+    def _connection(self):
         db = sqlite3.connect(self.path, timeout=10)
         try:
             db.execute("PRAGMA busy_timeout=10000")
@@ -130,7 +149,8 @@ class SqliteRecipeStore:
             slug = draft.slug or self._id(db)
             if db.execute("SELECT 1 FROM recipes WHERE slug=?", (slug,)).fetchone():
                 raise StoreError("conflict", self.id)
-            recipe = replace(draft, slug=slug, id=draft.id or self._id(db))
+            recipe = Recipe(**{f.name: getattr(draft, f.name) for f in fields(Recipe)})
+            recipe = replace(recipe, slug=slug, id=draft.id or self._id(db))
             db.execute("INSERT INTO recipes VALUES (?, ?, ?)", (slug, recipe.id, _json(recipe)))
             self._save_recipe(db, recipe)
             return RecipeRef(recipe.id, recipe.name, slug)
@@ -284,7 +304,7 @@ class SqliteRecipeStore:
                 recipe = self._get_recipe(db, o.slug)
                 if not isfinite(o.multiplier) or not 0 < o.multiplier <= 20:
                     raise StoreError("invalid_argument", self.id)
-                recipes.append((o, recipe))
+                recipes.append((RecipeOccurrence(o.slug, o.multiplier), recipe))
             changed = []
             for o, recipe in recipes:
                 for i in recipe.recipeIngredient or ():

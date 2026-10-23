@@ -107,7 +107,8 @@ class RegistryTests(unittest.TestCase):
             self.assertNotIn('secret', str(error.exception))
 
     def test_legacy_and_mealie_configuration(self):
-        r = registry({'SABOR_TOOLSETS': 'legacy_pricing,legacy_nutrition,legacy_catalog',
+        r = registry({'SABOR_STORE': 'mealie',
+                      'SABOR_TOOLSETS': 'legacy_pricing,legacy_nutrition,legacy_catalog',
                       'SABOR_MERCADONA_ENABLED': 'true'})
         self.assertEqual(r.enabled_toolsets, ('legacy_pricing', 'legacy_nutrition'))
         self.assertEqual(r.disabled_toolsets['legacy_catalog'], 'missing_configuration')
