@@ -2,11 +2,20 @@
 
 from typing import Any
 from dataclasses import dataclass, fields, is_dataclass
-from sabor.store import RecipeDraft, RecipePatch, RecipeSearch, SuggestionQuery, StoreError, store_error_envelope
-import requests
-from sabor.core.runtime import config
+from sabor.core.runtime import config as config  # Direct-call patch compatibility.
+from sabor.store import (
+    Ingredient,
+    Instruction,
+    NamedRef,
+    RecipeDraft,
+    RecipePatch,
+    RecipeSearch,
+    SuggestionQuery,
+    StoreError,
+    store_error_envelope,
+)
 import sabor.integrations.mealie as mealie
-from sabor.core.toolsets import current_context, tool, mealie_ready
+from sabor.core.toolsets import current_context, tool, store_ready
 from sabor.core.envelope import ok, preview, fail
 from sabor.core import errors
 
@@ -14,35 +23,6 @@ from sabor.core import errors
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 
-def _configured():
-    if not config.MEALIE_API_TOKEN:
-        return fail("provider_unconfigured", "Mealie is not configured.", "mealie")
-
-
-def _request(method, path, **kwargs) -> tuple[Any, dict | None]:
-    response = method(
-        f"{config.MEALIE_BASE_URL}/api/recipes{path}",
-        headers=mealie._mealie_headers(), timeout=30, **kwargs)
-    if not 200 <= response.status_code < 300:
-        return None, errors.from_http(response.status_code, "mealie")
-    return response, None
-
-
-def _object(value):
-    if not isinstance(value, dict):
-        raise ValueError("Expected object")
-    return value
-
-
-def _items(data):
-    items = _object(data).get("items")
-    if not isinstance(items, list):
-        raise ValueError("Expected items")
-    return [_object(item) for item in items]
-
-
-def _summary(item):
-    return {key: item.get(key) for key in ("id", "name", "slug")}
 
 
 def _tuple(value):
@@ -61,7 +41,7 @@ def _public(value) -> Any:
 
 def _store_read(ctx, operation, argument):
     if ctx.store is None:
-        return fail("provider_unconfigured", "Mealie is not configured.", "mealie")
+        return fail("provider_unconfigured", "Recipe store is not configured.", "mealie")
     try:
         data = _public(getattr(ctx.store, operation)(argument))
         if operation == "suggest_recipes":
@@ -71,7 +51,7 @@ def _store_read(ctx, operation, argument):
         return store_error_envelope(exc)
 
 
-@tool("core", requires=mealie_ready, uses_context=True)
+@tool("core", requires=store_ready, uses_context=True)
 def search_recipes(
     query: str = "", page: int = 1, per_page: int = 25,
     tag_ids: list[str] | None = None, category_ids: list[str] | None = None,
@@ -89,7 +69,7 @@ def search_recipes(
     return _store_read(current_context(), "search_recipes", filters)
 
 
-@tool("core", requires=mealie_ready, uses_context=True)
+@tool("core", requires=store_ready, uses_context=True)
 def get_recipe(slug: str) -> dict[str, Any]:
     """Read structured ingredients, instructions, taxonomy and times; unknowns stay null."""
     return _store_read(current_context(), "get_recipe", slug)
@@ -103,7 +83,7 @@ _PATCH_FIELDS = frozenset((
 _ARRAY_FIELDS = frozenset(("recipeIngredient", "recipeInstructions", "tags", "recipeCategory"))
 
 
-@tool("core", requires=mealie_ready, uses_context=True)
+@tool("core", requires=store_ready, uses_context=True)
 def update_recipe(slug: str, patch: dict, confirm: bool = False) -> dict[str, Any]:
     """Preview or PATCH selected fields. Arrays replace whole lists, not individual entries."""
     if not isinstance(patch, dict) or not patch or patch.keys() - _PATCH_FIELDS:
@@ -113,7 +93,7 @@ def update_recipe(slug: str, patch: dict, confirm: bool = False) -> dict[str, An
 
 def _update(ctx, slug, patch, confirm):
     if ctx.store is None:
-        return fail("provider_unconfigured", "Mealie is not configured.", "mealie")
+        return fail("provider_unconfigured", "Recipe store is not configured.", "mealie")
     try:
         if not confirm:
             before = _public(ctx.store.get_recipe(slug))
@@ -127,7 +107,7 @@ def _update(ctx, slug, patch, confirm):
         return store_error_envelope(exc)
 
 
-@tool("core", requires=mealie_ready, uses_context=True)
+@tool("core", requires=store_ready, uses_context=True)
 def suggest_recipes(
     foods: list[str], tools: list[str] | None = None,
     max_missing_foods: int = 2, max_missing_tools: int = 0,
@@ -193,7 +173,24 @@ def create_recipe(
                     "recipeYield": "2 raciones",
                 }
             )
-        draft = _CreateDraft(name=name, jsonld=jsonld_recipe)
+        draft = _CreateDraft(
+            name=name,
+            description=description,
+            recipeYield=jsonld_recipe.get("recipeYield"),
+            totalTime=total_time,
+            recipeIngredient=tuple(
+                Ingredient(originalText=value)
+                for value in jsonld_recipe.get("recipeIngredient", ())
+            ),
+            recipeInstructions=tuple(
+                Instruction(text=value)
+                for value in jsonld_recipe.get("recipeInstructions", ())
+            ),
+            tags=tuple(NamedRef(name=value) for value in tags)
+            if tags is not None
+            else None,
+            jsonld=jsonld_recipe,
+        )
     except Exception as exc:
         return errors.from_exception(exc, "mealie")
     return _create(current_context(), draft, is_structured)
@@ -210,9 +207,9 @@ def _create(ctx, draft, structured):
     try:
         ref = ctx.store.create_recipe(draft)
         result = _public(ref)
-        if getattr(ctx.store, "session", None) is requests:
+        if getattr(ctx.store, "direct_compatibility", False):
             return mealie._normalization_result(result, ref.slug, enabled=structured)
-        if structured:
+        if structured and ctx.store.id == "mealie":
             normalizer = getattr(ctx.store, "normalize_imported", None)
             if ctx.settings.normalize_imports and ref.slug and normalizer:
                 normalized = normalizer(ref.slug)

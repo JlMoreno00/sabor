@@ -160,7 +160,16 @@ def preview_video(source, cfg, request, extractor=None):
 
 
 def tag_video(slug):
-    from sabor.tools.tags import tag_recipe
-    result = tag_recipe(slug, ['video-import'])
-    if not result.get('ok'):
+    from sabor.core.toolsets import current_context, use_context
+    from sabor.core.context import default_context
+    from sabor.store import StoreError
+
+    try:
+        ctx = current_context()
+    except LookupError:
+        with use_context(factory=default_context):
+            return tag_video(slug)
+    try:
+        ctx.store.tag_recipe(slug, ['video-import'])
+    except StoreError:
         reject('upstream_error', 'Video recipe tagging failed.', 'mealie')

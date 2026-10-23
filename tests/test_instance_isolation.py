@@ -146,8 +146,8 @@ for name in ('a', 'b'):
                            'SABOR_LLM_MODEL': 'test', 'SABOR_MERCADONA_ENABLED': 'true'})
     assert server.tools['save_feedback'](name, rating=5)['ok']
     assert server.tools['nutrition_unresolved_report']()['ok']
-    with patch('requests.get', return_value=Mock(status_code=200, json=lambda: {'tags': []})), \\
-         patch('requests.patch', return_value=Mock(status_code=200)):
+    with patch('requests.Session.get', return_value=Mock(status_code=200, json=lambda: {'tags': []})), \\
+         patch('requests.Session.patch', return_value=Mock(status_code=200)):
         assert server.tools['tag_recipe']('recipe', [])['ok']
 assert 'sabor.config' not in sys.modules
 '''

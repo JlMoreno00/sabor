@@ -1,12 +1,11 @@
 """Read and safely mutate items belonging to one Mealie shopping list."""
-from uuid import UUID
 from datetime import date
 from dataclasses import dataclass
 
 from sabor.store import (StoreError, store_error_envelope, ItemDraft, RecipeOccurrence, DateRange)
 from sabor.core import errors
 from sabor.core.envelope import fail, ok, preview
-from sabor.core.toolsets import current_context, mealie_ready, tool
+from sabor.core.toolsets import current_context, store_ready, tool
 
 @dataclass(frozen=True)
 class _ResolvedOccurrence(RecipeOccurrence):
@@ -27,10 +26,7 @@ def _normalize(item):
 
 
 def _read(ctx, list_id):
-    try:
-        canonical = str(UUID(list_id))
-    except (ValueError, TypeError, AttributeError):
-        return _invalid("list_id must be a UUID.")
+    canonical = ctx.store.validate_shopping_list_id(list_id)
     return ok(list(ctx.store.get_shopping_items(canonical).items))
 
 
@@ -52,16 +48,16 @@ def _selection(ctx, list_id, item_ids):
 
 def _run(ctx, operation, *args):
     if ctx.store is None:
-        return fail("provider_unconfigured", "Mealie is not configured.", "mealie")
+        return fail("provider_unconfigured", "Recipe store is not configured.", "mealie")
     try:
         return operation(ctx, *args)
     except StoreError as exc:
-        return store_error_envelope(exc)
+        return getattr(exc, "result", None) or store_error_envelope(exc)
     except Exception as exc:
         return errors.from_exception(exc, "mealie")
 
 
-@tool("core", requires=mealie_ready, uses_context=True)
+@tool("core", requires=store_ready, uses_context=True)
 def add_to_shopping_list(list_id: str, items: list[str] | None = None,
                          recipe_slugs: list[str] | None = None,
                          mealplan_start: str | None = None, mealplan_end: str | None = None,
@@ -78,7 +74,7 @@ def _add_to_shopping_list(ctx, list_id: str, items: list[str] | None = None,
                          mealplan_start: str | None = None, mealplan_end: str | None = None,
                          servings_multiplier: float = 1.0) -> dict:
     try:
-        list_id = str(UUID(list_id))
+        list_id = ctx.store.validate_shopping_list_id(list_id, adding=True)
         if type(servings_multiplier) not in (int, float) or not 0 < servings_multiplier <= 20:
             raise ValueError
         range_selected = mealplan_start is not None or mealplan_end is not None
@@ -108,7 +104,7 @@ def _add_to_shopping_list(ctx, list_id: str, items: list[str] | None = None,
                     result = store_error_envelope(exc)
                     result["data"] = {"unresolved_slugs": [slug]}
                     return result
-                occurrences.append({"id": str(UUID(recipe.id)), "slug": slug})
+                occurrences.append({"id": ctx.store.validate_recipe_id(recipe.id), "slug": slug})
         elif range_selected:
             assert isinstance(mealplan_start, str) and isinstance(mealplan_end, str)
             for entry in ctx.store.get_mealplan(DateRange(mealplan_start, mealplan_end)):
@@ -117,7 +113,7 @@ def _add_to_shopping_list(ctx, list_id: str, items: list[str] | None = None,
                         raise ValueError("Missing recipe reference")
                     skipped.append({"entry": entry.id, "reason": "text_only_entry"})
                 else:
-                    occurrences.append({"id": str(UUID(entry.recipe_id)), "slug": entry.recipe_slug})
+                    occurrences.append({"id": ctx.store.validate_recipe_id(entry.recipe_id), "slug": entry.recipe_slug})
         for recipe in occurrences:
             summary = recipes.setdefault(recipe["id"], {**recipe, "occurrences": 0})
             summary["occurrences"] += 1
@@ -145,7 +141,7 @@ def _add_to_shopping_list(ctx, list_id: str, items: list[str] | None = None,
         return errors.from_exception(exc, "mealie")
 
 
-@tool("core", requires=mealie_ready, uses_context=True)
+@tool("core", requires=store_ready, uses_context=True)
 def get_shopping_list_items(list_id: str, checked: bool | None = None,
                             page: int = 1, per_page: int = 100) -> dict:
     """Read one list's items, optionally filter checked state, then paginate locally."""
@@ -173,7 +169,7 @@ def _get_shopping_list_items(ctx, list_id: str, checked: bool | None = None,
         return errors.from_exception(exc, "mealie")
 
 
-@tool("core", requires=mealie_ready, uses_context=True)
+@tool("core", requires=store_ready, uses_context=True)
 def check_shopping_list_items(list_id: str, item_ids: list[str], checked: bool = True) -> dict:
     """Set checked state only after verifying every requested item belongs to the list."""
     return _run(current_context(), _check_shopping_list_items, list_id, item_ids, checked)
@@ -194,7 +190,7 @@ def _check_shopping_list_items(ctx, list_id: str, item_ids: list[str], checked: 
         return errors.from_exception(exc, "mealie")
 
 
-@tool("core", requires=mealie_ready, uses_context=True)
+@tool("core", requires=store_ready, uses_context=True)
 def remove_shopping_list_items(list_id: str, item_ids: list[str], confirm: bool = False) -> dict:
     """Preview item removal; confirm=True deletes exactly the verified item IDs."""
     return _run(current_context(), _remove_shopping_list_items, list_id, item_ids, confirm)

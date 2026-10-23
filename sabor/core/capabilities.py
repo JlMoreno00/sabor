@@ -44,7 +44,7 @@ def describe(registry: 'Registry | AppContext', registered_tools, version: str) 
                 if not kinds:
                     continue
                 row.update(kinds=sorted(kinds), operations=['preview'])
-                if registry.settings.mealie_configured:
+                if registry.recipe_store is not None:
                     row['operations'].append('commit')
                 if 'image' in kinds:
                     row['limitations'] = ['Image import uses Mealie-owned OpenAI configuration; preview is not supported.']

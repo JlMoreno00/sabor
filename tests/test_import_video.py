@@ -142,6 +142,6 @@ class VideoTests(unittest.TestCase):
 
     def test_only_video_import_tag_is_added(self):
         from sabor.importing import video as v
-        with patch('sabor.tools.tags.tag_recipe', return_value={'ok': True}) as tag:
+        with patch('sabor.store.mealie.MealieRecipeStore.tag_recipe', return_value={'ok': True}) as tag:
             v.tag_video('soup')
             tag.assert_called_once_with('soup', ['video-import'])

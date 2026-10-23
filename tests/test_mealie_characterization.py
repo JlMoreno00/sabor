@@ -443,9 +443,9 @@ def test_video_post_create_tags(server, wire, monkeypatch):
 @pytest.mark.parametrize(
     "name,args,message,provider",
     [
-        ("get_recipe", ("soup",), "Mealie is not configured.", "mealie"),
-        ("get_shopping_lists", (), "Mealie is not configured.", "mealie"),
-        ("get_shopping_list_items", (LIST,), "Mealie is not configured.", "mealie"),
+        ("get_recipe", ("soup",), "Recipe store is not configured.", "mealie"),
+        ("get_shopping_lists", (), "Recipe store is not configured.", "mealie"),
+        ("get_shopping_list_items", (LIST,), "Recipe store is not configured.", "mealie"),
         (
             "get_mealplan_week",
             ("2026-01-01", "2026-01-07"),
