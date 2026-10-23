@@ -26,10 +26,16 @@ part of the operational contract.
 Required before review:
 
 ```bash
+python3 -m pip install ruff==0.17.1  # same version as CI
+ruff check .
 PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -v
 PYTHONDONTWRITEBYTECODE=1 python3 -m py_compile sabor_mcp.py nutrition/*.py scripts/*.py tests/*.py
 docker compose config -q
 ```
+
+`ruff check .` uses the repository's `ruff.toml` (pyflakes `F` and syntax
+errors `E9` only); CI runs the same pinned version in the `Lint (ruff)` job and
+fails on any new finding. Do not rely on a global ruff configuration.
 
 Tests must not depend on live Mealie data, real API credentials, provider
 availability, or a persistent database. Use `unittest.mock`, temporary
