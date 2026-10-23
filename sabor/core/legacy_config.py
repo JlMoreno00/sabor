@@ -26,6 +26,10 @@ def load_legacy_config(env: Mapping[str, str]) -> LegacyConfig:
     MEALIE_BASE_URL = env.get("MEALIE_BASE_URL", "http://localhost:9925").rstrip("/")
     MEALIE_API_TOKEN = env.get("MEALIE_API_TOKEN", "")
 
+    SABOR_STORE = env.get("SABOR_STORE", "").strip() or (
+        "mealie" if env.get("MEALIE_BASE_URL", "").strip() else "sqlite")
+    SABOR_STORE_DB = env.get("SABOR_STORE_DB", "").strip() or "/data/sabor.db"
+
     SPOONACULAR_API_KEY = env.get("SPOONACULAR_API_KEY", "")
     SPOONACULAR_BASE = "https://api.spoonacular.com"
     SPOONACULAR_TIMEOUT = 20

@@ -193,7 +193,7 @@ class ImportTests(unittest.TestCase):
             def add_tool(self, fn):
                 self.tools[fn.__name__] = fn
         server = Server()
-        register_tools(server, {'SABOR_LLM_BASE_URL': 'http://localhost:11434/v1', 'SABOR_LLM_MODEL': 'test'})
+        register_tools(server, {'SABOR_STORE': 'mealie', 'SABOR_LLM_BASE_URL': 'http://localhost:11434/v1', 'SABOR_LLM_MODEL': 'test'})
         self.assertIn('import_recipe', server.tools)
         self.assertNotIn('search_recipes', server.tools)
         self.assertEqual(_registered[server].imports[0].id, 'openai_compatible')

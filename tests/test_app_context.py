@@ -69,7 +69,7 @@ class ContextTests(unittest.TestCase):
             def add_tool(self, fn):
                 self.tools.append(fn)
         empty = Server()
-        register_tools(empty, {})
+        register_tools(empty, {'SABOR_STORE': 'mealie'})
         self.assertEqual(len(empty.tools), 1)
         mealie = Server()
         register_tools(mealie, {'MEALIE_BASE_URL': 'https://example.invalid',

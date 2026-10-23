@@ -1,9 +1,9 @@
 # Sabor
 
-A kitchen-intelligence layer on top of Mealie. Find or import recipes, plan the
+A kitchen-intelligence layer with built-in SQLite or optional Mealie. Find or import recipes, plan the
 week, build a scaled shopping list, estimate its cost, then sync to Bring! with
-an explicit preview and digest-bound confirmation. Mealie is the first recipe
-store; it remains the source of truth for cooking data.
+an explicit preview and digest-bound confirmation. The selected recipe
+store is the source of truth for cooking data; core workflows work without Mealie.
 
 ## The everyday flow
 
@@ -13,7 +13,7 @@ store; it remains the source of truth for cooking data.
    `import_recipe(source="https://example.org/recipe", kind="url")`, ask the
    user, then repeat with `dry_run=False`.
 3. Agree a menu and use `set_mealplan_entry` for each approved entry.
-4. Create or select a Mealie list, then call
+4. Create or select a store shopping list, then call
    `add_to_shopping_list(list_id="MEALIE_ID", mealplan_start="2026-10-19", mealplan_end="2026-10-25", servings_multiplier=2.0)`.
    Dates are inclusive. Each recipe occurrence is added; free-text entries are
    skipped with reasons. The multiplier scales native recipe yield, not a guessed
@@ -39,7 +39,7 @@ not automatic retries or an assumed cross-system rollback.
 
 | Capability | Provider / requirements | Limits |
 |---|---|---|
-| Core | Recipe store (production: Mealie URL + token) | Recipes, suggestions, planning, shopping items and history; API baseline Mealie 3.22.0 |
+| Core | Built-in SQLite, or Mealie URL + token | Recipes, suggestions, planning, shopping items and history; API baseline Mealie 3.22.0 |
 | Import: URL | Mealie native scraper | Real read-only extraction preview; unsupported sites fail without paid-provider fallback |
 | Import: text | OpenAI-compatible endpoint + model (+ key remotely) | Typed recipe extraction; preview can incur LLM charges |
 | Import: image | Mealie-native image import, using Mealie's OpenAI configuration | Explicit `kind="image"`, public image URL; no preview: `dry_run=True` returns `unsupported_operation` |
@@ -58,14 +58,22 @@ captions with limitations. Neither adapter guarantees extraction accuracy.
 Set `SABOR_VIDEO_PROVIDER=gemini_native` or `openai_compatible` to select
 explicitly. Otherwise configured Gemini wins, then the compatible endpoint.
 An explicitly unconfigured selection does not silently fall back.
-LLM-only setups can preview text/video; committing requires a recipe store (currently Mealie in production).
+LLM-only setups can preview text/video; committing requires a recipe store (SQLite or Mealie).
 
 ## Recipe stores and instance boundaries
 
 `RecipeStore` is a typed persistence abstraction for recipes, calendar entries,
-shopping lists/items, tags and history. Mealie is the only production backend
-in 0.3.0; Tandoor, KitchenOwl and a built-in light store are future possibilities,
-not implemented integrations. Existing slug/list arguments remain unchanged,
+shopping lists/items, tags and history. Without `MEALIE_BASE_URL`, SQLite is
+selected automatically at `/data/sabor.db`; set `SABOR_STORE_DB` to change the
+path. With a non-empty Mealie URL, Mealie remains selected (and requires its token).
+Explicit `SABOR_STORE=sqlite` or `SABOR_STORE=mealie` overrides that selection;
+invalid values fail startup. SQLite construction and registration perform no
+filesystem I/O. Runtime startup initializes the database before serving requests;
+direct store use initializes on first operation. Missing parent directories are
+created, and opening failures never silently fall back. Back up its data volume.
+Native URL/image import, the Spanish catalog and legacy nutrition still require
+Mealie; SQLite does not advertise those native imports or legacy nutrition.
+Tandoor and KitchenOwl are not implemented integrations. Existing slug/list arguments remain unchanged,
 including the historical `mealie_list_id` sync argument. There is no public
 per-call backend URL or tenant selector.
 
@@ -77,7 +85,7 @@ tagging and Bring catalog overrides are isolated between registrations. This is
 **not a multi-tenant security boundary**: legacy Mercadona promotion/catalog state
 and direct-call compatibility globals remain process-wide. Use separate
 processes/containers, credentials and data volumes for untrusted households;
-isolated registrations must use distinct memory and nutrition database paths.
+isolated registrations must use distinct recipe-store, memory and nutrition database paths.
 Direct Python compatibility calls are not equivalent to registered app contexts.
 
 Discovery exposes `data.capabilities.recipe_store` and `pricing` with adapter IDs

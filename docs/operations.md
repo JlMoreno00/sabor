@@ -25,6 +25,8 @@ The executable runtime, `.env.example`, and `mcp-manifest.json` all use
 | `SABOR_HOST_PORT` | `9170` (Compose) | Docker host binding | Optional, non-secret; loopback only |
 | `SABOR_PORT` | `8080` | Server | Must match container port and health check unless all are changed together |
 | `MEALIE_BASE_URL` | Empty for registration; legacy client defaults localhost | Mealie tools | Remove trailing slash; use the container-reachable URL in Compose |
+| `SABOR_STORE` | `mealie` if `MEALIE_BASE_URL` is non-empty, otherwise `sqlite` | Recipe backend | Explicit `sqlite` or `mealie` wins; invalid values fail startup |
+| `SABOR_STORE_DB` | `/data/sabor.db` | SQLite backend | Parent directories created at startup; open failures are fatal, with no fallback |
 | `MEALIE_API_TOKEN` | Empty | Authenticated Mealie tools | Bearer token; secret |
 | `SPOONACULAR_API_KEY` | Empty | Spoonacular tools and nutrition profile fetches | Secret |
 | `GEMINI_API_KEY` | Empty | Video analysis/import | Secret |
@@ -38,7 +40,9 @@ The executable runtime, `.env.example`, and `mcp-manifest.json` all use
 
 ## Store and instance deployment (0.3)
 
-Mealie is the only shipped RecipeStore. Registered tools use an AppContext with
+SQLite and Mealie are shipped RecipeStores. Without a Mealie URL, SQLite enables
+recipes, meal plans and shopping lists locally. Native URL/image import, Spanish
+catalog and legacy nutrition still require Mealie. Registered tools use an AppContext with
 instance-owned Mealie session, Mercadona catalog cache and Bring transport/auth
 state. Discovery's `capabilities.recipe_store` lists operations; the old
 `data.mealie.configured` field is deprecated. Native URL import supports preview
@@ -47,7 +51,7 @@ and commit; image is commit-only. Configuration discovery does not probe health.
 Each registration freezes configuration from its supplied environment mapping.
 Nutrition services/locks, memory paths, Gemini credentials, video tagging and
 Bring catalog overrides are instance-owned. Give independent registrations
-distinct `MEMORY_FILE` and `SABOR_NUTRITION_DB` paths; identical paths intentionally
+distinct `SABOR_STORE_DB`, `MEMORY_FILE` and `SABOR_NUTRITION_DB` paths; identical paths intentionally
 share persistence. `BRING_CATALOG_DIR` is captured at registration, before the
 installed-package discovery fallback, not reread from the process environment.
 
@@ -55,7 +59,12 @@ Run untrusted households in separate processes/containers with distinct
 credentials and data volumes. This is not a multi-tenant security boundary:
 legacy Mercadona catalog/promotion state and unbound direct-call compatibility
 globals remain process-wide.
-Future store adapters are not available by setting an invented backend variable.
+Persist `/data/sabor.db` in the existing `/data` volume. Include it in backups:
+stop Sabor before copying the volume (including any `sabor.db-wal` and
+`sabor.db-shm` files), or use SQLite's online backup API for a consistent live
+snapshot. Do not copy only the main database while writes are active. Restore
+with Sabor stopped and retain ownership/write permissions. Back up Mealie
+separately when selected. Other store adapters are not shipped.
 
 ## Pricing operations
 

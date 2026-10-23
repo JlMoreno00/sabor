@@ -38,6 +38,11 @@ def mealie_store_factory(settings: Settings) -> RecipeStore:
     return cast(RecipeStore, MealieRecipeStore(settings.mealie_base_url, settings.mealie_api_token, settings=settings))
 
 
+def sqlite_store_factory(settings: Settings) -> RecipeStore:
+    from sabor.store.sqlite import SqliteRecipeStore
+    return SqliteRecipeStore(settings.store_db)
+
+
 def default_context() -> AppContext:
     """Compatibility for direct Python calls; registered tools never use this."""
     import sabor.config as config
@@ -48,15 +53,18 @@ def default_context() -> AppContext:
     # supplement them, but registered servers never enter this path.
     env = dict(os.environ)
     for key in vars(config):
+        if key == 'SABOR_STORE':
+            continue
         if key.isupper() and isinstance(getattr(config, key), (str, int, float, bool)):
             env[key] = str(getattr(config, key))
     for key in ("MEMORY_FILE", "SABOR_NUTRITION_DB"):
         env[key] = str(getattr(config, key))
-    env["VIDEO_RECIPE_GEMINI_MODEL"] = config.GEMINI_MODEL
+    env["VIDEO_RECIPE_GEMINI_MODEL"] = getattr(config, "GEMINI_MODEL")
     settings = load_settings(env)
     from sabor.store.mealie import MealieRecipeStore
-    return assemble_context(settings, store_factory=lambda s: cast(RecipeStore, MealieRecipeStore(
+    return assemble_context(settings, store_factory=(lambda s: cast(RecipeStore, MealieRecipeStore(
         s.mealie_base_url, s.mealie_api_token, session=requests, settings=s)))
+        if settings.store == 'mealie' else None)
 
 
 def build_context(settings: Settings, *,
@@ -82,6 +90,7 @@ def assemble_context(settings: Settings, *, store_factory=None) -> AppContext:
     return build_context(
         settings,
         store_factory=store_factory if store_factory is not None else (
+            sqlite_store_factory if settings.store == 'sqlite' else
             mealie_store_factory if settings.mealie_configured else None),
         pricing_factories=(lambda s: MercadonaPricing(
             warehouse=MERCADONA_WAREHOUSE,

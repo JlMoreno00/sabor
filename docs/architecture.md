@@ -1,9 +1,27 @@
 # Sabor Architecture
 
 Sabor is one stateless FastMCP HTTP process around multiple external systems,
-plus two local persistence concerns. The configured RecipeStore owns cooking
-data; Sabor owns orchestration and optional evidence. Mealie remains the only
-production store.
+plus local recipe, memory and nutrition persistence. The configured RecipeStore owns cooking
+data; Sabor owns orchestration and optional evidence. SQLite is the built-in default without a Mealie URL; Mealie remains supported.
+
+## Recipe store selection
+
+`load_settings` selects explicit `SABOR_STORE=sqlite|mealie`, otherwise Mealie
+when `MEALIE_BASE_URL` is non-empty, SQLite otherwise. `SABOR_STORE_DB` defaults
+to `/data/sabor.db`. Assembly constructs an instance-owned SQLite store from
+Settings, never a global path or connection. SQLite uses versioned forward-only
+migrations, FTS5 search (also import duplicate detection), WAL and a connection
+per call. Construction and context assembly perform no filesystem I/O. A per-instance
+lock guards lazy initialization and migrations; `start_runtime_services` calls
+`ensure_ready()` before serving requests, failing safely if opening fails.
+Direct store operations initialize on first use and sanitize I/O failures.
+Distinct database paths isolate registrations; shared paths intentionally
+share persistence. Startup open errors are sanitized and never trigger fallback.
+
+Core recipes, meal plans and shopping lists work without Mealie. Native URL/image
+import and Spanish catalog remain Mealie-only; `legacy_nutrition` is unavailable
+with SQLite. Discovery lists the active `recipe_store` adapter and operations;
+`data.mealie.configured` still reflects Mealie credentials, not the selected store.
 
 ## System Boundaries
 
@@ -45,7 +63,7 @@ is a separate, dominant boundary.
 
 FastMCP is configured as stateless HTTP. This means MCP session state is not
 stored in the process, but instance provider caches, the legacy Mercadona cache
-and the two local data files are still operational state.
+and the local data files are still operational state.
 
 Gemini upload deletion is best effort, not guaranteed. Sabor attempts deletion
 after extraction and after a processing failure, but suppresses request errors,
@@ -81,18 +99,20 @@ Discovery intentionally omits model IDs as well as credentials/private URLs.
 ## Store, context and pricing boundaries
 
 RecipeStore preserves structured ingredients, source IDs, checked state and
-recipe occurrences rather than flattening upstream data. Mealie is the only
-production implementation; a fake store exercises the port, not delivery of a
-Tandoor/KitchenOwl/light backend. Registered core tools keep existing public
+recipe occurrences rather than flattening upstream data. SQLite (the built-in
+default) and Mealie are the production implementations; the in-memory fake
+store only exercises the port contract in tests. Tandoor and KitchenOwl
+backends are not implemented (#15). Registered core tools keep existing public
 signatures and use instance stores. `AppContext` binds immutable settings,
 registry, store and pricing services without startup I/O. Discovery exposes
 `recipe_store`/`pricing` operations; the old Mealie summary is deprecated.
 
-Core readiness uses a configured recipe store (Mealie or an injected
+Core readiness uses a configured recipe store (SQLite, Mealie or an injected
 `store_factory`), not Mealie credentials alone. Per-tool requirements run inside
 the existing AppContext binding; `store_ready` reads that instance's store and
-retains the Settings-based Mealie fallback for compatibility. No new global
-store state or environment selector is introduced. Tags, comments, history,
+retains the Settings-based Mealie fallback for compatibility. The backend is
+chosen per instance from Settings (`SABOR_STORE`, see Recipe store selection);
+there is no global store state. Tags, comments, history,
 shopping preview/clear and ID validation belong to the store. Core tool modules
 do not import HTTP clients. Mealie-only scheduling transport and its nutrition
 gate live in the adapter; other stores schedule without that gate. Native
