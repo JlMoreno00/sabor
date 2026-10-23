@@ -10,7 +10,7 @@ import requests
 
 from sabor.core import errors
 from sabor.core.envelope import fail, ok, preview
-from sabor.core.toolsets import current_context, bring_ready, mealie_ready, tool, use_context
+from sabor.core.toolsets import current_context, bring_ready, store_ready, tool, use_context
 from sabor.store import StoreError, store_error_envelope
 from .bring import BringSyncProvider
 
@@ -18,7 +18,7 @@ _DIRECT_SCOPE_KEY = secrets.token_bytes(32)
 
 
 def _ready(settings):
-    return bring_ready(settings) and mealie_ready(settings)
+    return bring_ready(settings) and store_ready(settings)
 
 
 def _direct_context():

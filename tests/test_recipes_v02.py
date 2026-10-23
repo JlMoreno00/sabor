@@ -10,9 +10,9 @@ from sabor.tools import recipes as r
 
 class RecipeContracts(unittest.TestCase):
     def setUp(self):
-        self.get = patch.object(r.requests, 'get').start()
-        self.patch = patch.object(r.requests, 'patch').start()
-        self.put = patch.object(r.requests, 'put').start()
+        self.get = patch.object(requests, 'get').start()
+        self.patch = patch.object(requests, 'patch').start()
+        self.put = patch.object(requests, 'put').start()
         patch.object(r.config, 'MEALIE_API_TOKEN', 'test').start()
         self.addCleanup(patch.stopall)
         self.get.return_value = Mock(status_code=200)

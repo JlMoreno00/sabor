@@ -39,12 +39,12 @@ not automatic retries or an assumed cross-system rollback.
 
 | Capability | Provider / requirements | Limits |
 |---|---|---|
-| Core | Mealie URL + token | Recipes, suggestions, planning, shopping items and history; API baseline Mealie 3.22.0 |
+| Core | Recipe store (production: Mealie URL + token) | Recipes, suggestions, planning, shopping items and history; API baseline Mealie 3.22.0 |
 | Import: URL | Mealie native scraper | Real read-only extraction preview; unsupported sites fail without paid-provider fallback |
 | Import: text | OpenAI-compatible endpoint + model (+ key remotely) | Typed recipe extraction; preview can incur LLM charges |
 | Import: image | Mealie-native image import, using Mealie's OpenAI configuration | Explicit `kind="image"`, public image URL; no preview: `dry_run=True` returns `unsupported_operation` |
 | Import: video | `gemini_native` or `openai_compatible` | URL download; up to 100 MiB / 10 minutes; no playlists or local paths; TikTok URLs unsupported (paste the caption/transcript with `kind='text'`) |
-| Shopping sync | Bring! email + password **and Mealie** | Only unchecked source items; does not check off Mealie items |
+| Shopping sync | Bring! email + password **and a recipe store** | Only unchecked source items; does not check off Mealie items |
 | Pricing | `pricing` toolset + `SABOR_MERCADONA_ENABLED=true` | Read-only quantity-aware estimates; Mercadona only in 0.3.0 |
 | Legacy | Explicit toolset selection plus provider configuration | Promotions, memory, nutrition and Spanish catalog |
 
@@ -58,7 +58,7 @@ captions with limitations. Neither adapter guarantees extraction accuracy.
 Set `SABOR_VIDEO_PROVIDER=gemini_native` or `openai_compatible` to select
 explicitly. Otherwise configured Gemini wins, then the compatible endpoint.
 An explicitly unconfigured selection does not silently fall back.
-LLM-only setups can preview text/video; committing requires Mealie.
+LLM-only setups can preview text/video; committing requires a recipe store (currently Mealie in production).
 
 ## Recipe stores and instance boundaries
 
@@ -159,9 +159,9 @@ is trimmed, duplicates collapse, and unknown names prevent startup.
 
 | Toolset | Selection / configuration |
 |---|---|
-| `core` | Default; Mealie URL + token |
-| `import` | Default; Mealie, compatible LLM or Gemini; kinds depend on provider |
-| `shopping_sync` | Default; Bring! credentials + Mealie for the tools |
+| `core` | Default; recipe store (production: Mealie URL + token) |
+| `import` | Default; recipe store, compatible LLM or Gemini; kinds depend on provider |
+| `shopping_sync` | Default; Bring! credentials + recipe store for the tools |
 | `pricing` | Opt-in + `SABOR_MERCADONA_ENABLED=true`; no Mealie required for inline items |
 | `legacy_spoonacular` | Opt-in + `SPOONACULAR_API_KEY` |
 | `legacy_pricing` | Opt-in + `SABOR_MERCADONA_ENABLED=true` |
@@ -192,7 +192,7 @@ Unwrap successful results through `data`:
 Failures use a sanitized envelope (optional `data` carries safe partial outcomes):
 
 ```json
-{"ok":false,"error":{"code":"provider_unconfigured","message":"Mealie is not configured.","provider":"mealie"}}
+{"ok":false,"error":{"code":"provider_unconfigured","message":"Recipe store is not configured.","provider":"mealie"}}
 ```
 
 Codes: `invalid_argument`, `provider_unconfigured`, `unsupported_operation`,

@@ -7,7 +7,7 @@ from weakref import WeakKeyDictionary
 from sabor.core.config import load_settings
 from sabor.core.context import assemble_context
 from sabor.core.capabilities import describe
-from sabor.core.toolsets import catalog, bind_context
+from sabor.core.toolsets import catalog, bind_context, use_context
 from sabor.core.legacy import legacy_envelope
 
 _registered = WeakKeyDictionary()
@@ -53,13 +53,17 @@ def _mercadona_cache_path(warehouse: str) -> str | None:
     return f"/data/mercadona-catalog-{warehouse}.json" if writable else None
 
 
-def register_tools(server=None, env=None) -> None:
+def register_tools(server=None, env=None, *, store_factory=None) -> None:
     """Freeze configuration and register each selected tool once per server."""
     server = mcp if server is None else server
     if server in _registered:
         return
     settings = load_settings(os.environ if env is None else env)
-    context = assemble_context(settings)
+    context = (
+        assemble_context(settings)
+        if store_factory is None
+        else assemble_context(settings, store_factory=store_factory)
+    )
     registry = context.registry
     for module_name in TOOL_MODULES:
         import_module(module_name)
@@ -68,7 +72,9 @@ def register_tools(server=None, env=None) -> None:
     for group, fn, requires in catalog:
         if group not in registry.enabled_toolsets:
             continue
-        if requires is not None and not requires(registry.settings):
+        with use_context(context):
+            ready = requires is None or requires(registry.settings)
+        if not ready:
             skipped.append({"tool": fn.__name__, "reason": "missing_configuration"})
             continue
         provider = {"legacy_memory": "memory", "legacy_pricing": "mercadona",

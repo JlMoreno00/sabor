@@ -85,12 +85,24 @@ def mealie_ready(settings: Settings) -> bool:
     return settings.mealie_configured
 
 
+def store_ready(settings: Settings) -> bool:
+    """Use instance-owned store presence; retain unbound Settings compatibility."""
+    try:
+        return current_context().store is not None or settings.mealie_configured
+    except LookupError:
+        return settings.mealie_configured
+
+
+def import_ready(settings: Settings) -> bool:
+    return store_ready(settings) or settings.llm_configured or settings.gemini_configured
+
+
 def gemini_ready(settings: Settings) -> bool:
     return settings.gemini_configured
 
 
 def video_commit_ready(settings: Settings) -> bool:
-    return settings.gemini_configured and settings.mealie_configured
+    return settings.gemini_configured and store_ready(settings)
 
 
 def bring_ready(settings: Settings) -> bool:

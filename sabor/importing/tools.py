@@ -13,7 +13,7 @@ from sabor.core import errors
 from sabor.core.config import load_settings
 from sabor.core.envelope import fail, ok
 from sabor.core.redaction import sanitize
-from sabor.core.toolsets import current_context, tool
+from sabor.core.toolsets import current_context, tool, import_ready
 
 
 def settings():
@@ -211,7 +211,7 @@ def image_bytes(url):
     reject('invalid_argument', 'Too many image redirects.')
 
 
-@tool('import', requires=lambda s: s.mealie_configured or s.llm_configured or s.gemini_configured, uses_context=True)
+@tool('import', requires=import_ready, uses_context=True)
 def import_recipe(source: str, kind: str = 'auto', dry_run: bool = True,
                   language: str = 'en', max_recipes: int = 8,
                   min_confidence: float = 0.55) -> dict:
@@ -240,7 +240,7 @@ def _import_recipe(ctx, source, kind, dry_run, language, max_recipes, min_confid
         provider = (video_provider.id if video_provider else 'sabor') if kind == 'video' else ('openai_compatible' if kind == 'text' else 'mealie')
         limitations = []
         if (kind not in ('text', 'video') or not dry_run) and ctx.store is None:
-            reject('provider_unconfigured', 'Mealie is not configured.', 'mealie')
+            reject('provider_unconfigured', 'Recipe store is not configured.', 'mealie')
         if kind in ('url', 'image') and not getattr(ctx.store, 'native_import_kinds', frozenset()):
             reject('unsupported_operation', 'Native import is unsupported by this recipe store.', provider)
         if kind == 'image':
@@ -370,7 +370,7 @@ def after_commit(ctx, slugs):
             if not normalized.get('ok'):
                 warnings.append({'slug': slug, 'code': 'normalization_warning', 'warning':
                     normalized.get('warning') or normalized.get('error') or 'normalization_failed'})
-        result = nutrition._nutrition_after_import({}, slug)
+        result = nutrition._nutrition_after_import({}, slug) if ctx.store.id == 'mealie' else {}
         if 'nutrition' in result:
             enriched[slug] = result['nutrition']
         if 'nutrition_warning' in result:

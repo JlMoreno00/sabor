@@ -1,8 +1,9 @@
 # Sabor Architecture
 
 Sabor is one stateless FastMCP HTTP process around multiple external systems,
-plus two local persistence concerns. Mealie owns cooking data; Sabor owns
-orchestration and optional evidence that Mealie does not model.
+plus two local persistence concerns. The configured RecipeStore owns cooking
+data; Sabor owns orchestration and optional evidence. Mealie remains the only
+production store.
 
 ## System Boundaries
 
@@ -67,7 +68,7 @@ the instance store. Native URL/image services remain optional Mealie extensions.
 Discovery advertises URL preview/commit and image commit-only, not image preview. Gemini-native uses
 whole-video audio/vision; OpenAI-compatible uses frames and captions. Selection
 is explicit or Gemini-first when configured. Sync adapters implement
-targets/plan/apply; the orchestrator reads Mealie, resolves a unique target,
+targets/plan/apply; the orchestrator reads the recipe store, resolves a unique target,
 previews and confirms a rebuilt current plan. Bring! is the only sync provider;
 Todoist is planned for 0.3.1.
 
@@ -86,6 +87,16 @@ Tandoor/KitchenOwl/light backend. Registered core tools keep existing public
 signatures and use instance stores. `AppContext` binds immutable settings,
 registry, store and pricing services without startup I/O. Discovery exposes
 `recipe_store`/`pricing` operations; the old Mealie summary is deprecated.
+
+Core readiness uses a configured recipe store (Mealie or an injected
+`store_factory`), not Mealie credentials alone. Per-tool requirements run inside
+the existing AppContext binding; `store_ready` reads that instance's store and
+retains the Settings-based Mealie fallback for compatibility. No new global
+store state or environment selector is introduced. Tags, comments, history,
+shopping preview/clear and ID validation belong to the store. Core tool modules
+do not import HTTP clients. Mealie-only scheduling transport and its nutrition
+gate live in the adapter; other stores schedule without that gate. Native
+URL/image imports, catalog reconciliation and nutrition remain Mealie-specific.
 
 Context-aware tools (`@tool(..., uses_context=True)`) receive their context
 explicitly per call. `bind_context(fn, context)` runs the tool inside
@@ -356,8 +367,9 @@ publisher enforces it before preview generation or any HTTP request.
 
 ## Key Invariants
 
-- Mealie is the source of truth for recipe identity, ingredient ordering,
-  quantity, unit, food linkage, servings, and visible nutrition.
+- The configured RecipeStore is the source of truth for recipe identity,
+  ingredient ordering, quantity, unit, food linkage and servings. Mealie owns
+  visible nutrition when it is the configured production store.
 - Sabor never extends or writes nutrition into Mealie food records.
 - Disabled nutrition does not initialize SQLite or call the provider.
 - Recipe import success is independent of normalization and nutrition success.

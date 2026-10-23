@@ -3,6 +3,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 from uuid import UUID
 from typing import Any, Callable, cast
+from sabor.core.envelope import fail
 from sabor.store import (ShoppingItem, ShoppingSnapshot, NamedRef, WriteResult,
                          StoreError)
 
@@ -21,6 +22,28 @@ class MealieShoppingItemsMixin:
     _shopping_request: Callable[..., Any]
     get_recipe: Callable[..., Any]
 
+    def validate_shopping_list_id(self, list_id, *, adding=False):
+        try:
+            return str(UUID(list_id))
+        except (ValueError, TypeError, AttributeError):
+            exc = StoreError('invalid_argument', self.id)
+            setattr(
+                exc,
+                "result",
+                fail(
+                    'invalid_argument',
+                    "Require a UUID list, exactly one nonempty source, valid ISO range, and multiplier > 0 and <= 20."
+                    if adding
+                    else "list_id must be a UUID.",
+                ),
+            )
+            raise exc from None
+
+    def validate_recipe_id(self, recipe_id):
+        try:
+            return str(UUID(recipe_id))
+        except (ValueError, TypeError, AttributeError):
+            raise StoreError('invalid_response', self.id) from None
     def _item_list_id(self, list_id):
         try:
             return str(UUID(list_id))

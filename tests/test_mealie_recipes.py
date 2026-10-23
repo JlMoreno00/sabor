@@ -159,7 +159,7 @@ class MealieRecipeTests(unittest.TestCase):
         self.assertEqual(result["slug"], "dinner")
         self.assertTrue(result["created"])
 
-    @patch.object(sabor_mcp, "get_or_create_tag")
+    @patch("sabor.store.mealie.MealieRecipeStore._legacy_get_or_create_tag")
     @patch.object(sabor_mcp.requests, "patch")
     @patch.object(sabor_mcp.requests, "get")
     def test_tag_recipe_preserves_tags_and_patches_complete_tag_refs(
@@ -197,7 +197,7 @@ class MealieRecipeTests(unittest.TestCase):
             timeout=30,
         )
 
-    @patch.object(sabor_mcp, "get_or_create_tag")
+    @patch("sabor.store.mealie.MealieRecipeStore._legacy_get_or_create_tag")
     @patch.object(sabor_mcp.requests, "patch")
     @patch.object(sabor_mcp.requests, "get")
     def test_tag_recipe_returns_explicit_error_when_tag_resolution_fails(
@@ -217,7 +217,7 @@ class MealieRecipeTests(unittest.TestCase):
         self.assertEqual(result["tag_result"]["status"], 500)
         patch_request.assert_not_called()
 
-    @patch.object(sabor_mcp, "get_or_create_tag")
+    @patch("sabor.store.mealie.MealieRecipeStore._legacy_get_or_create_tag")
     @patch.object(sabor_mcp.requests, "patch")
     @patch.object(sabor_mcp.requests, "get")
     def test_tag_recipe_rejects_incomplete_tag_resolution(

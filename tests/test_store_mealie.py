@@ -129,7 +129,7 @@ class RecipeRouting(unittest.TestCase):
                  (r.suggest_recipes, ([],), suggestions,
                   {"items": [{**summary, "missingFoods": None},
                              {**summary, "missingTools": [{"name": "pot", "extra": 2}]}]})]
-        with patch.object(r.config, "MEALIE_API_TOKEN", "test"), patch.object(r.requests, "get") as get:
+        with patch.object(r.config, "MEALIE_API_TOKEN", "test"), patch.object(requests, "get") as get:
             get.return_value.status_code = 200
             for fn, args, fixture, expected in cases:
                 get.return_value.json.return_value = fixture

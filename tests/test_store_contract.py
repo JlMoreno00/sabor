@@ -78,6 +78,42 @@ class FakeStoreContract(StoreContractMixin, unittest.TestCase):
     def make_store(self):
         return FakeRecipeStore()
 
+    def test_tags_comments_and_events(self):
+        tag = self.store.get_or_create_tag("Dinner")
+        self.assertEqual(self.store.get_or_create_tag("Dinner").id, tag.id)
+        self.store.tag_recipe(self.ref.slug, ["Dinner"])
+        self.assertEqual(self.store.get_recipe(self.ref.slug).tags[0].id, tag.id)
+        self.store.tag_recipe(self.ref.slug, ["Lunch", "Dinner"])
+        self.assertEqual(
+            [tag.name for tag in self.store.get_recipe(self.ref.slug).tags],
+            ["Dinner", "Lunch"],
+        )
+        comment = self.store.add_recipe_comment(self.ref.slug, "Good")
+        event = self.store.log_cooking_event(self.ref.slug, "Cooked", None)
+        self.assertEqual(self.store.comments[comment], (self.ref.slug, "Good"))
+        self.assertEqual(
+            self.store.cooking_events[event], (self.ref.slug, "Cooked", None)
+        )
+        self.assert_code(
+            "not_found", lambda: self.store.add_recipe_comment("absent", "No")
+        )
+        self.assert_code(
+            "not_found", lambda: self.store.log_cooking_event("absent", "No", None)
+        )
+
+    def test_preview_and_clear(self):
+        target = self.store.create_shopping_list("Week").id
+        self.store.add_shopping_items(target, [ItemDraft(note="salt")])
+        preview = self.store.shopping_list_preview(target)
+        self.assertEqual(preview["name"], "Week")
+        self.assertEqual(preview["count"], 1)
+        self.assertEqual(len(self.store.get_shopping_items(target).items), 1)
+        self.assertEqual(self.store.clear_shopping_list_items(target)["deleted"], 1)
+        self.assertEqual(self.store.clear_shopping_list_items(target)["deleted"], 0)
+        self.assert_code(
+            "not_found", lambda: self.store.shopping_list_preview("absent")
+        )
+
     def test_error_translation(self):
         error = store_error_envelope(StoreError("not_found", "fake"))
         self.assertEqual(error["error"]["provider"], "fake")

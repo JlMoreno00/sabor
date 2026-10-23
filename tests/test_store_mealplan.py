@@ -1,5 +1,6 @@
 """Calendar adapter and context routing regression tests."""
 import unittest
+import sabor.store.mealie_schedule as schedule
 from typing import Any
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
@@ -61,20 +62,20 @@ class CalendarTests(unittest.TestCase):
             self.store.get_mealplan(DateRange("a", "b"))
 
     def test_direct_registered_parity(self):
-        with patch.object(mealplan.config, "MEALIE_API_TOKEN", "one"), patch.object(
-                mealplan.config, "MEALIE_BASE_URL", "https://one"), patch.object(
-                mealplan.requests, "get", return_value=response(dict(items=self.rows))):
+        with patch.object(schedule.config, "MEALIE_API_TOKEN", "one"), patch.object(
+                schedule.config, "MEALIE_BASE_URL", "https://one"), patch.object(
+                schedule.requests, "get", return_value=response(dict(items=self.rows))):
             self.session.get.return_value = response(dict(items=self.rows))
             for name in ("get_mealplan_week", "clear_mealplan_week"):
                 self.assertEqual(getattr(mealplan, name)("a", "b"), self.call(name, "a", "b"))
 
     def test_write_direct_registered_parity(self):
-        with patch.object(mealplan.config, "MEALIE_API_TOKEN", "one"), patch.object(
-                mealplan.config, "MEALIE_BASE_URL", "https://one"), patch.object(
-                mealplan.config, "SABOR_NUTRITION_ENABLED", False), patch.object(
-                mealplan.requests, "get", return_value=response({"id": "r"})), patch.object(
-                mealplan.requests, "post", return_value=response({"id": "entry"})), patch.object(
-                mealplan.requests, "delete", return_value=response({}, 204)):
+        with patch.object(schedule.config, "MEALIE_API_TOKEN", "one"), patch.object(
+                schedule.config, "MEALIE_BASE_URL", "https://one"), patch.object(
+                schedule.config, "SABOR_NUTRITION_ENABLED", False), patch.object(
+                schedule.requests, "get", return_value=response({"id": "r"})), patch.object(
+                schedule.requests, "post", return_value=response({"id": "entry"})), patch.object(
+                schedule.requests, "delete", return_value=response({}, 204)):
             self.session.get.return_value = response({"id": "r"})
             self.session.post.return_value = response({"id": "entry"})
             self.session.delete.return_value = response({}, 204)
@@ -96,10 +97,10 @@ class CalendarTests(unittest.TestCase):
 
     def test_enabled_duplicate_and_revision_gate(self):
         recipe = {"id": "r"}
-        with patch.object(mealplan.config, "SABOR_NUTRITION_ENABLED", True), patch.object(
-                mealplan.nutrition, "ensure_recipe_nutrition", return_value={"ok": True, "revision": "v"}), patch.object(
-                mealplan.nutrition, "_nutrition_fetch_recipe", return_value=recipe), patch.object(
-                mealplan.nutrition, "_nutrition_recipe_revision", return_value="v") as revision:
+        with patch.object(schedule.config, "SABOR_NUTRITION_ENABLED", True), patch.object(
+                schedule.nutrition, "ensure_recipe_nutrition", return_value={"ok": True, "revision": "v"}), patch.object(
+                schedule.nutrition, "_nutrition_fetch_recipe", return_value=recipe), patch.object(
+                schedule.nutrition, "_nutrition_recipe_revision", return_value="v") as revision:
             self.session.get.return_value = response(dict(items=self.rows))
             result = self.call("set_mealplan_entry", "2026-01-01", "lunch", "Rice", "rice")
             self.assertEqual(result["code"], "mealplan_entry_existing")
@@ -111,16 +112,16 @@ class CalendarTests(unittest.TestCase):
 
     def test_gate_enabled_disabled_parity(self):
         for enabled in (False, True):
-            with self.subTest(enabled=enabled), patch.object(mealplan.config, "SABOR_NUTRITION_ENABLED", enabled), patch.object(
-                    mealplan.nutrition, "ensure_recipe_nutrition", return_value={"ok": False, "code": "blocked"}) as gate:
+            with self.subTest(enabled=enabled), patch.object(schedule.config, "SABOR_NUTRITION_ENABLED", enabled), patch.object(
+                    schedule.nutrition, "ensure_recipe_nutrition", return_value={"ok": False, "code": "blocked"}) as gate:
                 self.session.get.return_value = response({"id": "r"})
                 self.session.post.return_value = response({"id": "entry"})
                 result = self.call("set_mealplan_entry", "a", "lunch", "Rice", "rice")
                 self.assertEqual(result["ok"], not enabled)
                 self.assertEqual(gate.call_count, int(enabled))
-                with patch.object(mealplan.config, "MEALIE_API_TOKEN", "one"), patch.object(
-                        mealplan.requests, "get", return_value=response({"id": "r"})), patch.object(
-                        mealplan.requests, "post", return_value=response({"id": "entry"})):
+                with patch.object(schedule.config, "MEALIE_API_TOKEN", "one"), patch.object(
+                        schedule.requests, "get", return_value=response({"id": "r"})), patch.object(
+                        schedule.requests, "post", return_value=response({"id": "entry"})):
                     self.assertEqual(result, mealplan.set_mealplan_entry("a", "lunch", "Rice", "rice"))
                 if enabled:
                     self.assertFalse(result["scheduled"])

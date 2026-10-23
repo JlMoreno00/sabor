@@ -1,5 +1,6 @@
 """Registered creation retains import normalization with instance configuration."""
 import unittest
+import requests
 from unittest.mock import Mock, patch
 from mcp.server.fastmcp import FastMCP
 from sabor.server import register_tools
@@ -22,8 +23,8 @@ class NormalizationContext(unittest.TestCase):
         read = Mock(status_code=503)
         with patch("requests.Session.post", return_value=created), \
              patch("requests.Session.get", return_value=read), \
-             patch.object(r.requests, "post", return_value=created), \
-             patch.object(r.requests, "get", return_value=read), \
+             patch.object(requests, "post", return_value=created), \
+             patch.object(requests, "get", return_value=read), \
              patch.object(r.config, "MEALIE_API_TOKEN", "one"), \
              patch.object(r.config, "SABOR_NORMALIZE_IMPORTS", True), \
              patch.object(r.mealie.nutrition, "_nutrition_after_import", side_effect=lambda result, slug: result) as hook:
