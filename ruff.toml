@@ -1,0 +1,14 @@
+# Minimal lint gate (#32): real errors only, no style rules yet.
+# Run locally with: ruff check .
+target-version = "py312"
+extend-exclude = [".venv", "venv"]
+
+[lint]
+select = ["F", "E9"]
+
+[lint.per-file-ignores]
+# Compatibility layer: re-exports the original entrypoint's module imports for
+# legacy `sabor_mcp` callers and patch sites; they are intentionally unused here.
+"sabor/compat.py" = ["F401"]
+# The fake store mirrors the full public port surface of `sabor.store`.
+"sabor/store/fake.py" = ["F403", "F405"]

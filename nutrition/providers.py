@@ -154,7 +154,7 @@ class SpoonacularProvider:
                     f"{self.base_url}{path}", params={**params, "apiKey": self.api_key},
                     timeout=self.timeout,
                 )
-            except (requests.Timeout, requests.ConnectionError) as exc:
+            except (requests.Timeout, requests.ConnectionError):
                 if attempt < 2:
                     if budget is not None and budget.exhausted:
                         return {"ok": False, "code": "nutrition_provider_budget_exceeded",
