@@ -63,6 +63,30 @@ class StoreContractMixin(ContractAssertions):
         self.assertTrue(checked.checked)
         self.assertEqual(checked.note, item.note)
 
+    def test_store_tags_and_activity(self):
+        tag = self.store.get_or_create_tag("Dinner")
+        self.assertEqual(self.store.get_or_create_tag("Dinner").id, tag.id)
+        self.store.tag_recipe(self.ref.slug, ["Dinner", "Dinner"])
+        self.assertEqual(len(self.store.get_recipe(self.ref.slug).tags), 1)
+        self.assertTrue(self.store.add_recipe_comment(self.ref.slug, "Good"))
+        self.assertTrue(self.store.log_cooking_event(self.ref.slug, "Cooked", None))
+        self.assert_code("not_found", lambda: self.store.add_recipe_comment("absent", "No"))
+
+    def test_store_suggestions(self):
+        from sabor.store import SuggestionQuery
+        self.assertEqual(len(self.store.suggest_recipes(SuggestionQuery(()))), 1)
+        for limit in (0, True):
+            self.assert_code("invalid_argument", lambda: self.store.suggest_recipes(
+                SuggestionQuery((), limit=limit)))
+
+    def test_store_preview_and_clear(self):
+        target = self.store.create_shopping_list("Week").id
+        self.store.add_shopping_items(target, [ItemDraft(note="salt")])
+        self.assertEqual(self.store.shopping_list_preview(target)["count"], 1)
+        self.assertEqual(self.store.clear_shopping_list_items(target)["deleted"], 1)
+        self.assertEqual(self.store.clear_shopping_list_items(target)["deleted"], 0)
+        self.assert_code("not_found", lambda: self.store.shopping_list_preview("absent"))
+
     def test_repeated_occurrences(self):
         for day in ("2026-01-01", "2026-01-02"):
             self.store.set_mealplan_entry(MealEntryDraft(day, "dinner", "Soup", self.ref.slug))
@@ -72,6 +96,16 @@ class StoreContractMixin(ContractAssertions):
         result = self.store.add_recipe_occurrences(target, [RecipeOccurrence(self.ref.slug, 2) for e in entries])
         self.assertEqual(len(result.changed_ids), 2)
         self.assertEqual(len(self.store.get_shopping_items(target).items), 2)
+
+
+class SqliteStoreContract(StoreContractMixin, unittest.TestCase):
+    def make_store(self):
+        from tempfile import TemporaryDirectory
+        from pathlib import Path
+        from sabor.store.sqlite import SqliteRecipeStore
+        temporary = TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        return SqliteRecipeStore(Path(temporary.name) / "store.db")
 
 
 class FakeStoreContract(StoreContractMixin, unittest.TestCase):
