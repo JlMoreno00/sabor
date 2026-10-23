@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Added
+- CI `Lint (ruff)` job with a repository `ruff.toml` (pyflakes `F` and syntax
+  errors `E9`, ruff pinned to 0.17.1); existing findings fixed without behavior
+  changes (#32).
+
 ### Changed
 - Context-aware tools receive their `AppContext` explicitly per call through
   `bind_context`/`use_context` and `current_context()`, instead of returning a

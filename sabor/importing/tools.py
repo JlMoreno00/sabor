@@ -295,13 +295,10 @@ def _import_recipe(ctx, source, kind, dry_run, language, max_recipes, min_confid
                         reject('conflict', 'An exact normalized recipe name already exists.', 'mealie', {'slug': slug})
                     skips.append({'name': c['name'], 'slug': slug, 'reason': 'duplicate'})
                     continue
-                if kind == 'url':
-                    path, payload = '/create/url', dict(url=source, includeTags=True, includeCategories=True)
-                else:
+                if kind != 'url':
                     recipe = {'@context': 'https://schema.org', '@type': 'Recipe', 'name': c['name'],
                         'recipeIngredient': c['ingredients'], 'recipeInstructions': c['steps'],
                         'recipeYield': c['servings'], 'description': c['notes'] + (f'\nSource: {source}' if kind == 'video' else '')}
-                    path, payload = '/create/html-or-json', {'data': json.dumps(recipe)}
                 extraction_provider = provider
                 provider = 'mealie'
                 if kind == 'url':
