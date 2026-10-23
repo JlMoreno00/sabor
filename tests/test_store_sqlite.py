@@ -133,3 +133,38 @@ def test_duplicate_search_across_pages(tmp_path):
     exact = store.create_recipe(Recipe(name="Soup"))
     assert store_duplicate("SOUP", store) == exact.slug
     assert store.search_recipes(RecipeSearch(query="Soup", page=2, per_page=100)).total == 102
+
+
+def test_normalize_imported(tmp_path):
+    store = SqliteRecipeStore(tmp_path / "normalize.db")
+    original = (
+        Ingredient(originalText=" 2 dientes de ajo ", note="picado", referenceId="keep"),
+        Ingredient(originalText="sal al gusto", note="sal al gusto"),
+        Ingredient(originalText="2 huevos", quantity=7, food=NamedRef(name="custom")),
+        Ingredient(originalText="200 g de harina de trigo"),
+    )
+    ref = store.create_recipe(Recipe(name="Import", recipeIngredient=original))
+    result = store.normalize_imported(ref.slug)
+    assert result == {"ok": True, "slug": ref.slug, "status": "normalized", "accepted": 2}
+    rows = store.get_recipe(ref.slug).recipeIngredient
+    assert [row.originalText for row in rows] == [row.originalText for row in original]
+    assert rows[0].quantity == 2
+    assert rows[0].unit == NamedRef(name="diente")
+    assert rows[0].food == NamedRef(name="ajo")
+    assert rows[0].note == "picado"
+    assert rows[0].referenceId == "keep"
+    assert rows[1:3] == original[1:3]
+    assert rows[3].food == NamedRef(name="harina de trigo")
+    assert store.normalize_imported(ref.slug) == {
+        "ok": True, "slug": ref.slug, "status": "retained_originals", "accepted": 0}
+    assert SqliteRecipeStore(store.path).get_recipe(ref.slug).recipeIngredient == rows
+
+
+def test_normalize_empty_and_missing(tmp_path):
+    store = SqliteRecipeStore(tmp_path / "normalize.db")
+    ref = store.create_recipe(Recipe(name="Empty"))
+    assert store.normalize_imported(ref.slug) == {
+        "ok": True, "slug": ref.slug, "status": "skipped_no_ingredients"}
+    with pytest.raises(StoreError) as caught:
+        store.normalize_imported("missing")
+    assert caught.value.code == "not_found"

@@ -166,6 +166,36 @@ class SqliteRecipeStore:
             self._save_recipe(db, recipe)
             return RecipeRef(recipe.id, recipe.name, slug)
 
+    def normalize_imported(self, slug):
+        """Fill unstructured import rows atomically, retaining all source metadata."""
+        from sabor.importing.ingredients_es import parse_ingredient
+
+        with self._connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            recipe = self._get_recipe(db, slug)
+            originals = recipe.recipeIngredient
+            if not originals:
+                return {"ok": True, "slug": slug, "status": "skipped_no_ingredients"}
+            merged = []
+            accepted = 0
+            for row in originals:
+                if (row.quantity is not None or row.food is not None or row.unit is not None
+                        or not isinstance(row.originalText, str)):
+                    merged.append(row)
+                    continue
+                parsed = parse_ingredient(row.originalText)
+                if parsed.food is None:
+                    merged.append(row)
+                    continue
+                merged.append(replace(row, quantity=parsed.quantity,
+                                      food=parsed.food, unit=parsed.unit))
+                accepted += 1
+            if accepted:
+                self._save_recipe(db, replace(recipe, recipeIngredient=tuple(merged)))
+            return {"ok": True, "slug": slug,
+                    "status": "normalized" if accepted else "retained_originals",
+                    "accepted": accepted}
+
     def search_recipes(self, filters):
         f = filters
         if (type(f.page) is not int or f.page < 1 or type(f.per_page) is not int
