@@ -98,7 +98,10 @@ Then ask the user to reload or restart the client.
 ## 6. Finish
 
 Say: "Sabor is ready. Say *Start with Sabor* to set up your cooking profile."
-For the profile (diners, allergies, budget…), use the preference tools; never the configuration.
+Then follow the portable skill [skills/sabor-onboarding/SKILL.md](skills/sabor-onboarding/SKILL.md)
+(install it in your client if it supports Agent Skills). The profile (diners, allergies, budget…)
+is saved with the preference tools only when they are registered (the `preferences` toolset is
+opt-in); it never changes the configuration.
 
 ---
 
@@ -141,5 +144,7 @@ For the profile (diners, allergies, budget…), use the preference tools; never 
    compra "Prueba Sabor" (`create_shopping_list`), verla en `get_shopping_lists` y borrarla con
    `delete_shopping_list(confirm=True)` cuando el usuario lo acepte. No hay tool para borrar recetas:
    no pruebes con una receta.
-6. **Termina:** "Sabor está listo. Di *Empieza con Sabor* para configurar tu perfil de cocina." El
-   perfil (comensales, alergias, presupuesto…) va con las tools de preferencias, nunca con la configuración.
+6. **Termina:** "Sabor está listo. Di *Empieza con Sabor* para configurar tu perfil de cocina." y
+   sigue la skill portable [skills/sabor-onboarding/SKILL.md](skills/sabor-onboarding/SKILL.md). El perfil
+   (comensales, alergias, presupuesto…) se guarda con las tools de preferencias solo si están
+   registradas (el toolset `preferences` es opcional); nunca cambia la configuración.
