@@ -120,6 +120,14 @@ def cli(argv=None) -> None:
         # A locally installed command has no authentication layer in front of it:
         # listen on loopback unless the operator explicitly chooses an interface.
         mcp.settings.host = "127.0.0.1"
+        # FastMCP only enables Host/Origin validation (DNS rebinding protection)
+        # when constructed on loopback; mirror its loopback defaults here.
+        from mcp.server.transport_security import TransportSecuritySettings
+        mcp.settings.transport_security = TransportSecuritySettings(
+            enable_dns_rebinding_protection=True,
+            allowed_hosts=["127.0.0.1:*", "localhost:*", "[::1]:*"],
+            allowed_origins=["http://127.0.0.1:*", "http://localhost:*", "http://[::1]:*"],
+        )
     register_tools()
     start_runtime_services()
     mcp.run(transport="stdio" if args.transport == "stdio" else "streamable-http")

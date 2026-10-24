@@ -55,7 +55,9 @@ class InstallTests(unittest.TestCase):
 
     def test_cli(self):
         from sabor import server
-        with patch.object(server, 'register_tools'), patch.object(server, 'start_runtime_services') as start, patch.object(server.mcp, 'run') as run:
+        with patch.object(server, 'register_tools'), patch.object(server, 'start_runtime_services') as start, patch.object(server.mcp, 'run') as run, \
+                patch.object(server.mcp.settings, 'host', server.mcp.settings.host), \
+                patch.object(server.mcp.settings, 'transport_security', server.mcp.settings.transport_security):
             server.cli([])
             run.assert_called_once_with(transport='stdio')
             start.assert_called_once()
@@ -68,18 +70,26 @@ class InstallTests(unittest.TestCase):
 
     def test_cli_http_binds_loopback_unless_host_is_explicit(self):
         from sabor import server
-        def bound_host(argv, env, entry='cli'):
+        settings = server.mcp.settings
+        def bound(argv, env, entry='cli'):
             seen = []
             with patch.dict('os.environ', env, clear=True), patch.object(server, 'register_tools'), \
-                    patch.object(server, 'start_runtime_services'), patch.object(server.mcp.settings, 'host', '0.0.0.0'), \
-                    patch.object(server.mcp, 'run', side_effect=lambda **kw: seen.append(server.mcp.settings.host)):
+                    patch.object(server, 'start_runtime_services'), patch.object(settings, 'host', '0.0.0.0'), \
+                    patch.object(settings, 'transport_security', None), \
+                    patch.object(server.mcp, 'run', side_effect=lambda **kw: seen.append(
+                        (settings.host, settings.transport_security))):
                 server.cli(argv) if entry == 'cli' else server.main()
             return seen[0]
-        self.assertEqual(bound_host(['--transport', 'http'], {}), '127.0.0.1')
-        self.assertEqual(bound_host(['--transport', 'http'], {'SABOR_HOST': '0.0.0.0'}), '0.0.0.0')
-        self.assertEqual(bound_host([], {}), '0.0.0.0')
+        host, security = bound(['--transport', 'http'], {})
+        self.assertEqual(host, '127.0.0.1')
+        # Same Host/Origin validation FastMCP enables when constructed on loopback.
+        self.assertTrue(security.enable_dns_rebinding_protection)
+        self.assertEqual(security.allowed_hosts, ['127.0.0.1:*', 'localhost:*', '[::1]:*'])
+        self.assertEqual(security.allowed_origins, ['http://127.0.0.1:*', 'http://localhost:*', 'http://[::1]:*'])
+        self.assertEqual(bound(['--transport', 'http'], {'SABOR_HOST': '0.0.0.0'}), ('0.0.0.0', None))
+        self.assertEqual(bound([], {}), ('0.0.0.0', None))
         # The Docker/compat entrypoint keeps listening on all container interfaces.
-        self.assertEqual(bound_host(None, {}, entry='main'), '0.0.0.0')
+        self.assertEqual(bound(None, {}, entry='main'), ('0.0.0.0', None))
 
     def test_missing_ffmpeg(self):
         from sabor.importing.video import frames
