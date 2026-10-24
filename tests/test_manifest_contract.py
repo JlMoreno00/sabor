@@ -30,8 +30,8 @@ class ManifestContractTests(unittest.TestCase):
             import_module(module)
         catalog_names = [fn.__name__ for group, fn, requires in catalog]
         self.assertCountEqual(catalog_names, tools)
-        self.assertEqual(len(catalog_names), 50)
-        self.assertEqual(len(tools), 50)
+        self.assertEqual(len(catalog_names), 52)
+        self.assertEqual(len(tools), 52)
         self.assertEqual(tools.count("nutrition_set_food_profile"), 1)
         self.assertEqual(tools.count("nutrition_recipe_readiness"), 1)
         self.assertEqual(tools.count("nutrition_cookbook_readiness"), 1)

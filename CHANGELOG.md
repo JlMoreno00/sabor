@@ -9,6 +9,10 @@
   Runtime behavior with Mealie configured is unchanged (#36).
 
 ### Added
+- Opt-in `preferences`: `get_preferences` and preview/confirmed `update_preferences`,
+  validated household JSON storage and `sabor-mcp preferences import-memory`
+  dry-run/apply migration. Legacy memory behavior is unchanged; pantry subtraction
+  is deferred. MINOR contract baseline extension: 50 → 52 application tools (#13).
 - Recipe search supports created/updated dates, rating, last made and daily
   seeded random ordering; SQLite persists search timestamps with migration v3
   and reports rating ordering as unsupported (#16).

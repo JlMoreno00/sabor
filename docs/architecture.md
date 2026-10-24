@@ -4,6 +4,20 @@ Sabor is one stateless FastMCP HTTP process around multiple external systems,
 plus local recipe, memory and nutrition persistence. The configured RecipeStore owns cooking
 data; Sabor owns orchestration and optional evidence. SQLite is the built-in default without a Mealie URL; Mealie remains supported.
 
+## Structured preferences
+
+`sabor/preferences.py` owns schema-v1 JSON at the frozen Settings legacy-config
+`SABOR_DATA_DIR` / `preferences.json`; there is no new environment variable.
+The opt-in `preferences` toolset is always ready. RuntimeState owns its lock;
+read/modify/replace is serialized per AppContext, not across processes sharing
+one directory. Registration performs no preferences I/O. First confirmed write
+creates the directory, fsyncs a same-directory temporary file and atomically
+replaces the destination. Failed writes may leave a `.preferences-*` temporary
+file for operator inspection; they never truncate existing preferences.
+Corrupt/unreadable files return sanitized errors and block updates.
+Only `profiles.default` is exposed: this is household storage, not user auth.
+Legacy MEMORY.md and feedback behavior remain separate and unchanged.
+
 ## Recipe store selection
 
 `load_settings` selects explicit `SABOR_STORE=sqlite|mealie`, otherwise Mealie

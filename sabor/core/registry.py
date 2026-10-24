@@ -71,7 +71,7 @@ class Registry:
                      import_=bool(recipe_store is not None or settings.llm_configured or settings.gemini_configured),
                      shopping_sync=bool(settings.bring_email and settings.bring_password),
                      legacy_spoonacular=bool(settings.spoonacular_api_key),
-                     legacy_pricing=settings.mercadona_enabled, legacy_memory=True,
+                     legacy_pricing=settings.mercadona_enabled, legacy_memory=True, preferences=True,
                      legacy_nutrition=(settings.store == 'mealie' and
                                        (recipe_store is None or recipe_store.id == 'mealie')),
                      legacy_catalog=settings.mealie_configured)
