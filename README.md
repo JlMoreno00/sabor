@@ -646,3 +646,6 @@ Releases up to and including 0.2.x were published under the MIT license and
 remain available under those terms. From 0.3.0 Sabor is licensed under the
 AGPL-3.0: you can self-host, modify and redistribute it freely, and if you offer
 a modified Sabor as a network service you must publish your changes.
+
+Configure locally with `sabor-mcp setup` (English/español), or use
+`sabor-mcp setup --non-interactive --json`. See [Setup](docs/operations.md#setup).
