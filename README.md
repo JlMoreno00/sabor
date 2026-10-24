@@ -154,7 +154,16 @@ unit price. For 200 g of flour this picks a 1 kg bag over a cheaper-per-kilo
 and up to five `alternatives` with names, normalized prices and
 `checkout_cost`. Show alternatives and
 offer to switch using `product_overrides`; overrides take precedence, but cannot
-price non-food. Use `match_policy="strict"` to leave ambiguity uncosted.
+price non-food. With at least two non-overridden lines sharing normalized name
+words and base unit, known quantities are also evaluated together. A common
+product replaces per-line choices only when its combined checkout cost is
+strictly cheaper than the original grouped procurement; ties keep the original
+choices, and basket procurement never increases. For 300 g + 300 g arroz,
+500 g at EUR 0.60 loses to 1 kg at EUR 0.90 (EUR 1.20 → 0.90). For 200 g +
+900 g with 1 kg at EUR 1.00, mixed choices stay (EUR 1.60, not EUR 1.80).
+Changed lines add `auto_selected_cheapest_group` and `grouped_selection` evidence;
+their alternatives show checkout costs for the summed quantity (up to five).
+Use `match_policy="strict"` to leave ambiguity uncosted; strict is not grouped.
 A positive quantity without a unit assumes pieces (`estimated`,
 `assumed_count`), matched only to count products. Kitchen measures stay unknown.
 Egg reference prices per dozen are divided by 12 for the per-piece basis.
