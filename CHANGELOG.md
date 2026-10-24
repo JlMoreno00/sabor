@@ -9,6 +9,10 @@
   Runtime behavior with Mealie configured is unchanged (#36).
 
 ### Added
+- Spanish catalog CLI: `sabor-mcp catalog status|apply` and
+  `python -m sabor catalog status|apply`, with instance-bound Mealie settings,
+  read-only status, create-only apply and JSON output. Existing catalog MCP
+  tools remain unchanged, deprecated in documentation pending a future major (#14).
 - Opt-in `preferences`: `get_preferences` and preview/confirmed `update_preferences`,
   validated household JSON storage and `sabor-mcp preferences import-memory`
   dry-run/apply migration. Legacy memory behavior is unchanged; pantry subtraction
