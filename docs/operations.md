@@ -54,6 +54,11 @@ Transport variables remain env-only.
 | `[nutrition] auto_on_import` | `SABOR_NUTRITION_AUTO_ON_IMPORT` |
 | `[nutrition] auto_publish` | `SABOR_NUTRITION_AUTO_PUBLISH` |
 
+Each key accepts only its own type: TOML booleans for the switches (`pricing.mercadona`,
+`pricing.open_prices`, `import.normalize`, `nutrition.enabled`, `nutrition.publish_estimates`,
+`nutrition.auto_on_import`, `nutrition.auto_publish`), integers for the `nutrition.*_ttl_days`
+keys, numbers for the confidence/coverage thresholds and `nutrition.default_cup_ml`, and strings
+for everything else. A mismatch fails startup without echoing the value.
 Strings are preserved; numbers become strings; booleans become `true`/`false`.
 Only `general.toolsets` also accepts a string list, joined with commas:
 

@@ -80,7 +80,14 @@ class ConfigFileTests(unittest.TestCase):
         cases = ['broken = ["PRIVATE_SENTINEL"', '[PRIVATE_SENTINEL]\nx = 1',
                  '[general]\nPRIVATE_SENTINEL = "PRIVATE_SENTINEL"',
                  '[general]\ntoolsets = ["PRIVATE_SENTINEL", 1]',
-                 '[general]\ndata_dir = {x = "PRIVATE_SENTINEL"}']
+                 '[general]\ndata_dir = {x = "PRIVATE_SENTINEL"}',
+                 # Each key accepts only its effective type (no strings where numbers/booleans go).
+                 '[nutrition]\nprofile_ttl_days = "PRIVATE_SENTINEL"',
+                 '[nutrition]\nprofile_ttl_days = 1.5',
+                 '[nutrition]\ndefault_cup_ml = "PRIVATE_SENTINEL"',
+                 '[import]\nnormalize_confidence = true',
+                 '[pricing]\nmercadona = "PRIVATE_SENTINEL"',
+                 '[store]\nbackend = 1']
         for section, key in [('mealie', 'api_token'), ('llm', 'api_key'),
                              ('import', 'gemini_api_key'), ('bring', 'email'),
                              ('bring', 'password'), ('nutrition', 'spoonacular_api_key')]:
