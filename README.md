@@ -5,6 +5,10 @@ week, build a scaled shopping list, estimate its cost, then sync to Bring! with
 an explicit preview and digest-bound confirmation. The selected recipe
 store is the source of truth for cooking data; core workflows work without Mealie.
 
+Optional non-secret `config.toml` settings use environment > file > defaults.
+Set `SABOR_CONFIG` to select a file; see [configuration keys and OS paths](docs/operations.md#optional-toml-configuration).
+Secrets remain environment-only; `sabor_capabilities` reports `data.config_source`.
+
 ## The everyday flow
 
 1. Call `sabor_capabilities()`; use only tools in `data.registered_tools`.

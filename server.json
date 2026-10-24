@@ -34,6 +34,12 @@
       },
       "environmentVariables": [
         {
+          "name": "SABOR_CONFIG",
+          "description": "Optional TOML configuration path; non-empty environment values override file settings.",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
           "name": "SABOR_TOOLSETS",
           "description": "Comma-separated toolsets to register: core, import, shopping_sync, pricing, preferences and legacy_* sets. Empty registers discovery only; unknown names fail startup.",
           "default": "core,import,shopping_sync",
@@ -287,6 +293,12 @@
         "type": "stdio"
       },
       "environmentVariables": [
+        {
+          "name": "SABOR_CONFIG",
+          "description": "Optional TOML configuration path; non-empty environment values override file settings.",
+          "isRequired": false,
+          "isSecret": false
+        },
         {
           "name": "SABOR_TOOLSETS",
           "description": "Comma-separated toolsets to register: core, import, shopping_sync, pricing, preferences and legacy_* sets. Empty registers discovery only; unknown names fail startup.",

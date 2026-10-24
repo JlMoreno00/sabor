@@ -1,5 +1,7 @@
 """Portable installation contracts."""
 import ast
+import os
+import tempfile
 from pathlib import Path
 import tomllib
 import unittest
@@ -55,7 +57,8 @@ class InstallTests(unittest.TestCase):
 
     def test_cli(self):
         from sabor import server
-        with patch.object(server, 'register_tools'), patch.object(server, 'start_runtime_services') as start, patch.object(server.mcp, 'run') as run, \
+        with tempfile.NamedTemporaryFile() as config, patch.dict(os.environ, {'SABOR_CONFIG': config.name}), \
+                patch.object(server, 'register_tools'), patch.object(server, 'start_runtime_services') as start, patch.object(server.mcp, 'run') as run, \
                 patch.object(server.mcp.settings, 'host', server.mcp.settings.host), \
                 patch.object(server.mcp.settings, 'transport_security', server.mcp.settings.transport_security):
             server.cli([])
@@ -73,7 +76,8 @@ class InstallTests(unittest.TestCase):
         settings = server.mcp.settings
         def bound(argv, env, entry='cli'):
             seen = []
-            with patch.dict('os.environ', env, clear=True), patch.object(server, 'register_tools'), \
+            with tempfile.NamedTemporaryFile() as config, \
+                    patch.dict(os.environ, dict(env, SABOR_CONFIG=config.name), clear=True), patch.object(server, 'register_tools'), \
                     patch.object(server, 'start_runtime_services'), patch.object(settings, 'host', '0.0.0.0'), \
                     patch.object(settings, 'transport_security', None), \
                     patch.object(server.mcp, 'run', side_effect=lambda **kw: seen.append(

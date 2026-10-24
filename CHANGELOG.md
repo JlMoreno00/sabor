@@ -19,6 +19,9 @@
   Runtime behavior with Mealie configured is unchanged (#36).
 
 ### Added
+- Optional non-secret `config.toml` with OS paths, `SABOR_CONFIG` override,
+  environment > file > defaults precedence and `data.config_source` discovery.
+  Invalid files fail startup with redacted errors; secrets remain env-only (#63).
 - Opt-in Open Prices pricing provider (`SABOR_OPEN_PRICES_ENABLED=true` plus
   `pricing` toolset): barcode search and country-scoped crowd observations,
   observation/store provenance, stale/discount/single-observation uncertainty,
