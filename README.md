@@ -447,6 +447,38 @@ get_shopping_sync_targets(provider: str | None=None)
 sync_shopping_list(mealie_list_id: str, target: dict, mode: str='append', confirm: bool=False, preview_digest: str | None=None)
 ```
 
+### Pantry-aware estimates
+
+The [instance preferences](#preferences) default-profile `pantry` list is read
+under the preferences lock, even when the `preferences` toolset is disabled.
+Missing files mean an empty pantry; corrupt files return a sanitized
+`invalid_response` before any list write. No pantry data is changed here.
+
+Every `estimate_cost` source kind accepts optional `exclude_pantry: bool`:
+`estimate_cost(source={"kind":"recipe","slug":"rice","exclude_pantry":True})`.
+Absent/false leaves the full response unchanged and does not read preferences.
+True skips pricing matched lines, keeps them in `lines` and `excluded_rows` with
+`uncertainty.reasons: ["in_pantry"]`, counts them in coverage `excluded`, and
+adds `pantry: {"applied": true, "matched": N}`. Subtotals exclude those lines;
+if nothing is costed, subtotals remain null, not zero.
+
+Matching uses structured food names or `ingredient_name` on free text, then
+casefolding, accent removal and collapsed whitespace. Whole names must equal,
+or equal after stripping one trailing `s` or `es` on either side. No fuzzy or
+substring matching: `huevo` matches `huevos`, but `sal` never matches `salsa`.
+This is lexical matching, not quantity-aware stock accounting.
+
+`add_to_shopping_list` always adds every requested line. With a nonempty pantry,
+its success data additionally contains `pantry_matches`, for example
+`[{"name":"huevos","pantry_entry":"huevo"}]` (or `[]` if none match).
+The field is absent for an empty/missing pantry. Pantry hints never block the
+addition: if preferences are unreadable or matching fails, the lines are still
+added and the response carries `pantry_warning` instead. SQLite, Mealie and Fake use
+source lines: inline item text, or each occurrence's recipe ingredients read
+before writing. IDs are deliberately omitted because stores can merge lines;
+reread `get_shopping_list_items` to identify IDs, then ask for approval and use
+`remove_shopping_list_items` if desired. No automatic removal or skipping occurs.
+
 ### pricing
 
 ```python
@@ -490,7 +522,8 @@ case. `household_size` is null or an integer from 1 to 20. Operations run in
 set → add → remove order. Unknown keys or invalid values write nothing.
 Responses include preferences, updated_at and source (`defaults` or `file`);
 updates also include a before/after field diff and preview flag. Preview does
-not change the timestamp. Pantry is stored only: no cost/list subtraction yet.
+not change the timestamp. Pantry is also available to pricing and list building
+without enabling this toolset; see [pantry-aware estimates](#pantry-aware-estimates).
 
 ### legacy_memory
 

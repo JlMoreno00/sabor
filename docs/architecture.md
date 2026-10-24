@@ -21,6 +21,16 @@ Corrupt/unreadable files return sanitized errors and block updates.
 Only `profiles.default` is exposed: this is household storage, not user auth.
 Legacy MEMORY.md and feedback behavior remain separate and unchanged.
 
+`sabor/pricing/pantry.py` reuses the locked read-only preferences call; consumers
+need not enable the preferences toolset. Pricing loads pantry only for explicit
+`source.exclude_pantry: true`, skips matching lines before product lookup and
+reports `in_pantry` through existing excluded-row/coverage structures. Shopping
+loads preferences before writing, derives advisory matches from source item text
+or each recipe occurrence's structured ingredients, and never removes items.
+Source-derived matches omit IDs because store writes may merge lines. Matching
+is whole-name, case/accent/whitespace insensitive with one trailing s/es strip
+on either side, not fuzzy matching or inventory quantity depletion.
+
 ## Recipe store selection
 
 `load_settings` selects explicit `SABOR_STORE=sqlite|mealie`, otherwise Mealie

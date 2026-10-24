@@ -9,10 +9,14 @@
   Runtime behavior with Mealie configured is unchanged (#36).
 
 ### Added
+- Pantry-aware `estimate_cost` sources accept `exclude_pantry: true`, excluding
+  matched lines with `in_pantry` reasons and additive pantry counts. List building
+  reports advisory `pantry_matches` from source lines without skipping additions;
+  both read instance preferences independently of the preferences toolset (#13).
 - Opt-in `preferences`: `get_preferences` and preview/confirmed `update_preferences`,
   validated household JSON storage and `sabor-mcp preferences import-memory`
-  dry-run/apply migration. Legacy memory behavior is unchanged; pantry subtraction
-  is deferred. MINOR contract baseline extension: 50 → 52 application tools (#13).
+  dry-run/apply migration. Legacy memory behavior is unchanged.
+  MINOR contract baseline extension: 50 → 52 application tools (#13).
 - Recipe search supports created/updated dates, rating, last made and daily
   seeded random ordering; SQLite persists search timestamps with migration v3
   and reports rating ordering as unsupported (#16).
