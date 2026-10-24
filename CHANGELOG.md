@@ -25,6 +25,8 @@
   Runtime behavior with Mealie configured is unchanged (#36).
 
 ### Added
+- Terminal `doctor [--json]` health checks and `config show [--json]` with
+  per-key origins, masked secrets and actionable exit codes; no MCP tools (#65).
 - Optional non-secret `config.toml` with OS paths, `SABOR_CONFIG` override,
   environment > file > defaults precedence and `data.config_source` discovery.
   Invalid files fail startup with redacted errors; secrets remain env-only (#63).

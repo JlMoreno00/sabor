@@ -3,6 +3,46 @@
 Start with configuration validation and health checks. Do not run pilots,
 backfills, catalog apply, or publication as a deployment smoke test.
 
+## Terminal diagnostics
+
+Run `sabor-mcp doctor --json` after setup; use `sabor-mcp config show --json`
+to inspect effective values and their origins. Omit `--json` for human output
+(an aligned table for `config show`). Both commands support `--help`, run before
+runtime configuration is applied, and leave the process environment unchanged.
+Neither registers tools nor serves MCP.
+
+Doctor initializes/migrates SQLite with `ensure_ready()` and reads its schema
+version. For Mealie it makes one unauthenticated GET to `/api/app/about` with a
+five-second timeout; it never prints response bodies or tokens. This checks
+reachability, not token validity or authenticated permissions.
+
+The stable JSON key order and nesting are:
+
+```json
+{"ok":true,"version":"0.3.0","config_path":"/path/config.toml","config":{"found":true,"source":"file","valid":true},"store":{"backend":"sqlite","reachable":true,"schema_version":3},"toolsets":["core","import"],"capabilities_summary":{"recipe_store":["sqlite"],"pricing":[],"import":[],"shopping_sync":[]},"missing_secrets":[],"warnings":[],"next_steps":[]}
+```
+
+`schema_version` is null for Mealie or failed probes. Invalid configuration adds
+an `error` string and sets `config.valid` false. Missing secret names get a
+`sabor-mcp setup secret <name>` next step. Warnings are deterministic and advisory:
+keyring declared but unavailable, and presence of an owner-only `secrets.toml`.
+A temporary SQLite directory alone is not a warning.
+
+| Exit | Meaning |
+|---|---|
+| 0 | Check succeeded (advisory warnings may be present) |
+| 1 | Required secrets missing |
+| 2 | Invalid configuration or arguments; fix config.toml or rerun setup |
+| 3 | Store unreachable; check SQLite directory permissions/path or Mealie service |
+
+Store failure takes precedence over missing secrets. `config show` exits 0 for
+valid configuration, even with missing secrets; invalid configuration exits 2.
+Its JSON is `{config_path, source, keys: [{key, env, value, origin}]}`: all TOML
+keys followed by all `secrets.<name>` keys. Values are effective strings, or null
+when unset/default; secrets are `"***"` when set. Origins are `env`, `file`, or
+`default`, plus `keyring` for secrets. Source is `file`, `env`, or `defaults`.
+Diagnostic strings use shared redaction and mask resolved credential values.
+
 ## Optional TOML configuration
 
 Non-empty environment values override file values, which override current defaults.
@@ -16,7 +56,7 @@ Otherwise Sabor uses:
 
 A missing default file is harmless. Invalid TOML, unknown sections/keys, invalid
 types, unreadable files and secret keys fail startup without echoing values.
-Keep secrets in environment variables only: `MEALIE_API_TOKEN`, `SABOR_LLM_API_KEY`,
+Keep secrets in environment variables or setup-managed keyring/file references: `MEALIE_API_TOKEN`, `SABOR_LLM_API_KEY`,
 `GEMINI_API_KEY`, `BRING_EMAIL`, `BRING_PASSWORD`, `SPOONACULAR_API_KEY`.
 Transport variables remain env-only.
 

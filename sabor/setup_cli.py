@@ -8,11 +8,10 @@ import shutil
 import sqlite3
 import sys
 import tomllib
-from urllib.parse import urlsplit
 
 from sabor.core.config import ConfigError, load_settings
 from sabor.core.config_file import config_path, read_config_file
-from sabor.secrets_store import SECRET_NAMES, atomic_write, resolve, serialize, store
+from sabor.secrets_store import SECRET_NAMES, atomic_write, required_secrets, resolve, serialize, store
 
 
 def write_config(path, old, document):
@@ -119,18 +118,14 @@ def main(argv=None):
                 put('llm', 'base_url', args.llm_base_url)
                 put('llm', 'model', args.llm_model)
                 put('import', 'gemini_model', args.gemini_model)
-            required = []
-            if document['store']['backend'] == 'mealie':
-                if not document.get('mealie', {}).get('base_url'):
-                    raise ConfigError('Mealie requires a base URL')
-                required.append('mealie_api_token')
-            llm = document.get('llm', {})
-            if llm.get('base_url') and urlsplit(llm['base_url']).hostname not in ('localhost', '127.0.0.1'):
-                required.append('llm_api_key')
-            if document.get('import', {}).get('video_provider') == 'gemini_native':
-                required.append('gemini_api_key')
-            if args.bring is True or (args.bring is None and any(n in refs for n in ('bring_email', 'bring_password'))):
-                required.extend(('bring_email', 'bring_password'))
+            if document['store']['backend'] == 'mealie' and not document.get('mealie', {}).get('base_url'):
+                raise ConfigError('Mealie store requires a base URL')
+            from sabor.core.config_file import FILE_KEYS
+            required_env = {envkey: str(document[section][key])
+                            for (section, key), envkey in FILE_KEYS.items()
+                            if key in document.get(section, {})}
+            required = required_secrets(required_env, bring=args.bring is True or (
+                args.bring is None and any(n in refs for n in ('bring_email', 'bring_password'))))
             if args.bring is False:
                 for name in ('bring_email', 'bring_password'):
                     refs.pop(name, None)

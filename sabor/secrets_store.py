@@ -4,12 +4,32 @@ import os
 from pathlib import Path
 import tempfile
 import tomllib
+from urllib.parse import urlsplit
 
 from sabor.core.config import ConfigError
 
 SECRET_NAMES = dict(zip(
     ('mealie_api_token', 'llm_api_key', 'gemini_api_key', 'bring_email', 'bring_password', 'spoonacular_api_key'),
     ('MEALIE_API_TOKEN', 'SABOR_LLM_API_KEY', 'GEMINI_API_KEY', 'BRING_EMAIL', 'BRING_PASSWORD', 'SPOONACULAR_API_KEY')))
+
+
+def required_secrets(env, *, bring=False):
+    required = []
+    if env.get('SABOR_STORE', '').strip() == 'mealie' or (
+            not env.get('SABOR_STORE', '').strip() and env.get('MEALIE_BASE_URL', '').strip()):
+        required.append('mealie_api_token')
+    url = env.get('SABOR_LLM_BASE_URL', '').strip()
+    try:
+        remote = url and urlsplit(url).hostname not in ('localhost', '127.0.0.1')
+    except ValueError:
+        raise ConfigError('SABOR_LLM_BASE_URL requires an HTTP(S) service URL') from None
+    if remote:
+        required.append('llm_api_key')
+    if env.get('SABOR_VIDEO_PROVIDER', '').strip() == 'gemini_native':
+        required.append('gemini_api_key')
+    if bring or any(env.get(key, '').strip() for key in ('BRING_EMAIL', 'BRING_PASSWORD')):
+        required.extend(('bring_email', 'bring_password'))
+    return required
 
 
 def serialize(document):
