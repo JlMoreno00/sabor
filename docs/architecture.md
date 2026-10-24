@@ -239,6 +239,13 @@ the explicitly configured compatible LLM directly using `SABOR_LLM_*`, not
 
 ## Spanish Catalog Flow
 
+Prefer `sabor-mcp catalog status|apply` (or `python -m sabor catalog status|apply`).
+The shared CLI loads Settings from the current environment and binds an instance
+context around `_reconcile_spanish_catalog`; it does not register MCP tools or
+start runtime services. Status passes `apply=False`; apply passes `apply=True`.
+The MCP tools remain unchanged but deprecated: prefer the CLI; the MCP tools
+will be retired in a future major version.
+
 Catalog manifests use `schema_version: 1` and an independent
 `catalog_version`. Reconciliation pages through Mealie foods and units, matching
 case, accents, whitespace, abbreviations, and aliases.
