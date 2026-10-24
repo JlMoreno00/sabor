@@ -9,6 +9,9 @@
   Runtime behavior with Mealie configured is unchanged (#36).
 
 ### Added
+- Recipe search supports created/updated dates, rating, last made and daily
+  seeded random ordering; SQLite persists search timestamps with migration v3
+  and reports rating ordering as unsupported (#16).
 - `sabor_capabilities` adds `data.mealie_only`: Mealie-only toolsets unavailable
   in this instance with a `reason` (`requires_mealie_store` for
   `legacy_nutrition`, `requires_mealie` for `legacy_catalog`) and `detail`.

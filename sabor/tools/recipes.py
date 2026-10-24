@@ -1,5 +1,6 @@
 """Mealie recipe tools."""
 
+from datetime import datetime, timezone
 from typing import Any
 from dataclasses import dataclass, fields, is_dataclass
 from sabor.core.runtime import config as config  # Direct-call patch compatibility.
@@ -61,11 +62,12 @@ def search_recipes(
 ) -> dict[str, Any]:
     """Search recipes by stable filter IDs with upstream pagination; sort by name."""
     if (type(page) is not int or page < 1 or type(per_page) is not int
-            or not 1 <= per_page <= 100 or sort != "name"
+            or not 1 <= per_page <= 100 or sort not in ("name", "created_at", "updated_at", "rating", "last_made", "random")
             or direction not in ("asc", "desc")):
         return fail("invalid_argument", "Invalid pagination or sorting arguments.")
     filters = RecipeSearch(query, page, per_page, _tuple(tag_ids), _tuple(category_ids),
-                           _tuple(food_ids), _tuple(tool_ids), cookbook_id, require_all, sort, direction)
+                           _tuple(food_ids), _tuple(tool_ids), cookbook_id, require_all, sort, direction,
+                           datetime.now(timezone.utc).date().isoformat() if sort == "random" else None)
     return _store_read(current_context(), "search_recipes", filters)
 
 

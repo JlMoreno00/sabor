@@ -168,3 +168,24 @@ def test_normalize_empty_and_missing(tmp_path):
     with pytest.raises(StoreError) as caught:
         store.normalize_imported("missing")
     assert caught.value.code == "not_found"
+
+
+def test_v2_sort_migration(tmp_path):
+    path = tmp_path / "old.db"
+    with sqlite3.connect(path) as db:
+        from sabor.store.sqlite_schema import migrate
+        with patch("sabor.store.sqlite_schema.MIGRATIONS", MIGRATIONS[:2]):
+            migrate(db)
+        from dataclasses import asdict
+        import json
+        db.execute("INSERT INTO recipes VALUES (?, ?, ?)",
+                   ("old", "r", json.dumps(asdict(Recipe(id="r", slug="old", name="Keep")))))
+        db.execute("INSERT INTO cooking_events VALUES ('e', 'old', 'Cooked', NULL)")
+    store = SqliteRecipeStore(path)
+    assert store.get_recipe("old").name == "Keep"
+    with sqlite3.connect(path) as db:
+        created, updated = db.execute("SELECT created_at, updated_at FROM recipes").fetchone()
+        assert created == updated
+        assert created.endswith("+00:00")
+        assert db.execute("SELECT created_at FROM cooking_events").fetchone()[0] == created
+        assert db.execute("SELECT max(version) FROM schema_version").fetchone()[0] == 3
