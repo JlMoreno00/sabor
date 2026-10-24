@@ -118,9 +118,12 @@ def start_runtime_services(server=None) -> None:
 
 def cli(argv=None) -> None:
     """Run the installed command (stdio by default)."""
-    config_source = apply_config_file(os.environ)
     import sys
     arguments = list(sys.argv[1:] if argv is None else argv)
+    if arguments[:1] == ['setup']:
+        from sabor.setup_cli import main as setup_main
+        raise SystemExit(setup_main(arguments[1:]))
+    config_source = apply_config_file(os.environ)
     if arguments[:1] == ["preferences"]:
         from sabor.preferences_cli import main as preferences_main
         raise SystemExit(preferences_main(arguments[1:]))

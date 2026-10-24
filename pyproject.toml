@@ -16,6 +16,7 @@ dependencies = [
     "recipe-scrapers>=15.0.0",
     "yt-dlp>=2024.0.0",
     "python-bring-api>=3.0.0",
+    "keyring>=25",
 ]
 
 [project.scripts]

@@ -4,6 +4,7 @@ import sys
 import tomllib
 
 FILE_KEYS = {
+    ('general', 'language'): 'SABOR_LANGUAGE',
     ('general', 'toolsets'): 'SABOR_TOOLSETS',
     ('general', 'data_dir'): 'SABOR_DATA_DIR',
     ('general', 'memory_file'): 'MEMORY_FILE',
@@ -61,6 +62,11 @@ def read_config_file(path, *, explicit) -> dict[str, str] | None:
         raise ConfigError('Unable to read valid config.toml') from None
     result = {}
     for section, entries in document.items():
+        if section == 'secrets':
+            from sabor.secrets_store import SECRET_NAMES
+            if not isinstance(entries, dict) or any(k not in SECRET_NAMES or v not in ('keyring', 'file') for k, v in entries.items()):
+                raise ConfigError('Invalid config.toml secret reference')
+            continue
         if section not in {s for s, _ in FILE_KEYS} or not isinstance(entries, dict):
             raise ConfigError('Unknown or invalid config.toml section')
         for key, value in entries.items():
@@ -89,4 +95,13 @@ def apply_config_file(environ) -> str:
     for key, value in values.items():
         if not environ.get(key, '').strip():
             environ[key] = value
+    from sabor.secrets_store import SECRET_NAMES, resolve
+    with config_path(environ).open('rb') as stream:
+        refs = tomllib.load(stream).get('secrets', {})
+    for name, backend in refs.items():
+        key = SECRET_NAMES[name]
+        if not environ.get(key, '').strip():
+            value = resolve(config_path(environ), name, backend)
+            if value:
+                environ[key] = value
     return 'file'

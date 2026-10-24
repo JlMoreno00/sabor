@@ -20,6 +20,12 @@
   },
   "env_vars": [
     {
+      "name": "SABOR_LANGUAGE",
+      "description": "Preferred response language: es or en; empty leaves it unset.",
+      "required": false,
+      "secret": false
+    },
+    {
       "name": "SABOR_CONFIG",
       "description": "Optional TOML configuration path; non-empty environment values override file settings.",
       "required": false,

@@ -787,3 +787,25 @@ Code rollback and data rollback are separate decisions:
 - Never use `docker compose down -v` as rollback. It is data deletion.
 
 After rollback, rerun transport health checks and read-only integration checks.
+
+## Setup
+
+Run `sabor-mcp setup` in a terminal for English/español prompts, or
+`sabor-mcp setup --non-interactive --json --store sqlite --lang es` for automation.
+Use `--help` for pricing, Mealie, LLM and Bring options. Omitted flags retain existing
+file values. `SABOR_CONFIG` overrides the OS config path; non-empty environment
+values override file settings at runtime. `SABOR_LANGUAGE` accepts `es` or `en`.
+
+Store credentials with `sabor-mcp setup secret mealie_api_token` in an interactive
+terminal. Supported names: `mealie_api_token`, `llm_api_key`, `gemini_api_key`,
+`bring_email`, `bring_password`, `spoonacular_api_key`. Values never appear in
+output or config.toml: only `keyring`/`file` references do. The system keyring
+(service `sabor`) is preferred; an unavailable backend falls back to owner-only
+0600 `secrets.toml` beside config.toml. `--backend file` forces the fallback;
+`--backend keyring` fails rather than falling back. Protect this directory and backups.
+
+JSON reports changed, missing_secrets and exact next_steps. Exit codes: 0 success,
+2 invalid configuration, 3 inaccessible storage. SQLite is initialized locally;
+Mealie setup makes no network calls. Repeating identical flags leaves the file
+untouched. Changes atomically replace it and preserve the previous version as
+`config.toml.bak`; comments are not retained in the rewritten file.
