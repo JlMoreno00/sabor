@@ -17,7 +17,7 @@ from .pantry import load_pantry
 
 
 def pricing_ready(settings):
-    return settings.mercadona_enabled
+    return settings.mercadona_enabled or settings.open_prices_enabled
 
 
 def _public(value) -> Any:

@@ -113,6 +113,13 @@
           "default": "mad1",
           "isRequired": false,
           "isSecret": false
+        },
+        {
+          "name": "SABOR_OPEN_PRICES_ENABLED",
+          "description": "Enable read-only Open Prices crowd observations; add pricing to SABOR_TOOLSETS. Default false.",
+          "default": "false",
+          "isRequired": false,
+          "isSecret": false
         }
       ]
     },

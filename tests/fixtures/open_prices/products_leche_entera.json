@@ -1,0 +1,217 @@
+{
+ "url": "https://prices.openfoodfacts.org/api/v1/products?product_name__like=leche+entera&order_by=-price_count&size=5",
+ "response": {
+  "items": [
+   {
+    "id": 2009704,
+    "code": "7790742330703",
+    "source": "off",
+    "source_last_synced": "2024-08-08T17:19:36.004492Z",
+    "product_name": "Leche entera La Armonía",
+    "image_url": "https://images.openfoodfacts.org/images/products/779/074/233/0703/front_en.3.400.jpg",
+    "product_quantity": null,
+    "product_quantity_unit": null,
+    "quantity": null,
+    "categories_tags": [
+     "en:dairies",
+     "en:milks-liquid-and-powder",
+     "en:milks"
+    ],
+    "brands": "La Armonía",
+    "brands_tags": [
+     "la-armonia"
+    ],
+    "labels_tags": [],
+    "nutriscore_grade": "unknown",
+    "ecoscore_grade": "d",
+    "nova_group": null,
+    "unique_scans_n": 2,
+    "price_count": 1,
+    "price_currency_count": 1,
+    "location_count": 1,
+    "location_type_osm_country_count": 1,
+    "proof_count": 1,
+    "created": "2024-01-11T06:29:36.591144Z",
+    "updated": "2024-08-08T17:19:33.687115Z"
+   },
+   {
+    "id": 825457,
+    "code": "8480024831088",
+    "source": "off",
+    "source_last_synced": "2026-09-19T20:06:44.426519Z",
+    "product_name": "Leche Entera",
+    "image_url": "https://images.openfoodfacts.org/images/products/848/002/483/1088/front_es.32.400.jpg",
+    "product_quantity": 1000,
+    "product_quantity_unit": "ml",
+    "quantity": "1 l",
+    "categories_tags": [
+     "en:dairies",
+     "en:milks-liquid-and-powder",
+     "en:milks",
+     "en:homogenized-milks",
+     "en:pasteurised-products",
+     "en:uht-milks",
+     "en:whole-milks",
+     "en:cow-milks"
+    ],
+    "brands": "EUROMADI IBERICA S.A.",
+    "brands_tags": [
+     "EUROMADI IBERICA S.A."
+    ],
+    "labels_tags": [
+     "en:carbon-footprint",
+     "en:carbon-trust",
+     "en:fsc",
+     "en:carbon-trust-co2-measured",
+     "en:fsc-mix",
+     "es:Bonsucro"
+    ],
+    "nutriscore_grade": "c",
+    "ecoscore_grade": "c",
+    "nova_group": 1,
+    "unique_scans_n": 3,
+    "price_count": 1,
+    "price_currency_count": 1,
+    "location_count": 1,
+    "location_type_osm_country_count": 1,
+    "proof_count": 1,
+    "created": "2024-01-11T06:14:55.124649Z",
+    "updated": "2026-09-19T20:06:44.428817Z"
+   },
+   {
+    "id": 765919,
+    "code": "24004121",
+    "source": "off",
+    "source_last_synced": "2026-02-16T21:14:39.036767Z",
+    "product_name": "Leche Entera Ecologica",
+    "image_url": "https://images.openfoodfacts.org/images/products/000/002/400/4121/front_fr.4.400.jpg",
+    "product_quantity": 1000,
+    "product_quantity_unit": "ml",
+    "quantity": null,
+    "categories_tags": [
+     "en:dairies",
+     "en:milks-liquid-and-powder",
+     "en:milks",
+     "en:whole-milks",
+     "en:cow-milks",
+     "es:leche-ecologica"
+    ],
+    "brands": "GutBio",
+    "brands_tags": [
+     "gutbio"
+    ],
+    "labels_tags": [
+     "en:organic",
+     "en:animal-welfare",
+     "en:eu-organic",
+     "en:carbon-trust",
+     "en:carbon-trust-reducing-co2",
+     "en:es-eco-022-ga",
+     "en:fsc",
+     "en:fsc-mix",
+     "en:green-dot",
+     "en:nutriscore",
+     "es:bonsucro",
+     "es:craega"
+    ],
+    "nutriscore_grade": "c",
+    "ecoscore_grade": "b",
+    "nova_group": 1,
+    "unique_scans_n": 7,
+    "price_count": 1,
+    "price_currency_count": 1,
+    "location_count": 1,
+    "location_type_osm_country_count": 1,
+    "proof_count": 1,
+    "created": "2024-01-11T06:14:08.808174Z",
+    "updated": "2026-02-16T21:14:39.039692Z"
+   },
+   {
+    "id": 214463,
+    "code": "20944292",
+    "source": "off",
+    "source_last_synced": "2026-09-28T20:46:12.375276Z",
+    "product_name": "Leche entera",
+    "image_url": "https://images.openfoodfacts.org/images/products/000/002/094/4292/front_es.67.400.jpg",
+    "product_quantity": 1000,
+    "product_quantity_unit": "ml",
+    "quantity": "1 l",
+    "categories_tags": [
+     "en:dairies",
+     "en:milks-liquid-and-powder",
+     "en:milks",
+     "en:homogenized-milks",
+     "en:pasteurised-products",
+     "en:uht-milks",
+     "en:whole-milks",
+     "en:cow-milks"
+    ],
+    "brands": "",
+    "brands_tags": [],
+    "labels_tags": [
+     "en:animal-welfare",
+     "en:fsc",
+     "en:nutriscore",
+     "en:fsc-mix",
+     "en:nutriscore-grade-c",
+     "en:welfair-certificate"
+    ],
+    "nutriscore_grade": "c",
+    "ecoscore_grade": "c",
+    "nova_group": 1,
+    "unique_scans_n": 32,
+    "price_count": 1,
+    "price_currency_count": 1,
+    "location_count": 1,
+    "location_type_osm_country_count": 1,
+    "proof_count": 1,
+    "created": "2024-01-11T06:06:01.221500Z",
+    "updated": "2026-09-28T20:46:12.383942Z"
+   },
+   {
+    "id": 2055255,
+    "code": "7501020565935",
+    "source": "off",
+    "source_last_synced": "2026-02-16T20:36:36.168031Z",
+    "product_name": "Leche entera ultrapasteurizada adicionada con vitaminas A y D",
+    "image_url": "https://images.openfoodfacts.org/images/products/750/102/056/5935/front_es.48.400.jpg",
+    "product_quantity": 1000,
+    "product_quantity_unit": "ml",
+    "quantity": null,
+    "categories_tags": [
+     "en:dairies",
+     "en:milks-liquid-and-powder",
+     "en:milks",
+     "en:pasteurised-products",
+     "en:pasteurised-milks",
+     "en:whole-milks"
+    ],
+    "brands": "Lala",
+    "brands_tags": [
+     "lala"
+    ],
+    "labels_tags": [
+     "en:kosher",
+     "en:no-preservatives",
+     "en:fsc",
+     "en:fsc-mix"
+    ],
+    "nutriscore_grade": "b",
+    "ecoscore_grade": "d",
+    "nova_group": 4,
+    "unique_scans_n": 10,
+    "price_count": 1,
+    "price_currency_count": 1,
+    "location_count": 1,
+    "location_type_osm_country_count": 1,
+    "proof_count": 1,
+    "created": "2024-01-11T06:30:07.363263Z",
+    "updated": "2026-02-16T20:36:36.170949Z"
+   }
+  ],
+  "page": 1,
+  "pages": 111,
+  "size": 5,
+  "total": 552
+ }
+}

@@ -82,7 +82,7 @@ class ManifestContractTests(unittest.TestCase):
 
 ROOT = Path(__file__).resolve().parents[1]
 # Documented in README/docs; .env.example update pending maintainer review (#37)
-PENDING_ENV_EXAMPLE = {"SABOR_STORE", "SABOR_STORE_DB", "SABOR_DATA_DIR"}
+PENDING_ENV_EXAMPLE = {"SABOR_STORE", "SABOR_STORE_DB", "SABOR_DATA_DIR", "SABOR_OPEN_PRICES_ENABLED"}
 
 
 class _RecordingEnv(dict):

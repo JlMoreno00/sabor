@@ -4,7 +4,7 @@
 
 ### Changed
 - `server.json`: the OCI package advertises only the essential environment
-  variables (store, Mealie, LLM, Bring, Mercadona, toolsets) and the `pypi`
+  variables (store, Mealie, LLM, Bring, Mercadona, Open Prices, toolsets) and the `pypi`
   package (`uvx sabor-mcp`, stdio) none; `mcp-manifest.json` still lists all.
   The README carries the hidden `mcp-name` marker for registry ownership, and a
   manual *Publish PyPI* run targets TestPyPI unless PyPI is chosen; version tags
@@ -25,6 +25,11 @@
   Runtime behavior with Mealie configured is unchanged (#36).
 
 ### Added
+- Opt-in Open Prices pricing provider (`SABOR_OPEN_PRICES_ENABLED=true` plus
+  `pricing` toolset): barcode search and country-scoped crowd observations,
+  observation/store provenance, stale/discount/single-observation uncertainty,
+  canonical package units and instance-owned ten-minute cache. Spanish coverage
+  is sparse/old. Attribution: Open Prices (Open Food Facts), ODbL (#2).
 - The shared store contract runs against the real Mealie adapter using a stateful
   offline Mealie contract double, alongside Fake and SQLite (#5).
 - Pantry-aware `estimate_cost` sources accept `exclude_pantry: true`, excluding

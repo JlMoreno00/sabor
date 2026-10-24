@@ -49,6 +49,7 @@ class Registry:
         # SABOR_MERCADONA_ENABLED is Mercadona readiness, not a health probe.
         pricings = tuple(factory(settings) for factory in pricing_factories)
         pricings = tuple(p for p in pricings if p.id != 'mercadona' or settings.mercadona_enabled)
+        pricings = tuple(p for p in pricings if p.id != 'open_prices' or settings.open_prices_enabled)
         ids, kinds = set(), set()
         for adapter in (*imports, *syncs, *pricings):
             if adapter.id in ids:
