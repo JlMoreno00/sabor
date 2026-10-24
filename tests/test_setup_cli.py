@@ -3,6 +3,7 @@ import io
 import json
 import os
 from pathlib import Path
+import re
 import tempfile
 import tomllib
 import unittest
@@ -152,3 +153,33 @@ class SetupTests(unittest.TestCase):
             from sabor.core.config import ConfigError
             with self.assertRaisesRegex(ConfigError, 'only by its owner'):
                 apply_config_file({'SABOR_CONFIG': str(self.path)})
+
+
+class SetupHelpTests(unittest.TestCase):
+    def help_text(self, *args):
+        from sabor.setup_cli import main
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output), self.assertRaises(SystemExit) as result:
+            main([*args, '--help'])
+        self.assertEqual(result.exception.code, 0)
+        return output.getvalue()
+
+    def test_every_option_is_described(self):
+        for args, prog, options in [
+                ((), 'sabor-mcp setup', ('--json', '--non-interactive', '--lang', '--store', '--llm',
+                                         '--pricing', '--sqlite-path', '--mealie-url',
+                                         '--mercadona-warehouse', '--llm-base-url', '--llm-model',
+                                         '--gemini-model', '--bring')),
+                (('secret',), 'sabor-mcp setup secret', ('--json', '--backend', 'name'))]:
+            with self.subTest(prog=prog):
+                text = self.help_text(*args)
+                self.assertTrue(text.startswith('usage: ' + prog + ' '), text.splitlines()[0])
+                lines = text.splitlines()
+                start = next(i for i, line in enumerate(lines) if line in ('positional arguments:', 'options:'))
+                for option in options:
+                    row = next(i for i, line in enumerate(lines) if i > start
+                               and line.startswith('  ') and line.strip().startswith(option))
+                    # argparse puts help after a 2+ space gap, or on the next deeply indented line.
+                    same_line = re.match(r'\s+\S.*?\s{2,}\S', lines[row])
+                    next_line = row + 1 < len(lines) and re.match(r'\s{20,}[^-\s]', lines[row + 1])
+                    self.assertTrue(same_line or next_line, option)

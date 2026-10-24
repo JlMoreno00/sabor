@@ -27,21 +27,36 @@ def write_config(path, old, document):
 def main(argv=None):
     arguments = list(sys.argv[1:] if argv is None else argv)
     secret = arguments[:1] == ['secret']
-    parser = argparse.ArgumentParser(description='Configure Sabor (English / español); secrets stay out of config.toml')
+    parser = argparse.ArgumentParser(
+        prog='sabor-mcp setup secret' if secret else 'sabor-mcp setup',
+        description=('Store one secret from hidden terminal input (keychain, or an owner-only secrets.toml)'
+                     if secret else 'Configure Sabor (English / español); secrets stay out of config.toml'))
     parser.add_argument('--json', action='store_true', help='Print one JSON result')
     if secret:
         arguments = arguments[1:]
-        parser.add_argument('name')
-        parser.add_argument('--backend', choices=('auto', 'keyring', 'file'), default='auto')
+        parser.add_argument('name', help='mealie_api_token, llm_api_key, gemini_api_key, bring_email, '
+                                         'bring_password or spoonacular_api_key')
+        parser.add_argument('--backend', choices=('auto', 'keyring', 'file'), default='auto',
+                            help='Where to store it; auto uses the keychain and falls back to secrets.toml')
     else:
-        parser.add_argument('--non-interactive', action='store_true')
-        for flag, choices in [('lang', ('es', 'en')), ('store', ('sqlite', 'mealie')),
-                              ('llm', ('none', 'openai', 'gemini', 'ollama'))]:
-            parser.add_argument('--' + flag, choices=choices)
-        parser.add_argument('--pricing', choices=('none', 'mercadona', 'open_prices'), action='append')
-        for flag in ('sqlite-path', 'mealie-url', 'mercadona-warehouse', 'llm-base-url', 'llm-model', 'gemini-model'):
-            parser.add_argument('--' + flag)
-        parser.add_argument('--bring', action=argparse.BooleanOptionalAction, default=None)
+        parser.add_argument('--non-interactive', action='store_true',
+                            help='Use only the flags (no prompts); required without a terminal')
+        for flag, choices, text in [
+                ('lang', ('es', 'en'), 'Conversation language stored as [general] language'),
+                ('store', ('sqlite', 'mealie'), 'Recipe store (default sqlite)'),
+                ('llm', ('none', 'openai', 'gemini', 'ollama'), 'Model for text/video recipe import')]:
+            parser.add_argument('--' + flag, choices=choices, help=text)
+        parser.add_argument('--pricing', choices=('none', 'mercadona', 'open_prices'), action='append',
+                            help='Price provider; repeat to enable several, none disables them')
+        for flag, text in [('sqlite-path', 'SQLite database path (default: the OS data directory)'),
+                           ('mealie-url', 'Mealie base URL (required with --store mealie)'),
+                           ('mercadona-warehouse', 'Mercadona warehouse id (default mad1)'),
+                           ('llm-base-url', 'OpenAI-compatible base URL'),
+                           ('llm-model', 'Model name for --llm openai or ollama'),
+                           ('gemini-model', 'Gemini model for --llm gemini')]:
+            parser.add_argument('--' + flag, help=text)
+        parser.add_argument('--bring', action=argparse.BooleanOptionalAction, default=None,
+                            help='Sync shopping lists with Bring! (needs bring_email and bring_password)')
     args = parser.parse_args(arguments)
     path = config_path(os.environ)
     result = dict(ok=False, changed=False, config_path=str(path), store=None,
