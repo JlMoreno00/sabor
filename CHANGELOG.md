@@ -9,6 +9,10 @@
   Runtime behavior with Mealie configured is unchanged (#36).
 
 ### Added
+- Spanish catalog CLI: `sabor-mcp catalog status|apply` and
+  `python -m sabor catalog status|apply`, with instance-bound Mealie settings,
+  read-only status, create-only apply and JSON output. Existing catalog MCP
+  tools remain unchanged, deprecated in documentation pending a future major (#14).
 - `sabor_capabilities` adds `data.mealie_only`: Mealie-only toolsets unavailable
   in this instance with a `reason` (`requires_mealie_store` for
   `legacy_nutrition`, `requires_mealie` for `legacy_catalog`) and `detail`.

@@ -194,6 +194,26 @@ video uses frames/captions, not whole-video audio. Native Gemini requires its
 existing key plus an explicit model. Inside Docker, localhost means the Sabor
 container; use an intentionally trusted reachable service address and key.
 
+For Spanish catalog setup, prefer the CLI; the MCP tools will be retired in a future major version.
+The existing `spanish_catalog_status` and `apply_spanish_catalog` MCP tools remain
+unchanged and are deprecated in documentation only.
+
+```sh
+sabor-mcp catalog status
+sabor-mcp catalog apply
+python -m sabor catalog status
+python -m sabor catalog apply
+```
+
+Configure `MEALIE_BASE_URL` and `MEALIE_API_TOKEN`; no toolset opt-in is required
+for the CLI. Status only reads. Apply creates missing curated units, audits foods,
+and never updates, merges, deletes or invokes seeders. Review the indented UTF-8
+JSON, including nested errors/conflicts. Exit 0 means top-level `ok` is true
+(not that every entry was created); 1 means configuration/reconciliation failure;
+2 means invalid arguments. Missing Mealie configuration reports to stderr without
+HTTP requests. No server runtime or SQLite initialization is started.
+`sabor-mcp` without arguments still starts stdio; `--transport http` still selects HTTP.
+
 Select legacy domains explicitly; credentials alone do not register them:
 
 ```dotenv

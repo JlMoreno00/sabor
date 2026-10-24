@@ -54,6 +54,23 @@ current instance under `data.mealie_only`, each with a `reason`
 migrate: keep `MEALIE_BASE_URL` and `MEALIE_API_TOKEN` and Sabor keeps using it.
 Step-by-step clean installs for both paths: [docs/install-beta.md](docs/install-beta.md).
 
+Bootstrap the Spanish Mealie catalog outside the agent tool list:
+
+```sh
+sabor-mcp catalog status
+sabor-mcp catalog apply
+# Equivalent module entrypoints:
+python -m sabor catalog status
+python -m sabor catalog apply
+```
+
+Both require `MEALIE_BASE_URL` and `MEALIE_API_TOKEN`, independent of
+`SABOR_TOOLSETS`. Status is a read-only dry-run; apply creates only missing
+curated units and audits foods. Neither updates, merges, deletes nor runs seeders.
+Results are indented UTF-8 JSON; exit codes: 0 when `ok` is true, 1 for
+configuration/reconciliation failure, 2 for invalid arguments. Review nested
+`errors` and `conflicts` even when `ok` is true (legacy semantics).
+
 ## Capabilities and providers
 
 | Capability | Provider / requirements | Limits |
@@ -488,6 +505,9 @@ nutrition_unresolved_report()
 ```
 
 ### legacy_catalog
+
+Deprecated: prefer the CLI; the MCP tools will be retired in a future major version.
+Their signatures and behavior remain unchanged for compatibility.
 
 ```python
 spanish_catalog_status()

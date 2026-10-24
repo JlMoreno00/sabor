@@ -115,7 +115,13 @@ def cli(argv=None) -> None:
     """Run the installed command (stdio by default)."""
     parser = argparse.ArgumentParser(description="Sabor MCP server")
     parser.add_argument("--transport", choices=("stdio", "http"), default="stdio")
+    commands = parser.add_subparsers(dest="command")
+    catalog_parser = commands.add_parser("catalog", help="Preview or apply the Spanish Mealie catalog")
+    catalog_parser.add_argument("action", choices=("status", "apply"))
     args = parser.parse_args(argv)
+    if args.command == "catalog":
+        from sabor.catalog_cli import run_catalog
+        raise SystemExit(run_catalog(args.action))
     if args.transport == "http" and "SABOR_HOST" not in os.environ:
         # A locally installed command has no authentication layer in front of it:
         # listen on loopback unless the operator explicitly chooses an interface.
