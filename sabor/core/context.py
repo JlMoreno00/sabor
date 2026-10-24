@@ -20,6 +20,7 @@ class RuntimeState:
     recipe_locks: tuple = field(default_factory=lambda: tuple(threading.Lock() for _ in range(64)))
     mealplan_locks: tuple = field(default_factory=lambda: tuple(threading.Lock() for _ in range(64)))
     provider_locks: tuple = field(default_factory=lambda: tuple(threading.Lock() for _ in range(64)))
+    preferences_lock: object = field(default_factory=threading.Lock)
     correction_lock: object = field(default_factory=threading.Lock)
     correction_stages: dict = field(default_factory=dict)
 

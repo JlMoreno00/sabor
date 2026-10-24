@@ -42,6 +42,7 @@ TOOL_MODULES = (
     "sabor.tools.comments",
     "sabor.integrations.spoonacular",
     "sabor.tools.memory",
+    "sabor.tools.preferences",
     "sabor.integrations.mercadona", "sabor.pricing.tools",
     "sabor.tools.nutrition",
 )
@@ -113,6 +114,11 @@ def start_runtime_services(server=None) -> None:
 
 def cli(argv=None) -> None:
     """Run the installed command (stdio by default)."""
+    import sys
+    arguments = list(sys.argv[1:] if argv is None else argv)
+    if arguments[:1] == ["preferences"]:
+        from sabor.preferences_cli import main as preferences_main
+        raise SystemExit(preferences_main(arguments[1:]))
     parser = argparse.ArgumentParser(description="Sabor MCP server")
     parser.add_argument("--transport", choices=("stdio", "http"), default="stdio")
     commands = parser.add_subparsers(dest="command")

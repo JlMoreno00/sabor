@@ -12,7 +12,7 @@
     "retries": 3
   },
   "mcp_endpoint": "/mcp",
-  "tool_count": 50,
+  "tool_count": 52,
   "runtime": "python",
   "build": {
     "dockerfile": "Dockerfile",
@@ -42,7 +42,7 @@
     },
     {
       "name": "SABOR_TOOLSETS",
-      "description": "Comma-separated toolsets to register: core, import, shopping_sync, pricing and legacy_* sets. Empty registers discovery only; unknown names fail startup.",
+      "description": "Comma-separated toolsets to register: core, import, shopping_sync, pricing, preferences and legacy_* sets. Empty registers discovery only; unknown names fail startup.",
       "required": false,
       "secret": false,
       "default": "core,import,shopping_sync"

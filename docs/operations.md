@@ -22,6 +22,55 @@ Local video import requires system ffmpeg and ffprobe on PATH; Docker includes
 them. Missing binaries produce `provider_unconfigured` with installation guidance.
 Core recipes, planning and shopping do not need ffmpeg or Mealie.
 
+## Structured preferences migration
+
+Add `preferences` to `SABOR_TOOLSETS` and restart; the default toolset list is
+unchanged. Back up `<data dir>/preferences.json` and the configured `MEMORY_FILE`.
+No new environment variable is needed. `.env.example` intentionally does not
+list this new opt-in value yet.
+
+```sh
+sabor-mcp preferences import-memory
+sabor-mcp preferences import-memory --apply
+```
+
+The first command prints JSON only (dry-run, no writes); inspect it before apply.
+It reads the instance MEMORY_FILE and never deletes or modifies it. Exit codes:
+0 success, 1 read/validation/write error, 2 usage error. This command is currently
+available through the installed `sabor-mcp` entrypoint, not `python -m sabor`.
+
+| MEMORY.md bullets | Destination |
+|---|---|
+| Despensa Conversacional | pantry, merged case-insensitively |
+| Preferencias Aprendidas | notes, merged case-insensitively |
+| Feedback Historial, Top Recetas Favoritas, Blacklist Recetas, other sections | Not migrated; section counts reported in not_migrated |
+
+Repeated imports do not duplicate values; preference annotations remain verbatim.
+Migration does not infer diet, dislikes or household size. `save_feedback` stays
+unchanged; existing ratings/favorites/comments are not redirected.
+
+Example `<data dir>/preferences.json` (single household, reserved default profile):
+
+```json
+{
+  "schema_version": 1,
+  "profiles": {
+    "default": {
+      "diet": ["vegetarian"],
+      "dislikes": [],
+      "household_size": 2,
+      "pantry": ["Arroz"],
+      "notes": ["Cenas rápidas"]
+    }
+  },
+  "updated_at": "2026-10-20T12:00:00+00:00"
+}
+```
+
+Invalid/corrupt files are never silently replaced. Repair or restore a backup
+before retrying. Do not share a data directory between concurrent processes;
+locking is per instance, not a cross-process lock. Pantry subtraction is deferred.
+
 ## Configuration Authority
 
 Registration authority is `sabor/core/config.py`: `load_settings` validates the

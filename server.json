@@ -35,7 +35,7 @@
       "environmentVariables": [
         {
           "name": "SABOR_TOOLSETS",
-          "description": "Comma-separated toolsets to register: core, import, shopping_sync, pricing and legacy_* sets. Empty registers discovery only; unknown names fail startup.",
+          "description": "Comma-separated toolsets to register: core, import, shopping_sync, pricing, preferences and legacy_* sets. Empty registers discovery only; unknown names fail startup.",
           "default": "core,import,shopping_sync",
           "isRequired": false,
           "isSecret": false
@@ -282,7 +282,7 @@
       "environmentVariables": [
         {
           "name": "SABOR_TOOLSETS",
-          "description": "Comma-separated toolsets to register: core, import, shopping_sync, pricing and legacy_* sets. Empty registers discovery only; unknown names fail startup.",
+          "description": "Comma-separated toolsets to register: core, import, shopping_sync, pricing, preferences and legacy_* sets. Empty registers discovery only; unknown names fail startup.",
           "default": "core,import,shopping_sync",
           "isRequired": false,
           "isSecret": false
