@@ -3,6 +3,10 @@
 ## [Unreleased]
 
 ### Added
+- SQLite URL import via offline recipe-scrapers and JSON-LD fallback, plus image
+  preview/commit through a vision-capable compatible LLM; shared SSRF-safe bounded
+  HTML/image fetching. Text/video imports retain store-based creation and native
+  Mealie import behavior is unchanged (#38).
 - Built-in SQLite recipe store, selected by default without a Mealie URL, with
   configurable `SABOR_STORE` / `SABOR_STORE_DB`, FTS search, meal plans and
   shopping lists usable through Bring! previews without Mealie (#37).
