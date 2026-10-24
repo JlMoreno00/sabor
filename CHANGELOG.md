@@ -25,6 +25,10 @@
   Runtime behavior with Mealie configured is unchanged (#36).
 
 ### Added
+- Optional generic Postgres recipe store (`sabor-mcp[postgres]`) with secret
+  `SABOR_DATABASE_URL`, private schema migrations, RLS on every table and
+  extension-free phrase search. Setup, doctor and discovery support `postgres`;
+  the shared capability contract runs against Postgres 16 in CI (#68).
 - Portable Agent Skill `skills/sabor-onboarding/SKILL.md`: the cooking-profile
   interview for any client that supports Agent Skills. It separates the profile
   (preference tools, when the opt-in `preferences` toolset is registered) from

@@ -11,7 +11,7 @@ to inspect effective values and their origins. Omit `--json` for human output
 runtime configuration is applied, and leave the process environment unchanged.
 Neither registers tools nor serves MCP.
 
-Doctor initializes/migrates SQLite with `ensure_ready()` and reads its schema
+Doctor initializes/migrates SQLite or Postgres with `ensure_ready()` and reads its schema
 version. For Mealie it makes one unauthenticated GET to `/api/app/about` with a
 five-second timeout; it never prints response bodies or tokens. This checks
 reachability, not token validity or authenticated permissions.
@@ -203,8 +203,9 @@ The executable runtime, `.env.example`, and `mcp-manifest.json` all use
 | `SABOR_HOST_PORT` | `9170` (Compose) | Docker host binding | Optional, non-secret; loopback only |
 | `SABOR_PORT` | `8080` | Server | Must match container port and health check unless all are changed together |
 | `MEALIE_BASE_URL` | Empty for registration; legacy client defaults localhost | Optional Mealie adapter only | Remove trailing slash; use the container-reachable URL in Compose |
-| `SABOR_STORE` | `mealie` if `MEALIE_BASE_URL` is non-empty, otherwise `sqlite` | Recipe backend | Explicit `sqlite` or `mealie` wins; invalid values fail startup |
+| `SABOR_STORE` | `mealie` if `MEALIE_BASE_URL` is non-empty, otherwise `sqlite` | Recipe backend | Explicit `sqlite`, `mealie` or `postgres` wins; invalid values fail startup |
 | `SABOR_STORE_DB` | `<data dir>/sabor.db` | SQLite backend | Parent directories created at startup; open failures are fatal, with no fallback |
+| `SABOR_DATABASE_URL` | Empty | Required for Postgres backend | Secret Postgres URL; environment or setup-managed secret reference, never `[store] database_url` |
 | `MEALIE_API_TOKEN` | Empty | Optional Mealie adapter only | Bearer token; secret |
 | `SPOONACULAR_API_KEY` | Empty | Spoonacular tools and nutrition profile fetches | Secret |
 | `GEMINI_API_KEY` | Empty | Video analysis/import | Secret |
@@ -218,7 +219,7 @@ The executable runtime, `.env.example`, and `mcp-manifest.json` all use
 
 ## Store and instance deployment (0.3)
 
-SQLite and Mealie are shipped RecipeStores. Without a Mealie URL, SQLite enables
+SQLite, Mealie and optional Postgres are shipped RecipeStores. Without a Mealie URL, SQLite enables
 recipes, meal plans, shopping lists and import locally. URL import uses offline
 recipe-scrapers with JSON-LD fallback and needs no LLM. Text requires a compatible
 LLM; image preview/commit requires a vision-capable compatible model (otherwise
@@ -248,7 +249,55 @@ stop Sabor before copying the volume (including any `sabor.db-wal` and
 `sabor.db-shm` files), or use SQLite's online backup API for a consistent live
 snapshot. Do not copy only the main database while writes are active. Restore
 with Sabor stopped and retain ownership/write permissions. Back up Mealie
-separately when selected. Other store adapters are not shipped.
+separately when selected. For Postgres, back up the database schema separately as described below.
+
+## Postgres / Supabase store
+
+Install the optional driver extra, then configure the store without putting the
+connection URL in chat, command-line arguments or non-secret TOML:
+
+```sh
+pip install 'sabor-mcp[postgres]'
+# Or run without a permanent install:
+uvx --from 'sabor-mcp[postgres]' sabor-mcp
+sabor-mcp setup --non-interactive --store postgres --json
+sabor-mcp setup secret database_url
+sabor-mcp doctor --json
+```
+
+At runtime select `SABOR_STORE=postgres` and supply `SABOR_DATABASE_URL` through
+the environment or the setup-managed secret reference. It accepts `postgresql://`
+or `postgres://` URLs. `[store] database_url` is rejected as a secret. Without the
+extra, selecting Postgres fails clearly; SQLite and Mealie remain usable.
+Setup only records configuration and missing secrets; doctor performs the probe.
+A failed Postgres probe exits 3 and suggests checking the URL/connections with
+`sabor-mcp setup secret database_url`; driver errors and discovery omit the DSN.
+
+The connecting role must be able to create/own the `sabor` schema, its tables and
+sequences. Forward-only migrations run at startup (or first direct store call),
+with a transaction-scoped advisory lock and version marker. Every table has RLS
+enabled with **no policies**; the owner bypasses RLS (no FORCE). Schema privileges
+are revoked from PUBLIC and from `anon`/`authenticated` when those roles exist;
+table and sequence grants to those two roles are also revoked. Use a dedicated
+owner role, not an anonymous browser key. This is private server-side persistence,
+not a public Supabase Data API or a multi-tenant policy framework.
+
+No extensions are required. Search uses normalized, accent-insensitive word
+phrases plus substring-name matching. Rating sort remains unsupported, as with
+SQLite. One persistent connection is serialized per instance; read operations
+reconnect/retry once on connection failure, **writes never auto-retry**. Reconcile
+uncertain writes by reading back before retrying manually.
+
+For Supabase use the **session pooler on port 5432** with `sslmode=require`, not
+the transaction pooler on port 6543. Generic local/self-hosted Postgres and Neon
+use the same adapter; connection TLS is controlled by the URL. Construction and
+registration do not connect. `SABOR_STORE_DB` still controls SQLite only; memory,
+preferences and nutrition-sidecar persistence are unchanged by this recipe store.
+
+Back up the `sabor` schema using your Postgres provider's consistent backup/restore
+procedure, including sequences and schema-version metadata. Do not treat a Sabor
+local-volume backup as a Postgres backup. Migrations do not downgrade; restore a
+matching pre-migration backup for incompatible code rollback.
 
 ## Pricing operations
 
@@ -843,7 +892,7 @@ values override file settings at runtime. `SABOR_LANGUAGE` accepts `es` or `en`.
 
 Store credentials with `sabor-mcp setup secret mealie_api_token` in an interactive
 terminal. Supported names: `mealie_api_token`, `llm_api_key`, `gemini_api_key`,
-`bring_email`, `bring_password`, `spoonacular_api_key`. Values never appear in
+`bring_email`, `bring_password`, `spoonacular_api_key`, `database_url`. Values never appear in
 output or config.toml: only `keyring`/`file` references do. The system keyring
 (service `sabor`) is preferred; an unavailable backend falls back to owner-only
 0600 `secrets.toml` beside config.toml. `--backend file` forces the fallback;
@@ -851,6 +900,6 @@ output or config.toml: only `keyring`/`file` references do. The system keyring
 
 JSON reports changed, missing_secrets and exact next_steps. Exit codes: 0 success,
 2 invalid configuration, 3 inaccessible storage. SQLite is initialized locally;
-Mealie setup makes no network calls. Repeating identical flags leaves the file
+Mealie and Postgres setup make no network calls. Repeating identical flags leaves the file
 untouched. Changes atomically replace it and preserve the previous version as
 `config.toml.bak`; comments are not retained in the rewritten file.

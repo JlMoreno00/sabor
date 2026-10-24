@@ -126,6 +126,20 @@ class SetupTests(unittest.TestCase):
         self.assertEqual(code, 2)
         self.assertNotIn('PRIVATE_SENTINEL', str(result))
 
+    def test_postgres_setup_and_secret(self):
+        code, result = self.run_setup('--non-interactive', '--json', '--store', 'postgres')
+        self.assertEqual(code, 0, result)
+        self.assertEqual(result['missing_secrets'], ['database_url'])
+        self.assertEqual(result['next_steps'], ['sabor-mcp setup secret database_url'])
+        self.assertEqual(tomllib.loads(self.path.read_text())['store']['backend'], 'postgres')
+        with patch('getpass.getpass', return_value='postgresql://u:PRIVATE_SENTINEL@localhost/db'):
+            code, result = self.run_setup('secret', 'database_url', '--backend', 'keyring', '--json', tty=True)
+        self.assertEqual(code, 0, result)
+        self.assertNotIn('PRIVATE_SENTINEL', str(result) + self.path.read_text())
+        env = {'SABOR_CONFIG': str(self.path)}
+        apply_config_file(env)
+        self.assertEqual(env['SABOR_DATABASE_URL'], 'postgresql://u:PRIVATE_SENTINEL@localhost/db')
+
     def test_no_tty_and_store_failure(self):
         self.assertEqual(self.run_setup('--json')[0], 2)
         code, result = self.run_setup('secret', 'mealie_api_token', '--json')

@@ -12,6 +12,19 @@ from sabor.core.config_file import apply_config_file, config_path, read_config_f
 
 
 class ConfigFileTests(unittest.TestCase):
+    def test_database_url_is_a_secret(self):
+        from sabor.core.config_file import SECRET_ENV
+        from sabor.secrets_store import SECRET_NAMES, required_secrets
+        self.assertIn('SABOR_DATABASE_URL', SECRET_ENV)
+        self.assertEqual(SECRET_NAMES['database_url'], 'SABOR_DATABASE_URL')
+        self.assertEqual(required_secrets({'SABOR_STORE': 'postgres'}), ['database_url'])
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'config.toml'
+            path.write_text('[store]\nbackend = "postgres"\ndatabase_url = "PRIVATE_SENTINEL"\n')
+            with self.assertRaisesRegex(ConfigError, 'Secrets do not belong') as error:
+                read_config_file(path, explicit=True)
+            self.assertNotIn('PRIVATE_SENTINEL', str(error.exception))
+
     def test_compat_import_does_not_read_config(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'config.toml'

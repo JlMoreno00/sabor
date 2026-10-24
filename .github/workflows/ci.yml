@@ -37,6 +37,18 @@ jobs:
   tests:
     name: Tests (Python 3.12)
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v4
         with:
@@ -53,12 +65,16 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt pytest
 
+      - name: Install optional Postgres driver
+        run: pip install "psycopg[binary]>=3.2"
+
       # `python -m pytest` puts the repository root on sys.path, which the
       # offline suite needs to import `sabor`, `nutrition`, `scripts` and
       # `tests`.
       - name: Run tests
         env:
           PYTHONDONTWRITEBYTECODE: "1"
+          SABOR_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
         run: python -m pytest -q
 
       - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
