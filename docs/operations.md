@@ -385,6 +385,72 @@ one returned product quote. Inspect uncertainty and cache timestamp without
 publishing product data. Restart once only after successful warm-up to verify
 cache reuse; do not trigger multiple fresh crawls from the datacenter IP.
 
+## Live verification (#11)
+
+### Mercadona data semantics (observed 2026-10-24)
+
+Read-only sample of the public API (`wh=mad1`): 571 products from 15
+subcategories (oil and sauces, water and soft drinks, fruit, vegetables, beef,
+fresh fish, canned fish and vegetables, eggs), about 25 requests spaced 1.5 s.
+These are observations of an unofficial API, not a contract; re-check them if
+estimates look wrong.
+
+- `selling_method` was `0` for every product, including fruit, meat and fish
+  sold by weight. Variable weight is signalled by `approx_size: true` (114 of
+  571), not by `selling_method`. Sabor already reports `approx_size` as
+  uncertainty.
+- `iva` was `null` for 424 of 571 products; `tax_percentage` (`"4.000"`,
+  `"10.000"`, `"21.000"`) was always present. The API exposes no net price; the
+  prices are consistent with VAT-inclusive shelf prices, but that is not
+  verified. Do not derive anything from `iva` alone.
+- Drained weight (71 canned products): `unit_size` is the gross size,
+  `drained_weight` the drained one; `bulk_price = unit_price / unit_size`
+  (per gross kg) and `reference_price = unit_price / drained_weight` (per
+  drained kg). Example: tuna 0.9 kg, 0.65 kg drained, 6.50 €: bulk 7.22, reference
+  10.00 €/kg. Sabor normalizes from `reference_price`, so the unit price of
+  these products is per drained kg; it always adds the `drained_weight`
+  uncertainty reason.
+- Packs: `is_pack: true` with `pack_size` (each unit), `total_units` and
+  `unit_size` = total (for example 3 × 0.4 kg bricks, `unit_size` 1.2). Sabor
+  never multiplies packs and adds the `pack` reason.
+- Reference formats `dc` and `dz` are both a dozen (6 eggs at 2.20 € →
+  `reference_price` 4.40 per `dc`); Sabor converts them to per unit (÷ 12). `100 g`
+  appears for small-format goods and is converted to per kg.
+- Anomaly to watch: some `ud` products count pieces inside a bunch in the
+  reference but bunches in `unit_size` ("Cebollas tiernas": `unit_size` 1 ud,
+  1.70 €, `reference_price` 0.567 per ud). Their per-unit estimate can be off by
+  the bunch size.
+- Availability: `unavailable_from` was always `null`, `published` always `true`,
+  `limit` always 999; four products had `unavailable_weekdays: [1]`.
+
+### Still to verify against real services
+
+These paths need accounts, paid API keys or a local Mealie and remain
+unverified. Use throwaway targets only and record the result here.
+
+1. **`search_recipes` sort orders against Mealie 3.22.0** (#16). Start a
+   disposable instance on loopback with a temporary volume, for example
+   `docker run -d --name sabor-verify-mealie -p 127.0.0.1:19925:9000 -v sabor-verify-mealie:/app/data -e ALLOW_SIGNUP=false ghcr.io/mealie-recipes/mealie:v3.22.0`,
+   sign in with the instance's initial administrator, create an API token and
+   four test recipes with different creation times, ratings (per-user rating
+   endpoint) and `lastMade`, then call `search_recipes(query=..., sort=...,
+   direction=...)` for `name`, `created_at`, `updated_at`, `rating`, `last_made`
+   and `random`. Expect unrated and never-made recipes last, and identical
+   `random` order across pages on the same UTC day. Remove the container and
+   volume afterwards (`docker rm -f sabor-verify-mealie && docker volume rm sabor-verify-mealie`).
+   Not run on 2026-10-24: Docker Desktop was waiting for an administrator
+   password on the host.
+2. **Bring! apply**: on a dedicated throwaway Bring list, run
+   `sync_shopping_list(..., confirm=False)`, review the preview, then
+   `confirm=True` with the returned `preview_digest`; check the items in the
+   Bring app, then repeat with a changed source to confirm stale-digest
+   rejection.
+3. **Imports with real models**: `import_recipe` with an OpenAI-compatible LLM
+   (text, and video frames plus captions) and with Gemini-native video, preview
+   then commit on a test store. Record model names and costs.
+4. **Native Mealie image import**: requires Mealie's own OpenAI configuration;
+   record the actual `POST /api/recipes/create/image` response shape.
+
 ## Disabled-First Nutrition Rollout
 
 The safe sequence is deliberately staged:
