@@ -3,6 +3,14 @@
 ## [Unreleased]
 
 ### Changed
+- Mercadona ranking prefers staples over equally close derivative products,
+  without penalizing explicitly requested modifiers (#9).
+- Cheapest pricing evaluates repeated ingredient quantities together, choosing a
+  common product only for a strict procurement saving; mixed selections survive
+  ties, overrides and strict policy are unchanged. Changed lines expose grouped
+  selection reasons and combined-quantity alternatives; missing prices stay unknown.
+  Each estimate reads the source once and uses a single per-call provider snapshot,
+  so trial selections never mix catalog refreshes or repeat provider calls (#9).
 - `mcp-manifest.json` and both `server.json` packages mark `MEALIE_BASE_URL` and
   `MEALIE_API_TOKEN` as optional (`required`/`isRequired: false`): they are only
   needed for the optional Mealie adapter, since SQLite is the default store.

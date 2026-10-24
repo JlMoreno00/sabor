@@ -142,8 +142,10 @@ uncertainty. `estimate_cost` reads only; it never modifies recipes or buys goods
 
 Mercadona search is food-only (non-food top categories 20, 21, 22, 23, 25,
 26 are excluded). Whole-word matches rank by the number of distinct normalized
-name tokens absent from the query (fewer is closer), then food metadata, name
-and ID. This is lexical closeness, not semantic ingredient identity.
+name tokens absent from the query (fewer is closer), then unrequested derivative
+modifiers, food metadata, name and ID. Staples beat equally close derivatives
+such as condensed milk; requested modifiers are not penalized, and entera,
+desnatada and semidesnatada stay neutral. This is lexical closeness, not semantic ingredient identity.
 `estimate_cost(..., match_policy="cheapest")` defaults to the compatible food
 candidate (search window up to 50) with the lowest checkout cost for the
 required quantity, that is whole packages times package price, then the lowest
@@ -152,7 +154,16 @@ unit price. For 200 g of flour this picks a 1 kg bag over a cheaper-per-kilo
 and up to five `alternatives` with names, normalized prices and
 `checkout_cost`. Show alternatives and
 offer to switch using `product_overrides`; overrides take precedence, but cannot
-price non-food. Use `match_policy="strict"` to leave ambiguity uncosted.
+price non-food. With at least two non-overridden lines sharing normalized name
+words and base unit, known quantities are also evaluated together. A common
+product replaces per-line choices only when its combined checkout cost is
+strictly cheaper than the original grouped procurement; ties keep the original
+choices, and basket procurement never increases. For 300 g + 300 g arroz,
+500 g at EUR 0.60 loses to 1 kg at EUR 0.90 (EUR 1.20 → 0.90). For 200 g +
+900 g with 1 kg at EUR 1.00, mixed choices stay (EUR 1.60, not EUR 1.80).
+Changed lines add `auto_selected_cheapest_group` and `grouped_selection` evidence;
+their alternatives show checkout costs for the summed quantity (up to five).
+Use `match_policy="strict"` to leave ambiguity uncosted; strict is not grouped.
 A positive quantity without a unit assumes pieces (`estimated`,
 `assumed_count`), matched only to count products. Kitchen measures stay unknown.
 Egg reference prices per dozen are divided by 12 for the per-piece basis.

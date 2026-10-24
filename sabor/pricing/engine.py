@@ -141,11 +141,106 @@ def _checkout_cost(required, unit, quote):
     return (required / factor / size).to_integral_value(rounding=ROUND_CEILING) * price
 
 
+class _SnapshotPricing:
+    """Per-call cache: every trial selection sees the same quotes, with no extra reads."""
+
+    def __init__(self, pricing):
+        self._pricing, self.id = pricing, pricing.id
+        self._searches, self._quotes = {}, {}
+
+    def search_products(self, query, store):
+        key = (query.query, query.limit)
+        if key not in self._searches:
+            self._searches[key] = list(self._pricing.search_products(query, store))
+        return self._searches[key]
+
+    def get_quote(self, product_id, store):
+        if product_id not in self._quotes:
+            self._quotes[product_id] = self._pricing.get_quote(product_id, store)
+        return self._quotes[product_id]
+
+
 def estimate(source, store_ctx: RetailContext, recipe_store, pricing, product_overrides=None,
              match_policy='cheapest', pantry=()) -> CostEstimate:
     if match_policy not in ('cheapest', 'strict'):
         raise ValueError('invalid match policy')
+    pricing = _SnapshotPricing(pricing)
     rows = _resolve(source, recipe_store)
+    result = _estimate(source, store_ctx, rows, pricing, product_overrides, match_policy, pantry)
+    if match_policy != 'cheapest':
+        return result
+    overrides = dict(product_overrides or {})
+    selection_groups = {}
+    for line in result.lines:
+        if line.key not in overrides and line.required_quantity is not None and line.quote is not None:
+            identity = (frozenset(_words(line.name)), line.base_unit)
+            selection_groups.setdefault(identity, []).append(line)
+    for members in selection_groups.values():
+        if len(members) < 2:
+            continue
+        required = sum(line.required_quantity for line in members)
+        unit = members[0].base_unit
+        common = set(members[0].candidates).intersection(*(line.candidates for line in members[1:]))
+        comparable = []
+        for pid in common:
+            quote = pricing.get_quote(pid, store_ctx)
+            checkout = _checkout_cost(required, unit, quote)
+            price = quote.normalized_unit_price
+            if (quote.food is not False and checkout is not None and isinstance(price, Decimal)
+                    and price.is_finite() and price >= 0):
+                comparable.append((checkout, price, quote.product_name, pid))
+        if not comparable:
+            continue
+        comparable.sort()
+        amounts = {}
+        for line in members:
+            pid = line.quote.product_id
+            amounts[pid] = amounts.get(pid, Decimal(0)) + line.required_quantity
+        baseline = Decimal(0)
+        for pid, amount in amounts.items():
+            checkout = _checkout_cost(amount, unit, next(line.quote for line in members
+                                                        if line.quote.product_id == pid))
+            if checkout is None:
+                break
+            baseline += checkout
+        else:
+            checkout = baseline
+        if checkout is None or comparable[0][0] >= baseline:
+            continue
+        selected = comparable[0][3]
+        changed = {line.key for line in members if line.quote.product_id != selected}
+        trial_overrides = dict(overrides, **{key: selected for key in changed})
+        trial = _estimate(source, store_ctx, rows, pricing, trial_overrides, match_policy, pantry)
+        # Products may also be shared outside this group: protect the whole basket.
+        if (trial.procurement_subtotal is None or result.procurement_subtotal is None
+                or trial.procurement_subtotal > result.procurement_subtotal):
+            continue
+        previous = {line.key: line for line in result.lines}
+        alternatives = tuple(dict(product_id=pid, name=name, normalized_unit_price=price,
+                                  checkout_cost=checkout)
+                             for checkout, price, name, pid in comparable[1:6])
+        merged = []
+        for line in trial.lines:
+            old = previous[line.key]
+            if line.key not in changed:
+                merged.append(old)
+                continue
+            reasons = tuple(dict.fromkeys((*line.uncertainty.reasons,
+                                           'auto_selected_cheapest', 'auto_selected_cheapest_group')))
+            merged.append(replace(line, candidates=old.candidates,
+                                  uncertainty=Uncertainty('estimated', reasons),
+                                  match_evidence=(*old.match_evidence, 'grouped_selection'),
+                                  alternatives=alternatives))
+        result = replace(trial, lines=tuple(merged),
+                         complete=bool(merged) and all(line.uncertainty.level == 'known' for line in merged),
+                         excluded_rows=tuple(line for line in merged if line.consumption is None))
+        overrides = trial_overrides
+    return result
+
+
+def _estimate(source, store_ctx, rows, pricing, product_overrides, match_policy, pantry):
+    if match_policy not in ('cheapest', 'strict'):
+        raise ValueError('invalid match policy')
     overrides = product_overrides or {}
     if not isinstance(overrides, dict) or overrides.keys() - {r[0] for r in rows} or any(
             not isinstance(v, str) or not v.strip() for v in overrides.values()):
