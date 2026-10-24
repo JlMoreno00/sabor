@@ -96,6 +96,7 @@ class RecipeSearch:
     require_all: bool = False
     sort: str = "name"
     direction: str = "asc"
+    seed: str | None = None
 
 
 @dataclass(frozen=True)

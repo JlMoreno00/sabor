@@ -34,6 +34,28 @@ class StoreContractMixin(ContractAssertions):
         self.assertEqual(self.store.search_recipes(RecipeSearch(per_page=1)).total, 1)
         self.assertEqual(self.store.search_recipes(RecipeSearch(page=2)).items, ())
 
+    def test_search_sort_orders(self):
+        self.store.create_recipe(Recipe(slug="apple", name="Apple"))
+        self.store.create_recipe(Recipe(slug="pear", name="Pear"))
+        def slugs(**kwargs):
+            return [r.slug for r in self.store.search_recipes(RecipeSearch(**kwargs)).items]
+        self.assertEqual(slugs(sort="created_at"), ["soup", "apple", "pear"])
+        self.assertEqual(slugs(sort="created_at", direction="desc"), ["pear", "apple", "soup"])
+        self.store.update_recipe("soup", RecipePatch({"description": "Updated"}))
+        self.assertEqual(slugs(sort="updated_at"), ["apple", "pear", "soup"])
+        self.store.log_cooking_event("pear", "Cooked", None)
+        self.store.log_cooking_event("soup", "Cooked", None)
+        self.store.log_cooking_event("pear", "Again", None)
+        self.assertEqual(slugs(sort="last_made"), ["soup", "pear", "apple"])
+        self.assertEqual(slugs(sort="last_made", direction="desc"), ["pear", "soup", "apple"])
+        self.assert_code("unsupported_operation", lambda: slugs(sort="rating"))
+        self.assert_code("invalid_argument", lambda: slugs(sort="unknown"))
+        order = slugs(sort="random", seed="2026-01-01")
+        self.assertEqual(order, slugs(sort="random", seed="2026-01-01", direction="desc"))
+        self.assertEqual(order, [slug for page in (1, 2, 3) for slug in
+                         slugs(sort="random", seed="2026-01-01", page=page, per_page=1)])
+        self.assertEqual(slugs(sort="random", seed="x", query="Pear"), ["pear"])
+
     def test_missing(self):
         self.assert_code("not_found", lambda: self.store.get_recipe("absent"))
         self.assert_code("not_found", lambda: self.store.get_shopping_items("absent"))

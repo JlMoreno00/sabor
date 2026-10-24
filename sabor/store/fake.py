@@ -1,6 +1,7 @@
 """Instance-local deterministic backend for port contracts, not a production store."""
 from dataclasses import dataclass, fields, replace, asdict
 from math import isfinite
+from hashlib import sha256
 from . import *
 
 
@@ -11,6 +12,7 @@ class FakeRecipeStore:
     def __init__(self):
         self.recipes, self.lists, self.entries, self.tags = {}, {}, {}, {}
         self._serial = 0
+        self._created, self._updated, self._last_made = {}, {}, {}
         self.comments, self.cooking_events = {}, {}
 
     def _id(self):
@@ -25,14 +27,24 @@ class FakeRecipeStore:
     def search_recipes(self, filters):
         f = filters
         if (type(f.page) is not int or f.page < 1 or type(f.per_page) is not int
-                or not 1 <= f.per_page <= 100 or f.sort != "name"
+                or not 1 <= f.per_page <= 100 or f.sort not in ("name", "created_at", "updated_at", "rating", "last_made", "random")
                 or f.direction not in ("asc", "desc")):
             raise StoreError("invalid_argument", self.id)
         if any(x is not None for x in (f.tag_ids, f.category_ids, f.food_ids, f.tool_ids, f.cookbook_id)):
             raise StoreError("unsupported_operation", self.id)
+        if f.sort == "rating":
+            raise StoreError("unsupported_operation", self.id)
         rows = sorted((RecipeSummary(r.id, r.name, r.slug) for r in self.recipes.values()
                        if f.query.casefold() in (r.name or "").casefold()),
                       key=lambda r: r.name or "", reverse=f.direction == "desc")
+        if f.sort in ("created_at", "updated_at", "last_made"):
+            times = {"created_at": self._created, "updated_at": self._updated,
+                     "last_made": self._last_made}[f.sort]
+            rows.sort(key=lambda r: (times.get(r.slug, 0), self._created[r.slug]),
+                      reverse=f.direction == "desc")
+            rows.sort(key=lambda r: r.slug not in times)
+        elif f.sort == "random":
+            rows.sort(key=lambda r: sha256(((f.seed or "") + (r.slug or "")).encode()).digest())
         start = (f.page - 1) * f.per_page
         return Page(tuple(rows[start:start + f.per_page]), len(rows), f.page,
                     f.per_page, (len(rows) + f.per_page - 1) // f.per_page)
@@ -45,6 +57,7 @@ class FakeRecipeStore:
         if slug in self.recipes:
             raise StoreError("conflict", self.id)
         self.recipes[slug] = replace(draft, id=draft.id or self._id(), slug=slug)
+        self._created[slug] = self._updated[slug] = int(self._id())
         return RecipeRef(self.recipes[slug].id, draft.name, slug)
 
     def update_recipe(self, slug, patch):
@@ -53,6 +66,7 @@ class FakeRecipeStore:
         if not patch.changes or patch.changes.keys() - editable:
             raise StoreError("invalid_argument", self.id)
         self.recipes[slug] = replace(recipe, **patch.changes)
+        self._updated[slug] = int(self._id())
         return RecipeRef(recipe.id, self.recipes[slug].name, slug)
 
     def suggest_recipes(self, query):
@@ -202,6 +216,7 @@ class FakeRecipeStore:
         self.get_recipe(slug)
         key = self._id()
         self.cooking_events[key] = (slug, subject, message)
+        self._last_made[slug] = int(key)
         return key
 
 
