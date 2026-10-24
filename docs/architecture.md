@@ -193,6 +193,32 @@ Coverage, excluded rows and uncertainty accompany partial subtotals; unknowns
 never become free ingredients. Mercadona is the only shipped provider; Open
 Prices remains deferred. No pantry accounting, checkout or recipe mutation occurs.
 
+## Store contract tests
+
+`tests/test_store_contract.py::StoreContractMixin` runs the same behavior
+assertions against Fake, SQLite and the real Mealie adapter. Each test declares
+required capability groups: `recipes_read`, `recipes_write`, `search_sort`,
+`mealplan`, `shopping`, `activity` and `suggestions`. Missing groups produce
+explicit adapter-specific skips; a vocabulary guard also checks optional branch
+capabilities. Creation-based seeding runs only with `recipes_write`; read-only
+fixtures supply their own seed. The `absent_id(kind)` hook supplies well-formed
+nonexistent backend identifiers, preserving `not_found` expectations separately
+from malformed-ID validation (Mealie shopping IDs must be UUIDs).
+
+Two optional capabilities describe genuine backend differences without skipping
+the surrounding contract: `rating_sort` is supported by Mealie, while Fake and
+SQLite retain the unsupported-operation assertion; `occurrence_ids` is supported
+by Fake and SQLite, while Mealie returns no changed IDs for recipe occurrences
+because upstream can aggregate existing lines. Every adapter still checks the
+resulting shopping contents. Mealie rating fixtures seed simulator state directly.
+
+`tests/fakes/mealie_api.py` is a stateful, offline Mealie v3.22.0 contract double,
+not a Mealie reimplementation or a substitute for HTTP characterization tests.
+It supplies the recipe, search, activity, suggestion, mealplan and shopping
+response shapes exercised by the adapter; unknown requests fail loudly.
+Native imports and non-tag taxonomy endpoints remain outside this double.
+No external service is needed for these contract runs.
+
 ## Sync approval boundary
 
 `preview_digest` hashes the source, target snapshot, actions and provider scope
