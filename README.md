@@ -304,6 +304,53 @@ MCP schema validation can reject a call before a tool runs.
   Unknown/ambiguous targets fail: there is no first-list fallback.
 - Recipe PATCH arrays replace entire arrays. Review removals, not just additions.
 
+## Install
+
+### 1. With your AI (recommended)
+
+Paste this into your coding agent (Claude Code, Cursor, Codex, Gemini CLI, Cline, OpenClaw…):
+
+```text
+Install and configure Sabor by following
+https://github.com/JlMoreno00/sabor/blob/main/llms-install.md
+```
+
+In Cursor, [open this prompt in the chat](https://cursor.com/link/prompt?text=Install%20and%20configure%20Sabor%20by%20following%20https%3A%2F%2Fgithub.com%2FJlMoreno00%2Fsabor%2Fblob%2Fmain%2Fllms-install.md)
+(it only fills the chat; nothing runs until you send it). The agent asks a few
+questions one at a time, configures Sabor with `sabor-mcp setup` in a terminal and
+verifies it with `sabor-mcp doctor --json`. Secrets are typed by you in a terminal
+(`sabor-mcp setup secret <name>`), never in the chat. See [llms-install.md](llms-install.md).
+
+### 2. One click (local SQLite, no questions)
+
+These links register `uvx sabor-mcp` and **work after the first PyPI release**;
+until then use the `uvx --from git+https://github.com/JlMoreno00/sabor sabor-mcp`
+form from [Connect your MCP client](#connect-your-mcp-client).
+
+- [Add to Cursor](https://cursor.com/en/install-mcp?name=sabor&config=eyJjb21tYW5kIjoidXZ4IHNhYm9yLW1jcCJ9)
+- [Install in VS Code](https://insiders.vscode.dev/redirect?url=vscode%3Amcp%2Finstall%3F%257B%2522name%2522%253A%2522sabor%2522%252C%2522command%2522%253A%2522uvx%2522%252C%2522args%2522%253A%255B%2522sabor-mcp%2522%255D%257D)
+  ([Insiders](https://insiders.vscode.dev/redirect?url=vscode-insiders%3Amcp%2Finstall%3F%257B%2522name%2522%253A%2522sabor%2522%252C%2522command%2522%253A%2522uvx%2522%252C%2522args%2522%253A%255B%2522sabor-mcp%2522%255D%257D))
+- [Add to Kiro](https://kiro.dev/launch/mcp/add?name=sabor&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22sabor-mcp%22%5D%7D)
+- [Add to LM Studio](https://lmstudio.ai/install-mcp?name=sabor&config=eyJjb21tYW5kIjoidXZ4IiwiYXJncyI6WyJzYWJvci1tY3AiXX0=)
+- [Install in Goose](https://block.github.io/goose/extension?cmd=uvx&arg=sabor-mcp&id=sabor&name=Sabor&description=Recipes%2C%20meal%20plans%20and%20shopping%20lists)
+
+Or from a terminal:
+
+```bash
+claude mcp add --scope user sabor -- uvx sabor-mcp
+codex mcp add sabor -- uvx sabor-mcp
+gemini mcp add --scope user sabor uvx sabor-mcp
+code --add-mcp '{"name":"sabor","command":"uvx","args":["sabor-mcp"]}'
+```
+
+Without a `config.toml`, Sabor starts with local SQLite in the OS data directory;
+run `sabor-mcp setup` later to add Mealie, prices, an import model or Bring!.
+
+### 3. Docker or Mealie (advanced)
+
+See [Quickstart: Docker — Sabor + Mealie](#quickstart-docker--sabor--mealie) and
+[docs/install-beta.md](docs/install-beta.md).
+
 ## Quickstart: Sabor solo
 
 With Python 3.12+ and [uv](https://docs.astral.sh/uv/), the stdio install is:

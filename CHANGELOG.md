@@ -25,6 +25,12 @@
   Runtime behavior with Mealie configured is unchanged (#36).
 
 ### Added
+- `llms-install.md` (English and Spanish): agent-driven install that asks one
+  question at a time, configures only through `sabor-mcp setup`, keeps secrets out
+  of the chat (`setup secret` in a terminal), merges the client entry and verifies
+  with `doctor --json` and `sabor_capabilities`. README gains an *Install* section:
+  with your AI, one-click links (Cursor, VS Code, Kiro, LM Studio, Goose) and the
+  `claude`/`codex`/`gemini`/`code` commands; Docker becomes the advanced path (#66).
 - Terminal `doctor [--json]` health checks and `config show [--json]` with
   per-key origins, masked secrets and actionable exit codes; no MCP tools (#65).
 - Optional non-secret `config.toml` with OS paths, `SABOR_CONFIG` override,
