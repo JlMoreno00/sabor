@@ -47,9 +47,14 @@
           "isSecret": false
         },
         {
+          "name": "SABOR_DATA_DIR",
+          "description": "Data directory: explicit path, existing /data in Docker, otherwise the OS user data directory.",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
           "name": "SABOR_STORE_DB",
-          "description": "SQLite recipe database path; parent directories are created at startup. Persist and back up its data volume.",
-          "default": "/data/sabor.db",
+          "description": "SQLite recipe database path; parent directories are created at startup. Persist and back up its data volume. Defaults to <data dir>/sabor.db (/data in Docker).",
           "isRequired": false,
           "isSecret": false
         },
@@ -149,8 +154,7 @@
         },
         {
           "name": "MEMORY_FILE",
-          "description": "Markdown file used by the legacy_memory toolset for preferences and pantry notes.",
-          "default": "/data/MEMORY.md",
+          "description": "Markdown file used by the legacy_memory toolset for preferences and pantry notes. Defaults to <data dir>/MEMORY.md (/data in Docker).",
           "isRequired": false,
           "isSecret": false
         },
@@ -184,8 +188,7 @@
         },
         {
           "name": "SABOR_NUTRITION_DB",
-          "description": "SQLite database path for the nutrition service.",
-          "default": "/data/nutrition.db",
+          "description": "SQLite database path for the nutrition service. Defaults to <data dir>/nutrition.db (/data in Docker).",
           "isRequired": false,
           "isSecret": false
         },

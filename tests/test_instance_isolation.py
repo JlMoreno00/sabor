@@ -37,6 +37,8 @@ def environment(tmp_path, name):
     'SABOR_NUTRITION_ENABLED': 'yes', 'SABOR_NORMALIZE_IMPORTS': 'on',
     'MEMORY_FILE': '/sample/memory', 'VIDEO_RECIPE_GEMINI_MODEL': 'sample-model'}])
 def test_legacy_configuration_parity(env):
+    defaults = not env
+    env = dict(env, SABOR_DATA_DIR='/data')
     # Evaluate the original compatibility module in an isolated process/environment.
     script = ('import json, sabor.config as c; print(json.dumps({k: str(v) for k,v '
               'in vars(c).items() if k.isupper() or k.startswith("_GEMINI")}))')
@@ -44,7 +46,7 @@ def test_legacy_configuration_parity(env):
                                                 env={**env, 'PATH': os.defpath}, text=True))
     cfg = load_settings(env).legacy_config
     assert {k: str(getattr(cfg, k)) for k in expected} == expected
-    if not env:
+    if defaults:
         assert str(cfg.MEMORY_FILE) == "/data/MEMORY.md"
         assert str(cfg.SABOR_NUTRITION_DB) == "/data/nutrition.db"
         assert cfg.MEALIE_BASE_URL == "http://localhost:9925"

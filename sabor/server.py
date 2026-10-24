@@ -1,11 +1,13 @@
 """FastMCP instance and explicit tool-group registration."""
 
+import argparse
 from importlib import import_module
 import os
 import sqlite3
 from weakref import WeakKeyDictionary
 
 from sabor.core.config import ConfigError, load_settings
+from sabor.core.paths import data_dir
 from sabor.core.context import assemble_context
 from sabor.core.capabilities import describe
 from sabor.core.toolsets import catalog, bind_context, use_context
@@ -45,13 +47,10 @@ TOOL_MODULES = (
 )
 
 
-def _mercadona_cache_path(warehouse: str) -> str | None:
-    """Persist the catalog on the data volume when it is writable."""
-    try:
-        writable = os.access("/data", os.W_OK)
-    except OSError:
-        writable = False
-    return f"/data/mercadona-catalog-{warehouse}.json" if writable else None
+def _mercadona_cache_path(warehouse: str, directory=None) -> str:
+    """Resolve persistence without touching the filesystem."""
+    root = data_dir(os.environ) if directory is None else directory
+    return str(root / f"mercadona-catalog-{warehouse}.json")
 
 
 def register_tools(server=None, env=None, *, store_factory=None) -> None:
@@ -110,6 +109,16 @@ def start_runtime_services(server=None) -> None:
         start = getattr(provider, "start_background_refresh", None)
         if callable(start):
             start()
+
+
+def cli(argv=None) -> None:
+    """Run the installed command (stdio by default)."""
+    parser = argparse.ArgumentParser(description="Sabor MCP server")
+    parser.add_argument("--transport", choices=("stdio", "http"), default="stdio")
+    args = parser.parse_args(argv)
+    register_tools()
+    start_runtime_services()
+    mcp.run(transport="stdio" if args.transport == "stdio" else "streamable-http")
 
 
 def main() -> None:

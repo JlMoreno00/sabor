@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from types import MappingProxyType
 from typing import Any
+from .paths import catalog_dir, data_dir
 
 
 @dataclass(frozen=True)
@@ -20,6 +21,7 @@ class LegacyConfig:
 
 
 def load_legacy_config(env: Mapping[str, str]) -> LegacyConfig:
+    SABOR_DATA_DIR = data_dir(env)
     HOST = env.get("SABOR_HOST", "0.0.0.0")
     PORT = int(env.get("SABOR_PORT", "8080"))
 
@@ -28,7 +30,7 @@ def load_legacy_config(env: Mapping[str, str]) -> LegacyConfig:
 
     SABOR_STORE = env.get("SABOR_STORE", "").strip() or (
         "mealie" if env.get("MEALIE_BASE_URL", "").strip() else "sqlite")
-    SABOR_STORE_DB = env.get("SABOR_STORE_DB", "").strip() or "/data/sabor.db"
+    SABOR_STORE_DB = env.get("SABOR_STORE_DB", "").strip() or str(SABOR_DATA_DIR / "sabor.db")
 
     SPOONACULAR_API_KEY = env.get("SPOONACULAR_API_KEY", "")
     SPOONACULAR_BASE = "https://api.spoonacular.com"
@@ -47,19 +49,19 @@ def load_legacy_config(env: Mapping[str, str]) -> LegacyConfig:
     BRING_PASSWORD = env.get("BRING_PASSWORD", "")
     BRING_PUBLIC_CLIENT_ID = "cof4Nc6D8saplXjE3h3HXqHH8m7VU2i1Gs0g85Sp"  # gitleaks:allow
 
-    MEMORY_FILE = Path(env.get("MEMORY_FILE", "/data/MEMORY.md"))
+    MEMORY_FILE = Path(env.get("MEMORY_FILE") or SABOR_DATA_DIR / "MEMORY.md")
 
     SABOR_NORMALIZE_IMPORTS = env.get("SABOR_NORMALIZE_IMPORTS", "true").strip().casefold() in {
         "1", "true", "yes", "on"
     }
     SABOR_INGREDIENT_PARSER = env.get("SABOR_INGREDIENT_PARSER", "openai").strip() or "openai"
     SABOR_NORMALIZE_CONFIDENCE = float(env.get("SABOR_NORMALIZE_CONFIDENCE", "0.75"))
-    CATALOG_DIR = Path(__file__).resolve().parents[2] / "catalog"
+    CATALOG_DIR = catalog_dir()
 
     SABOR_NUTRITION_ENABLED = env.get("SABOR_NUTRITION_ENABLED", "false").strip().casefold() in {
         "1", "true", "yes", "on"
     }
-    SABOR_NUTRITION_DB = Path(env.get("SABOR_NUTRITION_DB", "/data/nutrition.db"))
+    SABOR_NUTRITION_DB = Path(env.get("SABOR_NUTRITION_DB") or SABOR_DATA_DIR / "nutrition.db")
     SABOR_NUTRITION_PROVIDER = env.get("SABOR_NUTRITION_PROVIDER", "spoonacular")
     SABOR_NUTRITION_MIN_PROFILE_CONFIDENCE = float(env.get("SABOR_NUTRITION_MIN_PROFILE_CONFIDENCE", "0.80"))
     _NUTRITION_RECIPE_ISSUE_LIMIT = 50

@@ -183,8 +183,13 @@ class MercadonaPricing:
             return
         temporary = self.cache_path.with_suffix('.json.tmp')
         try:
-            temporary.write_text(json.dumps(dict(warehouse=self.warehouse,
-                loaded_at=self._loaded_at, partial=self._partial, catalog=self._catalog)))
+            payload = json.dumps(dict(warehouse=self.warehouse,
+                loaded_at=self._loaded_at, partial=self._partial, catalog=self._catalog))
+            try:
+                temporary.write_text(payload)
+            except FileNotFoundError:
+                self.cache_path.parent.mkdir(parents=True, exist_ok=True)
+                temporary.write_text(payload)
             os.replace(temporary, self.cache_path)
         except OSError:
             pass

@@ -1,0 +1,36 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "sabor-mcp"
+dynamic = ["version"]
+description = "Portable cooking MCP server"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "AGPL-3.0-only"
+license-files = ["LICENSE"]
+dependencies = [
+    "mcp[cli]==1.26.0",
+    "requests>=2.31.0",
+    "recipe-scrapers>=15.0.0",
+    "yt-dlp>=2024.0.0",
+    "python-bring-api>=3.0.0",
+]
+
+[project.scripts]
+sabor-mcp = "sabor.server:cli"
+
+[tool.hatch.version]
+path = "sabor/server.py"
+pattern = 'VERSION = "(?P<version>[^\"]+)"'
+
+[tool.hatch.build.targets.wheel]
+packages = ["sabor", "nutrition"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"sabor_mcp.py" = "sabor_mcp.py"
+"catalog" = "sabor/_catalog"
+
+[tool.hatch.build.targets.sdist]
+include = ["sabor", "nutrition", "sabor_mcp.py", "catalog", "LICENSE", "README.md", "pyproject.toml"]
