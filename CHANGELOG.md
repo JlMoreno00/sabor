@@ -3,6 +3,12 @@
 ## [Unreleased]
 
 ### Changed
+- `server.json`: the OCI package advertises only the essential environment
+  variables (store, Mealie, LLM, Bring, Mercadona, toolsets) and the `pypi`
+  package (`uvx sabor-mcp`, stdio) none; `mcp-manifest.json` still lists all.
+  The README carries the hidden `mcp-name` marker for registry ownership, and a
+  manual *Publish PyPI* run targets TestPyPI unless PyPI is chosen; version tags
+  still target PyPI. Nothing is published (#62).
 - Store contract tests declare capability groups and backend-specific rating-sort
   and occurrence-ID behavior, with well-formed missing IDs supplied by fixtures (#5).
 - Mercadona ranking prefers staples over equally close derivative products,

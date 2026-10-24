@@ -15,6 +15,14 @@ ROOT = Path(__file__).resolve().parents[1]
 SCHEMA = ROOT / "tests" / "fixtures" / "mcp-server.schema.2025-12-11.json"
 # Fixed inside the container: the package maps 127.0.0.1:8080 to it; compose-only.
 NOT_FOR_PACKAGE = {"SABOR_HOST", "SABOR_PORT", "SABOR_HOST_PORT"}
+# The OCI entry advertises only what the setup questions cover (#62); the full list
+# stays in mcp-manifest.json. The pypi entry advertises none: `sabor-mcp setup` configures it.
+OCI_ESSENTIAL = {
+    "SABOR_TOOLSETS", "SABOR_STORE", "MEALIE_BASE_URL", "MEALIE_API_TOKEN",
+    "SABOR_LLM_BASE_URL", "SABOR_LLM_MODEL", "SABOR_LLM_API_KEY", "SABOR_VIDEO_PROVIDER",
+    "GEMINI_API_KEY", "BRING_EMAIL", "BRING_PASSWORD", "SABOR_MERCADONA_ENABLED",
+    "MERCADONA_WAREHOUSE",
+}
 
 
 def _load(name):
@@ -53,13 +61,20 @@ class ServerJsonTests(unittest.TestCase):
         args = {a["name"]: a["value"] for a in self.package["runtimeArguments"]}
         self.assertEqual(args["-p"], "127.0.0.1:8080:8080")
 
-    def test_environment_variables_mirror_the_manifest(self):
+    def test_oci_environment_variables_are_the_essential_manifest_entries(self):
         expected = [{k: v for k, v in item.items() if k in ("name", "description", "default")}
                     | {"isRequired": item["required"], "isSecret": item["secret"]}
-                    for item in self.manifest["env_vars"] if item["name"] not in NOT_FOR_PACKAGE
-                    and not item["name"].startswith("COMPOSE_")]
-        for package in self.server["packages"]:
-            self.assertEqual(package["environmentVariables"], expected)
+                    for item in self.manifest["env_vars"] if item["name"] in OCI_ESSENTIAL]
+        self.assertEqual(len(expected), len(OCI_ESSENTIAL))
+        self.assertTrue(OCI_ESSENTIAL.isdisjoint(NOT_FOR_PACKAGE))
+        self.assertEqual(self.package["environmentVariables"], expected)
+
+    def test_pypi_package_advertises_no_environment_variables(self):
+        self.assertNotIn("environmentVariables", self.server["packages"][1])
+
+    def test_readme_carries_the_pypi_ownership_marker_once(self):
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        self.assertEqual(re.findall(r"mcp-name: (\S+)", readme), [self.server["name"]])
 
     def test_pypi_package(self):
         from sabor.server import VERSION

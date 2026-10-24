@@ -74,7 +74,7 @@ class ManifestContractTests(unittest.TestCase):
         self.assertTrue(env_vars["MEALIE_API_TOKEN"]["secret"])
         server = json.loads(manifest_path.with_name("server.json").read_text(encoding="utf-8"))
         for package in server["packages"]:
-            for item in package["environmentVariables"]:
+            for item in package.get("environmentVariables", []):
                 if item["name"].startswith("MEALIE_"):
                     self.assertFalse(item.get("isRequired", False), (package["registryType"], item["name"]))
         self.assertEqual([item["name"] for item in manifest["env_vars"] if item["required"]], [])

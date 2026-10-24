@@ -1,9 +1,18 @@
 # yamllint disable rule:line-length
 # Never runs on PRs; first publication needs the maintainer's explicit OK.
+# Manual runs upload to TestPyPI unless pypi is chosen; version tags upload to PyPI.
 name: Publish PyPI
 
 on:
   workflow_dispatch:
+    inputs:
+      target:
+        description: Package index (TestPyPI unless pypi is chosen explicitly)
+        type: choice
+        options:
+          - testpypi
+          - pypi
+        default: testpypi
   push:
     tags:
       - "v*"
@@ -19,7 +28,7 @@ jobs:
   publish:
     if: github.actor == github.repository_owner
     runs-on: ubuntu-latest
-    environment: pypi
+    environment: ${{ inputs.target || 'pypi' }}
     permissions:
       contents: read
       id-token: write
@@ -52,5 +61,7 @@ jobs:
           assert os.environ["RELEASE_TAG"] == f"v{version}", "Tag does not match built version"
           PY
 
-      - name: Publish to PyPI
+      - name: Publish to the selected index
         uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
+        with:
+          repository-url: ${{ (inputs.target || 'pypi') == 'testpypi' && 'https://test.pypi.org/legacy/' || 'https://upload.pypi.org/legacy/' }}
