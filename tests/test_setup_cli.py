@@ -69,12 +69,31 @@ class SetupTests(unittest.TestCase):
         self.assertNotIn('PRIVATE_SENTINEL', str(error))
         self.assertEqual(before, self.path.read_bytes())
 
+    def test_omitted_store_keeps_the_implicit_mealie_store(self):
+        # Without --store, setup must not pin a backend over Mealie configured implicitly.
+        self.path.write_text('[mealie]\nbase_url = "https://mealie.example"\n')
+        code, result = self.run_setup('--non-interactive', '--json', '--lang', 'en')
+        self.assertEqual(code, 0, result)
+        self.assertEqual(result['store'], 'mealie')
+        self.assertIn('mealie_api_token', result['missing_secrets'])
+        self.assertNotIn('backend', tomllib.loads(self.path.read_text()).get('store', {}))
+        self.path.unlink()
+        with patch.dict(os.environ, {'MEALIE_BASE_URL': 'https://mealie.example'}):
+            code, result = self.run_setup('--non-interactive', '--json', '--lang', 'en')
+        self.assertEqual(code, 0, result)
+        self.assertEqual(result['store'], 'mealie')
+        self.assertNotIn('store', tomllib.loads(self.path.read_text()))
+        code, result = self.run_setup('--non-interactive', '--json', '--store', 'sqlite')
+        self.assertEqual((code, result['store']), (0, 'sqlite'))
+        self.assertEqual(tomllib.loads(self.path.read_text())['store']['backend'], 'sqlite')
+
     def test_omitted_sqlite_path_uses_runtime_data_directory(self):
         before = dict(os.environ)
         code, result = self.run_setup('--non-interactive', '--json')
         self.assertEqual(code, 0, result)
-        document = tomllib.loads(self.path.read_text())
-        self.assertNotIn('sqlite_path', document['store'])
+        # No flags: nothing to pin, so config.toml may not even be created.
+        document = tomllib.loads(self.path.read_text()) if self.path.exists() else {}
+        self.assertNotIn('sqlite_path', document.get('store', {}))
         self.assertTrue((self.data_dir / 'sabor.db').is_file())
         self.assertFalse((self.path.parent / 'sabor.db').exists())
         self.assertEqual(dict(os.environ), before)
