@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Changed
+- `mcp-manifest.json` and both `server.json` packages mark `MEALIE_BASE_URL` and
+  `MEALIE_API_TOKEN` as optional (`required`/`isRequired: false`): they are only
+  needed for the optional Mealie adapter, since SQLite is the default store.
+  Runtime behavior with Mealie configured is unchanged (#36).
+
 ### Added
 - Standalone uvx/stdio and Docker/HTTP installation without Mealie, user data
   directory and ffmpeg guidance, dual registry packages, gated PyPI publishing,

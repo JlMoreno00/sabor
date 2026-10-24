@@ -67,8 +67,17 @@ class ManifestContractTests(unittest.TestCase):
         self.assertIn("MEALIE_API_TOKEN", env_vars)
         self.assertNotIn("MEALIE_API_KEY", env_vars)
         self.assertIn("MEALIE_API_TOKEN", runtime_env_names)
-        self.assertTrue(env_vars["MEALIE_API_TOKEN"]["required"])
+        # SQLite is the default store (#37): Mealie credentials are only needed by
+        # the optional Mealie adapter, so no Mealie variable is required (#36).
+        for name in ("MEALIE_BASE_URL", "MEALIE_API_TOKEN"):
+            self.assertFalse(env_vars[name]["required"], name)
         self.assertTrue(env_vars["MEALIE_API_TOKEN"]["secret"])
+        server = json.loads(manifest_path.with_name("server.json").read_text(encoding="utf-8"))
+        for package in server["packages"]:
+            for item in package["environmentVariables"]:
+                if item["name"].startswith("MEALIE_"):
+                    self.assertFalse(item.get("isRequired", False), (package["registryType"], item["name"]))
+        self.assertEqual([item["name"] for item in manifest["env_vars"] if item["required"]], [])
 
 
 ROOT = Path(__file__).resolve().parents[1]
