@@ -32,6 +32,16 @@ class MercadonaTests(unittest.TestCase):
         self.provider = MercadonaPricing(session=self.session, ttl_seconds=10,
                                          clock=lambda: self.now, request_delay=0, sleep=Mock())
 
+    def test_staples_before_derivatives(self):
+        self.products = [item('condensed', 'Leche condensada Hacendado'),
+                         item('whole', 'Leche entera Hacendado'),
+                         item('semi', 'Leche semidesnatada Hacendado')]
+        self.provider._refresh()
+        self.assertEqual([p.id for p in self.provider.search_products(ProductQuery('leche'), self.store)],
+                         ['whole', 'semi', 'condensed'])
+        self.assertEqual([p.id for p in self.provider.search_products(ProductQuery('leche condensada'), self.store)],
+                         ['condensed'])
+
     def fetch(self, url, **kwargs):
         response = Mock()
         response.json.return_value = ({'categories': [{'id': 1, 'categories': [{'id': 2}]}]}

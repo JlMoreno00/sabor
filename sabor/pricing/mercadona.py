@@ -24,6 +24,11 @@ from sabor.pricing.provider import PriceQuote, Product, ProductQuery, RetailCont
 from sabor.pricing.quantities import package_from_mercadona
 
 
+# Small explicit derivative vocabulary: prefer staples on equally close matches,
+# but never penalize requested modifiers. Milk fat variants remain neutral.
+_DERIVATIVE_TOKENS = frozenset('condensada condensado chocolate cacao batido sabor aroma polvo crema salsa caldo bebida postre galleta helado zumo mermelada yogur'.split())
+
+
 class CatalogWarming(RuntimeError):
     pass
 
@@ -294,8 +299,9 @@ class MercadonaPricing:
             if score >= 0 and self._food(product) is not False:
                 quote = self._quote(pid, product, observed, stale)
                 extra = len(set(_mercadona_normalize(name).split()) - set(text.split()))
-                scored.append((extra, Product(pid, name, self._provenance, observed,
+                derivative = len((set(_mercadona_normalize(name).split()) - set(text.split())) & _DERIVATIVE_TOKENS)
+                scored.append((extra, derivative, Product(pid, name, self._provenance, observed,
                                                quote.uncertainty_reasons, quote.food)))
-        # Food-only browsing; closest whole-word name, then food, name and id.
-        scored.sort(key=lambda row: (row[0], row[1].food is not True, row[1].name, row[1].id))
-        return [product for _, product in scored[:query.limit]]
+        # Food-only browsing; closest name, derivative penalty, food, name and id.
+        scored.sort(key=lambda row: (row[0], row[1], row[2].food is not True, row[2].name, row[2].id))
+        return [product for _, _, product in scored[:query.limit]]

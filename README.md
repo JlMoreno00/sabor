@@ -142,8 +142,10 @@ uncertainty. `estimate_cost` reads only; it never modifies recipes or buys goods
 
 Mercadona search is food-only (non-food top categories 20, 21, 22, 23, 25,
 26 are excluded). Whole-word matches rank by the number of distinct normalized
-name tokens absent from the query (fewer is closer), then food metadata, name
-and ID. This is lexical closeness, not semantic ingredient identity.
+name tokens absent from the query (fewer is closer), then unrequested derivative
+modifiers, food metadata, name and ID. Staples beat equally close derivatives
+such as condensed milk; requested modifiers are not penalized, and entera,
+desnatada and semidesnatada stay neutral. This is lexical closeness, not semantic ingredient identity.
 `estimate_cost(..., match_policy="cheapest")` defaults to the compatible food
 candidate (search window up to 50) with the lowest checkout cost for the
 required quantity, that is whole packages times package price, then the lowest
