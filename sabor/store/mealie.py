@@ -572,7 +572,8 @@ class _CalendarEntry(MealEntry):
 
 def _check_legacy_result(result, provider):
     if not result.get("ok"):
-        exc = StoreError("upstream_error", provider)
+        # Tools still return the legacy dict; only the port-level code is refined.
+        exc = StoreError("not_found" if result.get("status") == 404 else "upstream_error", provider)
         setattr(exc, "result", result)
         raise exc
 
