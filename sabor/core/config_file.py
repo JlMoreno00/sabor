@@ -30,6 +30,16 @@ FILE_KEYS = {
 }
 SECRET_ENV = frozenset({'MEALIE_API_TOKEN', 'SABOR_LLM_API_KEY', 'GEMINI_API_KEY',
                         'BRING_EMAIL', 'BRING_PASSWORD', 'SPOONACULAR_API_KEY'})
+# Effective value type per key; every other key is a string.
+_TYPES = {
+    **{pair: bool for pair in (('pricing', 'mercadona'), ('pricing', 'open_prices'), ('import', 'normalize'),
+                               ('nutrition', 'enabled'), ('nutrition', 'publish_estimates'),
+                               ('nutrition', 'auto_on_import'), ('nutrition', 'auto_publish'))},
+    **{('nutrition', key): int for key in ('profile_ttl_days', 'not_found_ttl_days')},
+    **{pair: float for pair in (('import', 'normalize_confidence'), ('nutrition', 'min_profile_confidence'),
+                                ('nutrition', 'min_publish_coverage'), ('nutrition', 'min_publish_confidence'),
+                                ('nutrition', 'default_cup_ml'))},
+}
 _SECRET_KEYS = {('mealie', 'api_token'), ('llm', 'api_key'), ('import', 'gemini_api_key'),
                 ('bring', 'email'), ('bring', 'password'), ('nutrition', 'spoonacular_api_key')}
 
@@ -75,10 +85,15 @@ def read_config_file(path, *, explicit) -> dict[str, str] | None:
                 raise ConfigError('Secrets do not belong in config.toml; set them in the environment')
             if pair not in FILE_KEYS:
                 raise ConfigError('Unknown config.toml key')
-            if isinstance(value, bool):
+            expected = _TYPES.get(pair, str)
+            if expected is bool and isinstance(value, bool):
                 converted = str(value).lower()
-            elif isinstance(value, (str, int, float)):
+            elif expected is int and isinstance(value, int) and not isinstance(value, bool):
                 converted = str(value)
+            elif expected is float and isinstance(value, (int, float)) and not isinstance(value, bool):
+                converted = str(value)
+            elif expected is str and isinstance(value, str):
+                converted = value
             elif pair == ('general', 'toolsets') and isinstance(value, list) and all(isinstance(x, str) for x in value):
                 converted = ','.join(value)
             else:
