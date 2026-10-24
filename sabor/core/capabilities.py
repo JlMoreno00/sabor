@@ -65,6 +65,16 @@ def describe(registry: 'Registry | AppContext', registered_tools, version: str) 
         if not enabled:
             capability['reason'] = registry.disabled_toolsets[name]
         capabilities[name] = capability
+    # Toolsets that only work with Mealie, with the reason they are unavailable here.
+    mealie_store = registry.settings.store == 'mealie' and (
+        registry.recipe_store is None or registry.recipe_store.id == 'mealie')
+    mealie_only = []
+    if not mealie_store:
+        mealie_only.append({'toolset': 'legacy_nutrition', 'reason': 'requires_mealie_store',
+                            'detail': 'Nutrition is indexed by Mealie food and recipe IDs; select the Mealie store.'})
+    if not registry.settings.mealie_configured:
+        mealie_only.append({'toolset': 'legacy_catalog', 'reason': 'requires_mealie',
+                            'detail': 'The Spanish catalog seeds Mealie foods and units; configure Mealie.'})
     warnings = []
     if registry.settings.video_provider and registry.video_provider is None:
         warnings.append('Requested video provider is not configured; no fallback was selected.')
@@ -74,4 +84,5 @@ def describe(registry: 'Registry | AppContext', registered_tools, version: str) 
                'mealie': {'configured': registry.settings.mealie_configured},
                'disabled_toolsets': [{'name': name, 'reason': reason}
                                      for name, reason in registry.disabled_toolsets.items()],
+               'mealie_only': mealie_only,
                'warnings': warnings})
