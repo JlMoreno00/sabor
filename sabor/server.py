@@ -116,6 +116,10 @@ def cli(argv=None) -> None:
     parser = argparse.ArgumentParser(description="Sabor MCP server")
     parser.add_argument("--transport", choices=("stdio", "http"), default="stdio")
     args = parser.parse_args(argv)
+    if args.transport == "http" and "SABOR_HOST" not in os.environ:
+        # A locally installed command has no authentication layer in front of it:
+        # listen on loopback unless the operator explicitly chooses an interface.
+        mcp.settings.host = "127.0.0.1"
     register_tools()
     start_runtime_services()
     mcp.run(transport="stdio" if args.transport == "stdio" else "streamable-http")

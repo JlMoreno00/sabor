@@ -40,7 +40,7 @@ The executable runtime, `.env.example`, and `mcp-manifest.json` all use
 
 | Variable | Code default | Required for | Notes |
 |---|---|---|---|
-| `SABOR_HOST` | `0.0.0.0` | Server | Compose publishes only to host loopback |
+| `SABOR_HOST` | `0.0.0.0` (container, `python sabor_mcp.py`); `127.0.0.1` for `sabor-mcp --transport http` | Server | Compose publishes only to host loopback; set it explicitly to listen on another interface |
 | `SABOR_HOST_PORT` | `9170` (Compose) | Docker host binding | Optional, non-secret; loopback only |
 | `SABOR_PORT` | `8080` | Server | Must match container port and health check unless all are changed together |
 | `MEALIE_BASE_URL` | Empty for registration; legacy client defaults localhost | Mealie tools | Remove trailing slash; use the container-reachable URL in Compose |

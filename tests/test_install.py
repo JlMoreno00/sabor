@@ -66,6 +66,21 @@ class InstallTests(unittest.TestCase):
                     server.cli(args)
                 self.assertEqual(error.exception.code, code)
 
+    def test_cli_http_binds_loopback_unless_host_is_explicit(self):
+        from sabor import server
+        def bound_host(argv, env, entry='cli'):
+            seen = []
+            with patch.dict('os.environ', env, clear=True), patch.object(server, 'register_tools'), \
+                    patch.object(server, 'start_runtime_services'), patch.object(server.mcp.settings, 'host', '0.0.0.0'), \
+                    patch.object(server.mcp, 'run', side_effect=lambda **kw: seen.append(server.mcp.settings.host)):
+                server.cli(argv) if entry == 'cli' else server.main()
+            return seen[0]
+        self.assertEqual(bound_host(['--transport', 'http'], {}), '127.0.0.1')
+        self.assertEqual(bound_host(['--transport', 'http'], {'SABOR_HOST': '0.0.0.0'}), '0.0.0.0')
+        self.assertEqual(bound_host([], {}), '0.0.0.0')
+        # The Docker/compat entrypoint keeps listening on all container interfaces.
+        self.assertEqual(bound_host(None, {}, entry='main'), '0.0.0.0')
+
     def test_missing_ffmpeg(self):
         from sabor.importing.video import frames
         from sabor.importing.tools import ImportErrorResult
