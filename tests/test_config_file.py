@@ -57,6 +57,8 @@ class ConfigFileTests(unittest.TestCase):
         self.assertEqual(config_path({'XDG_CONFIG_HOME': '/xdg'}, 'linux'), Path('/xdg/sabor/config.toml'))
         self.assertEqual(config_path({'APPDATA': '/app'}, 'win32'), Path('/app/sabor/config.toml'))
         self.assertEqual(config_path({'SABOR_CONFIG': '/explicit'}, 'linux'), Path('/explicit'))
+        self.assertEqual(config_path({'SABOR_CONFIG': '  ', 'XDG_CONFIG_HOME': '/xdg'}, 'linux'),
+                         Path('/xdg/sabor/config.toml'))
 
     def test_conversion_and_precedence(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -65,10 +67,13 @@ class ConfigFileTests(unittest.TestCase):
             expected = {'SABOR_TOOLSETS': 'core,import', 'SABOR_OPEN_PRICES_ENABLED': 'true',
                         'SABOR_NUTRITION_DEFAULT_CUP_ML': '250', 'SABOR_NUTRITION_MIN_PROFILE_CONFIDENCE': '0.8'}
             self.assertEqual(read_config_file(path, explicit=True), expected)
-            env = {'SABOR_CONFIG': str(path), 'SABOR_TOOLSETS': 'core', 'SABOR_OPEN_PRICES_ENABLED': ''}
+            env = {'SABOR_CONFIG': str(path), 'SABOR_TOOLSETS': 'core', 'SABOR_OPEN_PRICES_ENABLED': '',
+                   'SABOR_NUTRITION_DEFAULT_CUP_ML': '  '}
             self.assertEqual(apply_config_file(env), 'file')
             self.assertEqual(env['SABOR_TOOLSETS'], 'core')
             self.assertEqual(env['SABOR_OPEN_PRICES_ENABLED'], 'true')
+            # Whitespace-only counts as absent, as in load_settings.
+            self.assertEqual(env['SABOR_NUTRITION_DEFAULT_CUP_ML'], '250')
 
     def test_invalid_files_are_redacted(self):
         sentinel = 'PRIVATE_SENTINEL'

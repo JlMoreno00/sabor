@@ -35,8 +35,8 @@ _SECRET_KEYS = {('mealie', 'api_token'), ('llm', 'api_key'), ('import', 'gemini_
 
 def config_path(env, platform=sys.platform):
     """Resolve a config path using only the supplied mapping and platform."""
-    if env.get('SABOR_CONFIG'):
-        return Path(env['SABOR_CONFIG'])
+    if env.get('SABOR_CONFIG', '').strip():
+        return Path(env['SABOR_CONFIG'].strip())
     home = Path(env.get('HOME') or env.get('USERPROFILE') or '~')
     if platform == 'darwin':
         root = home / 'Library/Application Support'
@@ -83,10 +83,10 @@ def read_config_file(path, *, explicit) -> dict[str, str] | None:
 
 def apply_config_file(environ) -> str:
     """Fill absent/empty environment keys and report the configuration source."""
-    values = read_config_file(config_path(environ), explicit=bool(environ.get('SABOR_CONFIG')))
+    values = read_config_file(config_path(environ), explicit=bool(environ.get('SABOR_CONFIG', '').strip()))
     if values is None:
-        return 'env' if any(environ.get(key) for key in (*FILE_KEYS.values(), *SECRET_ENV)) else 'defaults'
+        return 'env' if any(environ.get(key, '').strip() for key in (*FILE_KEYS.values(), *SECRET_ENV)) else 'defaults'
     for key, value in values.items():
-        if not environ.get(key):
+        if not environ.get(key, '').strip():
             environ[key] = value
     return 'file'
