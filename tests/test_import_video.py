@@ -105,7 +105,9 @@ class VideoTests(unittest.TestCase):
 
     def test_ffmpeg_is_bounded(self):
         from sabor.importing import video as v
-        with patch.object(v.subprocess, 'run', return_value=Mock(returncode=0, stdout=b'80')) as run:
+        # Independent of whether the host has ffmpeg/ffprobe installed.
+        with patch.object(v.shutil, 'which', return_value='/bin/tool'), \
+                patch.object(v.subprocess, 'run', return_value=Mock(returncode=0, stdout=b'80')) as run:
             self.assertEqual(v.frames(Path('/unused.mp4')), [])
         self.assertEqual(run.call_count, 9)
         self.assertTrue(all(c.kwargs['timeout'] == 15 for c in run.call_args_list))
