@@ -238,3 +238,27 @@ class MealieWrites(unittest.TestCase):
         with self.assertRaises(StoreError) as caught:
             store.update_recipe("s", RecipePatch({"name": "Soup"}))
         self.assertEqual(caught.exception.code, "timeout")
+
+
+class LegacyErrorCodes(unittest.TestCase):
+    """Legacy Mealie 404s map to not_found at the port; tools keep the legacy dict."""
+
+    def setUp(self):
+        self.session = Mock()
+        self.session.get.return_value = Mock(status_code=404)
+        self.store = MealieRecipeStore("https://one.invalid/", "one-token", self.session)
+
+    def test_missing_recipe_is_not_found_and_keeps_legacy_result(self):
+        for call in (lambda: self.store.add_recipe_comment("absent", "No"),
+                     lambda: self.store.log_cooking_event("absent", "No", None)):
+            with self.assertRaises(StoreError) as caught:
+                call()
+            self.assertEqual(caught.exception.code, "not_found")
+            self.assertEqual(caught.exception.result["status"], 404)
+        self.session.post.assert_not_called()
+
+    def test_other_failures_stay_upstream_error(self):
+        self.session.get.return_value = Mock(status_code=500)
+        with self.assertRaises(StoreError) as caught:
+            self.store.add_recipe_comment("soup", "No")
+        self.assertEqual(caught.exception.code, "upstream_error")

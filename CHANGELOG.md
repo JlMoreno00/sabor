@@ -3,6 +3,8 @@
 ## [Unreleased]
 
 ### Changed
+- Store contract tests declare capability groups and backend-specific rating-sort
+  and occurrence-ID behavior, with well-formed missing IDs supplied by fixtures (#5).
 - Mercadona ranking prefers staples over equally close derivative products,
   without penalizing explicitly requested modifiers (#9).
 - Cheapest pricing evaluates repeated ingredient quantities together, choosing a
@@ -22,6 +24,8 @@
   observation/store provenance, stale/discount/single-observation uncertainty,
   canonical package units and instance-owned ten-minute cache. Spanish coverage
   is sparse/old. Attribution: Open Prices (Open Food Facts), ODbL (#2).
+- The shared store contract runs against the real Mealie adapter using a stateful
+  offline Mealie contract double, alongside Fake and SQLite (#5).
 - Pantry-aware `estimate_cost` sources accept `exclude_pantry: true`, excluding
   matched lines with `in_pantry` reasons and additive pantry counts. List building
   reports advisory `pantry_matches` from source lines without skipping additions;
@@ -79,6 +83,8 @@
   compatibility context (#4).
 
 ### Fixed
+- Mealie port operations translate legacy HTTP 404 failures to `not_found`
+  rather than `upstream_error`; legacy tool response dictionaries are unchanged (#5).
 - `mcp-manifest.json` no longer advertises Spoonacular and now lists every
   environment variable Sabor reads (adds `SABOR_TOOLSETS`, `SABOR_LLM_*`,
   `SABOR_VIDEO_PROVIDER`, `SABOR_MERCADONA_ENABLED`) with real descriptions and

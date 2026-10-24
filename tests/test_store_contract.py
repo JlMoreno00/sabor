@@ -2,6 +2,7 @@
 import unittest
 from dataclasses import FrozenInstanceError
 from typing import TYPE_CHECKING
+from functools import wraps
 
 ContractAssertions = unittest.TestCase if TYPE_CHECKING else object
 
@@ -11,12 +12,57 @@ from sabor.store import (Recipe, RecipeSearch, RecipePatch, Ingredient, Instruct
 from sabor.store.fake import FakeRecipeStore
 
 
+CAPABILITIES = frozenset((
+    "recipes_read", "recipes_write", "search_sort", "mealplan", "shopping",
+    "activity", "suggestions", "rating_sort", "occurrence_ids",
+))
+
+
+def requires(*groups, optional=()):
+    def decorate(test):
+        @wraps(test)
+        def run(self):
+            for group in groups:
+                if group not in self.capabilities:
+                    self.skipTest(f"capability {group} not supported by {self.store.id}")
+            return test(self)
+        setattr(run, "required_capabilities", frozenset(groups))
+        setattr(run, "optional_capabilities", frozenset(optional))
+        return run
+    return decorate
+
+
+class CapabilityVocabulary(unittest.TestCase):
+    def test_vocabulary(self):
+        used = frozenset(group for name in dir(StoreContractMixin)
+                         if name.startswith("test_")
+                         for attribute in ("required_capabilities", "optional_capabilities")
+                         for group in getattr(getattr(StoreContractMixin, name), attribute, ()))
+        self.assertEqual(used, CAPABILITIES)
+        for name in dir(StoreContractMixin):
+            if name.startswith("test_"):
+                self.assertTrue(getattr(getattr(StoreContractMixin, name),
+                                        "required_capabilities", ()), name)
+
+
 class StoreContractMixin(ContractAssertions):
+    capabilities: frozenset[str] = frozenset()
+
+    def absent_id(self, kind) -> str:
+        return "absent"
+
     def make_store(self):
+        raise NotImplementedError
+
+    def seed_ratings(self):
         raise NotImplementedError
 
     def setUp(self):
         self.store = self.make_store()
+        if "recipes_write" in self.capabilities:
+            self.seed()
+
+    def seed(self):
         self.ref = self.store.create_recipe(Recipe(
             id="r", slug="soup", name="Soup", description="Keep",
             recipeIngredient=(Ingredient(quantity=None),),
@@ -27,6 +73,7 @@ class StoreContractMixin(ContractAssertions):
             call()
         self.assertEqual(caught.exception.code, code)
 
+    @requires("recipes_read")
     def test_pagination(self):
         for page, size in ((0, 1), (1, 0), (1, 101), (True, 1)):
             self.assert_code("invalid_argument", lambda: self.store.search_recipes(
@@ -34,6 +81,7 @@ class StoreContractMixin(ContractAssertions):
         self.assertEqual(self.store.search_recipes(RecipeSearch(per_page=1)).total, 1)
         self.assertEqual(self.store.search_recipes(RecipeSearch(page=2)).items, ())
 
+    @requires("recipes_read", "recipes_write", "search_sort", "activity", optional=("rating_sort",))
     def test_search_sort_orders(self):
         self.store.create_recipe(Recipe(slug="apple", name="Apple"))
         self.store.create_recipe(Recipe(slug="pear", name="Pear"))
@@ -48,7 +96,11 @@ class StoreContractMixin(ContractAssertions):
         self.store.log_cooking_event("pear", "Again", None)
         self.assertEqual(slugs(sort="last_made"), ["soup", "pear", "apple"])
         self.assertEqual(slugs(sort="last_made", direction="desc"), ["pear", "soup", "apple"])
-        self.assert_code("unsupported_operation", lambda: slugs(sort="rating"))
+        if "rating_sort" in self.capabilities:
+            self.seed_ratings()
+            self.assertEqual(slugs(sort="rating", direction="desc"), ["pear", "soup", "apple"])
+        else:
+            self.assert_code("unsupported_operation", lambda: slugs(sort="rating"))
         self.assert_code("invalid_argument", lambda: slugs(sort="unknown"))
         order = slugs(sort="random", seed="2026-01-01")
         self.assertEqual(order, slugs(sort="random", seed="2026-01-01", direction="desc"))
@@ -56,10 +108,12 @@ class StoreContractMixin(ContractAssertions):
                          slugs(sort="random", seed="2026-01-01", page=page, per_page=1)])
         self.assertEqual(slugs(sort="random", seed="x", query="Pear"), ["pear"])
 
+    @requires("recipes_read", "shopping")
     def test_missing(self):
-        self.assert_code("not_found", lambda: self.store.get_recipe("absent"))
-        self.assert_code("not_found", lambda: self.store.get_shopping_items("absent"))
+        self.assert_code("not_found", lambda: self.store.get_recipe(self.absent_id("recipe")))
+        self.assert_code("not_found", lambda: self.store.get_shopping_items(self.absent_id("list")))
 
+    @requires("recipes_read", "recipes_write")
     def test_nulls_and_patch(self):
         before = self.store.get_recipe(self.ref.slug)
         self.assertIsNone(before.recipeIngredient[0].quantity)
@@ -73,6 +127,7 @@ class StoreContractMixin(ContractAssertions):
         self.store.update_recipe(self.ref.slug, RecipePatch({"recipeIngredient": ()}))
         self.assertEqual(self.store.get_recipe(self.ref.slug).recipeIngredient, ())
 
+    @requires("shopping")
     def test_ownership_atomic_check(self):
         a = self.store.create_shopping_list("A").id
         b = self.store.create_shopping_list("B").id
@@ -85,6 +140,7 @@ class StoreContractMixin(ContractAssertions):
         self.assertTrue(checked.checked)
         self.assertEqual(checked.note, item.note)
 
+    @requires("recipes_read", "activity")
     def test_store_tags_and_activity(self):
         tag = self.store.get_or_create_tag("Dinner")
         self.assertEqual(self.store.get_or_create_tag("Dinner").id, tag.id)
@@ -92,8 +148,9 @@ class StoreContractMixin(ContractAssertions):
         self.assertEqual(len(self.store.get_recipe(self.ref.slug).tags), 1)
         self.assertTrue(self.store.add_recipe_comment(self.ref.slug, "Good"))
         self.assertTrue(self.store.log_cooking_event(self.ref.slug, "Cooked", None))
-        self.assert_code("not_found", lambda: self.store.add_recipe_comment("absent", "No"))
+        self.assert_code("not_found", lambda: self.store.add_recipe_comment(self.absent_id("recipe"), "No"))
 
+    @requires("suggestions")
     def test_store_suggestions(self):
         from sabor.store import SuggestionQuery
         self.assertEqual(len(self.store.suggest_recipes(SuggestionQuery(()))), 1)
@@ -101,14 +158,16 @@ class StoreContractMixin(ContractAssertions):
             self.assert_code("invalid_argument", lambda: self.store.suggest_recipes(
                 SuggestionQuery((), limit=limit)))
 
+    @requires("shopping")
     def test_store_preview_and_clear(self):
         target = self.store.create_shopping_list("Week").id
         self.store.add_shopping_items(target, [ItemDraft(note="salt")])
         self.assertEqual(self.store.shopping_list_preview(target)["count"], 1)
         self.assertEqual(self.store.clear_shopping_list_items(target)["deleted"], 1)
         self.assertEqual(self.store.clear_shopping_list_items(target)["deleted"], 0)
-        self.assert_code("not_found", lambda: self.store.shopping_list_preview("absent"))
+        self.assert_code("not_found", lambda: self.store.shopping_list_preview(self.absent_id("list")))
 
+    @requires("mealplan", "shopping", "recipes_read", optional=("occurrence_ids",))
     def test_repeated_occurrences(self):
         for day in ("2026-01-01", "2026-01-02"):
             self.store.set_mealplan_entry(MealEntryDraft(day, "dinner", "Soup", self.ref.slug))
@@ -116,11 +175,16 @@ class StoreContractMixin(ContractAssertions):
         self.assertEqual(len(entries), 2)
         target = self.store.create_shopping_list("Week").id
         result = self.store.add_recipe_occurrences(target, [RecipeOccurrence(self.ref.slug, 2) for e in entries])
-        self.assertEqual(len(result.changed_ids), 2)
+        if "occurrence_ids" in self.capabilities:
+            self.assertEqual(len(result.changed_ids), 2)
+        else:
+            self.assertEqual(result.changed_ids, ())
         self.assertEqual(len(self.store.get_shopping_items(target).items), 2)
 
 
 class SqliteStoreContract(StoreContractMixin, unittest.TestCase):
+    capabilities = CAPABILITIES - {"rating_sort"}
+
     def make_store(self):
         from tempfile import TemporaryDirectory
         from pathlib import Path
@@ -131,6 +195,8 @@ class SqliteStoreContract(StoreContractMixin, unittest.TestCase):
 
 
 class FakeStoreContract(StoreContractMixin, unittest.TestCase):
+    capabilities = CAPABILITIES - {"rating_sort"}
+
     def make_store(self):
         return FakeRecipeStore()
 
@@ -151,10 +217,10 @@ class FakeStoreContract(StoreContractMixin, unittest.TestCase):
             self.store.cooking_events[event], (self.ref.slug, "Cooked", None)
         )
         self.assert_code(
-            "not_found", lambda: self.store.add_recipe_comment("absent", "No")
+            "not_found", lambda: self.store.add_recipe_comment(self.absent_id("recipe"), "No")
         )
         self.assert_code(
-            "not_found", lambda: self.store.log_cooking_event("absent", "No", None)
+            "not_found", lambda: self.store.log_cooking_event(self.absent_id("recipe"), "No", None)
         )
 
     def test_preview_and_clear(self):
@@ -167,7 +233,7 @@ class FakeStoreContract(StoreContractMixin, unittest.TestCase):
         self.assertEqual(self.store.clear_shopping_list_items(target)["deleted"], 1)
         self.assertEqual(self.store.clear_shopping_list_items(target)["deleted"], 0)
         self.assert_code(
-            "not_found", lambda: self.store.shopping_list_preview("absent")
+            "not_found", lambda: self.store.shopping_list_preview(self.absent_id("list"))
         )
 
     def test_error_translation(self):
