@@ -94,7 +94,7 @@ def assemble_context(settings: Settings, *, store_factory=None) -> AppContext:
             mealie_store_factory if settings.mealie_configured else None),
         pricing_factories=(lambda s: MercadonaPricing(
             warehouse=MERCADONA_WAREHOUSE,
-            cache_path=_mercadona_cache_path(MERCADONA_WAREHOUSE)),) if settings.mercadona_enabled else (),
+            cache_path=_mercadona_cache_path(MERCADONA_WAREHOUSE, s.legacy_config.SABOR_DATA_DIR)),) if settings.mercadona_enabled else (),
         import_factories=((OpenAIImportProvider,) if settings.llm_configured else ())
         + ((GeminiNativeVideo,) if settings.gemini_configured else ()),
         sync_factories=(BringSyncProvider,) if settings.bring_email and settings.bring_password else ())

@@ -2,7 +2,7 @@
   "manifest_version": "1.0",
   "name": "sabor",
   "version": "0.3.0",
-  "description": "Cooking MCP server for Mealie: search, read, create and edit recipes, plan meals and manage shopping lists, plus recipe import from URLs, text and video. Optional integrations: Bring! shopping sync and Mercadona price estimates.",
+  "description": "Cooking MCP server with SQLite or optional Mealie: search, read, create and edit recipes, plan meals and manage shopping lists, plus recipe import from URLs, text and video. Optional integrations: Bring! shopping sync and Mercadona price estimates.",
   "transport": "streamable-http",
   "port": 8080,
   "health": {
@@ -54,21 +54,26 @@
       "secret": false
     },
     {
-      "name": "SABOR_STORE_DB",
-      "description": "SQLite recipe database path; parent directories are created at startup. Persist and back up its data volume.",
+      "name": "SABOR_DATA_DIR",
+      "description": "Data directory: explicit path, existing /data in Docker, otherwise the OS user data directory.",
       "required": false,
-      "secret": false,
-      "default": "/data/sabor.db"
+      "secret": false
+    },
+    {
+      "name": "SABOR_STORE_DB",
+      "description": "SQLite recipe database path; parent directories are created at startup. Persist and back up its data volume. Defaults to <data dir>/sabor.db (/data in Docker).",
+      "required": false,
+      "secret": false
     },
     {
       "name": "MEALIE_BASE_URL",
-      "description": "URL of your Mealie instance, e.g. http://host.docker.internal:9925 from Docker or http://mealie:9000 on a shared Compose network. Required by the core recipe, meal plan and shopping tools.",
+      "description": "Optional Mealie adapter URL; leave unset to use built-in SQLite. Set together with MEALIE_API_TOKEN.",
       "required": true,
       "secret": false
     },
     {
       "name": "MEALIE_API_TOKEN",
-      "description": "Mealie API token (Mealie > User profile > API tokens), sent as a bearer token.",
+      "description": "Required only for the optional Mealie adapter: API token sent as a bearer token; SQLite needs no token.",
       "required": true,
       "secret": true
     },
@@ -156,10 +161,9 @@
     },
     {
       "name": "MEMORY_FILE",
-      "description": "Markdown file used by the legacy_memory toolset for preferences and pantry notes.",
+      "description": "Markdown file used by the legacy_memory toolset for preferences and pantry notes. Defaults to <data dir>/MEMORY.md (/data in Docker).",
       "required": false,
-      "secret": false,
-      "default": "/data/MEMORY.md"
+      "secret": false
     },
     {
       "name": "SABOR_NORMALIZE_IMPORTS",
@@ -191,10 +195,9 @@
     },
     {
       "name": "SABOR_NUTRITION_DB",
-      "description": "SQLite database path for the nutrition service.",
+      "description": "SQLite database path for the nutrition service. Defaults to <data dir>/nutrition.db (/data in Docker).",
       "required": false,
-      "secret": false,
-      "default": "/data/nutrition.db"
+      "secret": false
     },
     {
       "name": "SABOR_NUTRITION_PROVIDER",
@@ -283,5 +286,9 @@
   ],
   "maintainer": "JL Moreno",
   "created_at": "2025-03-16",
-  "updated_at": "2026-10-22"
+  "updated_at": "2026-10-22",
+  "transports": [
+    "stdio",
+    "streamable-http"
+  ]
 }

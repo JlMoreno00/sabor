@@ -17,7 +17,7 @@ from sabor.server import register_tools, start_runtime_services
     ({'SABOR_STORE_DB': '/custom/recipes.db'}, 'sqlite', '/custom/recipes.db'),
 ])
 def test_store_settings(env, store, path):
-    settings = load_settings(env)
+    settings = load_settings(dict(env, SABOR_DATA_DIR='/data'))
     assert settings.store == store
     assert settings.store_db == path
 

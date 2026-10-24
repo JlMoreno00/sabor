@@ -3,6 +3,9 @@
 ## [Unreleased]
 
 ### Added
+- Standalone uvx/stdio and Docker/HTTP installation without Mealie, user data
+  directory and ffmpeg guidance, dual registry packages, gated PyPI publishing,
+  and installed-wheel/container MCP smoke tests in CI (#39).
 - SQLite URL import via offline recipe-scrapers and JSON-LD fallback, plus image
   preview/commit through a vision-capable compatible LLM; shared SSRF-safe bounded
   HTML/image fetching. Text/video imports retain store-based creation and native

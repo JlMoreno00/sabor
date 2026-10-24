@@ -92,7 +92,7 @@ def load_settings(env: Mapping[str, str]) -> Settings:
                     get('BRING_EMAIL'), get('BRING_PASSWORD'), get('SPOONACULAR_API_KEY'),
                     get('SABOR_MERCADONA_ENABLED').lower() == 'true',
                     legacy.SABOR_NUTRITION_ENABLED, str(legacy.MEMORY_FILE), legacy,
-                    store, get('SABOR_STORE_DB') or '/data/sabor.db',
+                    store, legacy.SABOR_STORE_DB,
                     legacy.SABOR_NORMALIZE_IMPORTS,
                     legacy.SABOR_INGREDIENT_PARSER,
                     legacy.SABOR_NORMALIZE_CONFIDENCE)

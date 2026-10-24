@@ -4,16 +4,16 @@ Bare amounts require a countable food recognized by quantities.parse_text;
 otherwise an explicit catalog/canonical unit and a food name are required.
 """
 import json
-from pathlib import Path
 import re
 from types import MappingProxyType
 
+from sabor.core.paths import catalog_dir
 from sabor.pricing.quantities import parse_text
 from sabor.store import Ingredient, NamedRef
 
 
 def _load_units():
-    catalog = Path(__file__).resolve().parents[2] / "catalog" / "spanish_units.json"
+    catalog = catalog_dir() / "spanish_units.json"
     units = {}
     for item in json.loads(catalog.read_text(encoding="utf-8"))["items"]:
         for alias in (item["name"], item.get("pluralName"), item.get("abbreviation"),

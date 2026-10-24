@@ -90,7 +90,7 @@ remain backward-compatible fixes.
    schema, engine, catalog, and operational effects.
 3. Update the `Unreleased` changelog entries and choose the SemVer increment.
 4. Update `mcp-manifest.json` `version`, `server.json` `version` and its
-   package `identifier` tag, and `VERSION` in `sabor/server.py` (a test keeps
+   OCI package `identifier` tag and PyPI package `version`, and `VERSION` in `sabor/server.py` (a test keeps
    them equal); update schema, engine, or catalog versions only when their
    independent contracts changed.
 5. Update README, operations, architecture, and migration notes where affected.
@@ -111,17 +111,22 @@ remain backward-compatible fixes.
 11. Deploy only through the reviewed deployment procedure, then verify
     transport health and read-only integrations.
 
-## Publishing the image and the MCP registry entry
+## Publishing PyPI, the image and the MCP registry entry
 
 Nothing is published automatically from pull requests. Each external
 publication needs the maintainer's explicit approval, in this order:
 
-1. **Image.** Pushing the annotated tag `vX.Y.Z` (or running *Publish image*
+1. **PyPI.** Only with the maintainer's explicit OK (including the first
+   publication), use `.github/workflows/publish-pypi.yml`: manual dispatch or
+   a `vX.Y.Z` tag. Configure trusted publishing for the `pypi` environment
+   before running it. It builds wheel/sdist with uv and rejects a tag that
+   differs from the built version. Nothing publishes from PRs.
+2. **Image.** Pushing the annotated tag `vX.Y.Z` (or running *Publish image*
    by hand) builds `ghcr.io/jlmoreno00/sabor:X.Y.Z` with
    `.github/workflows/publish-image.yml`. The image carries the
    `io.modelcontextprotocol.server.name` label the registry uses to verify
    ownership. Make the GHCR package public after the first publication.
-2. **Registry.** Only once that image exists: `server.json` describes it
+3. **Registry.** Only once the image and PyPI package exist: `server.json` describes both
    (schema `2025-12-11`, validated offline by `tests/test_registry_server_json.py`).
    Publish with the official `mcp-publisher` CLI: `mcp-publisher login github`
    as `JlMoreno00`, then `mcp-publisher publish` from the repository root.

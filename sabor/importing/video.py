@@ -1,6 +1,7 @@
 """Bounded URL video extraction; providers never write recipes."""
 import base64
 import re
+import shutil
 import subprocess
 import time
 from pathlib import Path
@@ -66,6 +67,8 @@ def download(source, root):
 
 def frames(path):
     """Eight evenly spaced samples over the bounded stream; no audio is decoded."""
+    if not all(shutil.which(name) for name in ("ffmpeg", "ffprobe")):
+        reject("provider_unconfigured", "Video frame extraction requires ffmpeg and ffprobe installed on the system.")
     images = []
     try:
         probe = subprocess.run(['ffprobe', '-v', 'error', '-show_entries', 'format=duration',

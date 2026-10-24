@@ -396,8 +396,8 @@ publisher enforces it before preview generation or any HTTP request.
 ## Key Invariants
 
 - The configured RecipeStore is the source of truth for recipe identity,
-  ingredient ordering, quantity, unit, food linkage and servings. Mealie owns
-  visible nutrition when it is the configured production store.
+  ingredient ordering, quantity, unit, food linkage and servings. Mealie is an
+  optional adapter, including visible nutrition when selected.
 - Sabor never extends or writes nutrition into Mealie food records.
 - Disabled nutrition does not initialize SQLite or call the provider.
 - Recipe import success is independent of normalization and nutrition success.
