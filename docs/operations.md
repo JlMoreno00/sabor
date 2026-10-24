@@ -3,6 +3,25 @@
 Start with configuration validation and health checks. Do not run pilots,
 backfills, catalog apply, or publication as a deployment smoke test.
 
+## Transports and local data
+
+`uvx sabor-mcp` defaults to stdio for clients that launch the process.
+Use `sabor-mcp --transport http` or `python sabor_mcp.py` for Streamable HTTP
+at `/mcp`; Docker retains HTTP by default. Keep stdout protocol-only in stdio.
+HTTP binds with `SABOR_HOST` / `SABOR_PORT`; expose only loopback or a trusted,
+authenticated access layer. See README for pre-release install commands.
+
+`SABOR_DATA_DIR` overrides the data directory. Otherwise an existing `/data`
+is used, then the OS user data directory (Linux: XDG or ~/.local/share/sabor;
+macOS: ~/Library/Application Support/sabor; Windows: LOCALAPPDATA/sabor).
+Default recipe, memory, nutrition and catalog cache files derive from it;
+per-file overrides win. Directories are created lazily. Persist and back up the
+selected directory, not only the container filesystem.
+
+Local video import requires system ffmpeg and ffprobe on PATH; Docker includes
+them. Missing binaries produce `provider_unconfigured` with installation guidance.
+Core recipes, planning and shopping do not need ffmpeg or Mealie.
+
 ## Configuration Authority
 
 Registration authority is `sabor/core/config.py`: `load_settings` validates the
@@ -26,7 +45,7 @@ The executable runtime, `.env.example`, and `mcp-manifest.json` all use
 | `SABOR_PORT` | `8080` | Server | Must match container port and health check unless all are changed together |
 | `MEALIE_BASE_URL` | Empty for registration; legacy client defaults localhost | Mealie tools | Remove trailing slash; use the container-reachable URL in Compose |
 | `SABOR_STORE` | `mealie` if `MEALIE_BASE_URL` is non-empty, otherwise `sqlite` | Recipe backend | Explicit `sqlite` or `mealie` wins; invalid values fail startup |
-| `SABOR_STORE_DB` | `/data/sabor.db` | SQLite backend | Parent directories created at startup; open failures are fatal, with no fallback |
+| `SABOR_STORE_DB` | `<data dir>/sabor.db` | SQLite backend | Parent directories created at startup; open failures are fatal, with no fallback |
 | `MEALIE_API_TOKEN` | Empty | Authenticated Mealie tools | Bearer token; secret |
 | `SPOONACULAR_API_KEY` | Empty | Spoonacular tools and nutrition profile fetches | Secret |
 | `GEMINI_API_KEY` | Empty | Video analysis/import | Secret |
@@ -36,7 +55,7 @@ The executable runtime, `.env.example`, and `mcp-manifest.json` all use
 | `BRING_PASSWORD` | Empty | Bring! tools | Secret |
 | `BRING_CATALOG_DIR` | Empty | Optional Bring! catalog override | Directory searched before installed package data |
 | `MERCADONA_WAREHOUSE` | `mad1` | Mercadona tools | Public warehouse code |
-| `MEMORY_FILE` | `/data/MEMORY.md` | Preference memory | Contains user data; back up and protect it |
+| `MEMORY_FILE` | `<data dir>/MEMORY.md` | Preference memory | Contains user data; back up and protect it |
 
 ## Store and instance deployment (0.3)
 

@@ -50,6 +50,30 @@ class PublishWorkflowTests(unittest.TestCase):
         self.assertEqual(self.text.count("push: true"), 1)
 
 
+class PublishPyPITests(PublishWorkflowTests):
+    def setUp(self):
+        self.text = (ROOT / ".github/workflows/publish-pypi.yml").read_text(encoding="utf-8")
+
+    def test_least_privilege_and_pinned_actions(self):
+        permissions = [line.strip() for line in _top_level_block(self.text, "permissions")]
+        self.assertEqual(permissions, ["contents: read"])
+        self.assertRegex(self.text, r"    permissions:\n      contents: read\n      id-token: write")
+        self.assertIn("environment: pypi", self.text)
+        self.assertIn("persist-credentials: false", self.text)
+        uses = re.findall(r"uses:\s*(\S+)", self.text)
+        self.assertEqual(uses, [
+            "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e",
+            "pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086",
+        ])
+
+    def test_publishes_only_the_sabor_ghcr_image(self):
+        self.assertEqual(self.text.count("uses: pypa/gh-action-pypi-publish@"), 1)
+        self.assertIn("run: uv build", self.text)
+        self.assertIn("if: startsWith(github.ref, 'refs/tags/')", self.text)
+        self.assertIn('os.environ["RELEASE_TAG"] == f"v{version}"', self.text)
+
+
 @unittest.skipUnless(shutil.which("docker"), "docker CLI not installed")
 class ComposeConfigTests(unittest.TestCase):
     def test_compose_contract(self):

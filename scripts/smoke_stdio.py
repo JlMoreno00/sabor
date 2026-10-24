@@ -32,4 +32,4 @@ async def smoke(wheel):
 
 
 if __name__ == '__main__':
-    asyncio.run(smoke(sys.argv[1]))
+    asyncio.run(asyncio.wait_for(smoke(sys.argv[1]), timeout=120))

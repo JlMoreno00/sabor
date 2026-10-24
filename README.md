@@ -35,6 +35,16 @@ List creation/additions write immediately; cost approval authorizes no purchase.
 Report each system's outcome; uncertain writes require readback/reconciliation,
 not automatic retries or an assumed cross-system rollback.
 
+## Sabor solo vs Sabor + Mealie
+
+| Capability | Sabor solo | Sabor + Mealie |
+|---|---|---|
+| Recipes, meal plans, shopping lists | Built-in SQLite; no account or token | Mealie URL + API token |
+| URL import | Offline recipe-scrapers / JSON-LD | Native Mealie scraper |
+| Text / image / video import | Optional compatible LLM / Gemini; video needs ffmpeg | Optional providers; native image import uses Mealie configuration |
+| Bring! sync / Mercadona estimates | Optional credentials / pricing opt-in | Same optional integrations |
+| Spanish catalog / legacy nutrition | Not supported | Mealie adapter required |
+
 ## Capabilities and providers
 
 | Capability | Provider / requirements | Limits |
@@ -64,7 +74,7 @@ LLM-only setups can preview text/video; committing requires a recipe store (SQLi
 
 `RecipeStore` is a typed persistence abstraction for recipes, calendar entries,
 shopping lists/items, tags and history. Without `MEALIE_BASE_URL`, SQLite is
-selected automatically at `/data/sabor.db`; set `SABOR_STORE_DB` to change the
+selected automatically at `<data dir>/sabor.db`; set `SABOR_STORE_DB` to change the
 path. With a non-empty Mealie URL, Mealie remains selected (and requires its token).
 Explicit `SABOR_STORE=sqlite` or `SABOR_STORE=mealie` overrides that selection;
 invalid values fail startup. SQLite construction and registration perform no
@@ -169,7 +179,7 @@ is trimmed, duplicates collapse, and unknown names prevent startup.
 
 | Toolset | Selection / configuration |
 |---|---|
-| `core` | Default; recipe store (production: Mealie URL + token) |
+| `core` | Default; built-in SQLite or Mealie URL + token |
 | `import` | Default; recipe store, compatible LLM or Gemini; kinds depend on provider |
 | `shopping_sync` | Default; Bring! credentials + recipe store for the tools |
 | `pricing` | Opt-in + `SABOR_MERCADONA_ENABLED=true`; no Mealie required for inline items |
@@ -231,7 +241,43 @@ MCP schema validation can reject a call before a tool runs.
   Unknown/ambiguous targets fail: there is no first-list fallback.
 - Recipe PATCH arrays replace entire arrays. Review removals, not just additions.
 
-## Quickstart: Docker
+## Quickstart: Sabor solo
+
+With Python 3.12+ and [uv](https://docs.astral.sh/uv/), the stdio install is:
+
+```bash
+uvx sabor-mcp
+```
+
+**Only after the first PyPI release.** Until then, use
+`uvx --from git+https://github.com/JlMoreno00/sabor sabor-mcp`, or build a
+local wheel with `uv build` and run
+`uvx --from dist/sabor_mcp-0.3.0-py3-none-any.whl sabor-mcp`.
+No Mealie configuration is needed. The console command defaults to stdio;
+`sabor-mcp --transport http` instead serves Streamable HTTP.
+
+For standalone Docker (HTTP), **only after the first GHCR release**:
+
+```bash
+docker run -p 127.0.0.1:9170:8080 -v sabor-data:/data ghcr.io/jlmoreno00/sabor:0.3.0
+```
+
+Until then build locally with `docker build -t sabor:local .` and use
+`sabor:local` in that command. No Mealie variables are needed.
+Connect to `http://127.0.0.1:9170/mcp`.
+
+Data lives in `SABOR_DATA_DIR` when set, otherwise an existing `/data`
+directory (Docker), otherwise the OS user data directory:
+`$XDG_DATA_HOME/sabor` or `~/.local/share/sabor` on Linux,
+`~/Library/Application Support/sabor` on macOS, `%LOCALAPPDATA%\\sabor` on Windows.
+SQLite, memory, nutrition and catalog cache paths derive from it; explicit
+per-file overrides still win. Persist the Docker volume and back up local data.
+
+Video import needs system **ffmpeg / ffprobe** (included in Docker); install
+ffmpeg separately for uvx. Missing binaries return a clear
+`provider_unconfigured` error rather than disabling core tools.
+
+## Quickstart: Docker — Sabor + Mealie
 
 You need Docker with Compose v2. Nothing else: the `mealie` profile also starts
 a Mealie for Sabor (pinned to the tested Mealie 3.22.0).
@@ -277,13 +323,9 @@ Use Python 3.12. Local video processing also needs `ffmpeg` and `curl`.
 python3 -m venv .venv
 . .venv/bin/activate
 pip install -r requirements.txt
-export MEALIE_BASE_URL=http://localhost:9925
-export MEALIE_API_TOKEN='<your-mealie-token>'
 export SABOR_HOST=127.0.0.1
 export SABOR_PORT=9170
-export MEMORY_FILE="$PWD/.local-data/MEMORY.md"
-export SABOR_NUTRITION_DB="$PWD/.local-data/nutrition.db"
-mkdir -p .local-data
+export SABOR_DATA_DIR="$PWD/.local-data"
 python3 sabor_mcp.py
 ```
 
@@ -293,7 +335,25 @@ Nutrition remains disabled. Do not paste real tokens into shared shell history.
 
 ## Connect your MCP client
 
-Register a Streamable HTTP server named `sabor`. A generic configuration is:
+For stdio, let the MCP client launch uvx (after the first PyPI release):
+
+```json
+{
+  "mcpServers": {
+    "sabor": {
+      "command": "uvx",
+      "args": ["sabor-mcp", "--transport", "stdio"]
+    }
+  }
+}
+```
+
+Before that release use
+`"args": ["--from", "git+https://github.com/JlMoreno00/sabor", "sabor-mcp", "--transport", "stdio"]`.
+Keep stdout reserved for the protocol; logs go to stderr.
+
+For Docker or a running HTTP process, register a Streamable HTTP server named
+`sabor`. A generic configuration is:
 
 ```json
 {

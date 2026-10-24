@@ -41,9 +41,9 @@ class ServerJsonTests(unittest.TestCase):
         self.assertEqual(label[1], self.server["name"])
         self.assertEqual(self.server["repository"]["url"], "https://github.com/JlMoreno00/sabor")
 
-    def test_single_ghcr_package_pinned_to_the_release_version(self):
+    def test_ghcr_package_pinned_to_the_release_version(self):
         from sabor.server import VERSION
-        self.assertEqual(len(self.server["packages"]), 1)
+        self.assertEqual(len(self.server["packages"]), 2)
         self.assertEqual(self.server["version"], VERSION)
         self.assertEqual(self.manifest["version"], VERSION)
         self.assertEqual(self.package["registryType"], "oci")
@@ -56,8 +56,20 @@ class ServerJsonTests(unittest.TestCase):
     def test_environment_variables_mirror_the_manifest(self):
         expected = [{k: v for k, v in item.items() if k in ("name", "description", "default")}
                     | {"isRequired": item["required"], "isSecret": item["secret"]}
-                    for item in self.manifest["env_vars"] if item["name"] not in NOT_FOR_PACKAGE]
-        self.assertEqual(self.package["environmentVariables"], expected)
+                    for item in self.manifest["env_vars"] if item["name"] not in NOT_FOR_PACKAGE
+                    and not item["name"].startswith("COMPOSE_")]
+        for package in self.server["packages"]:
+            self.assertEqual(package["environmentVariables"], expected)
+
+    def test_pypi_package(self):
+        from sabor.server import VERSION
+        package = self.server["packages"][1]
+        self.assertEqual(package["registryType"], "pypi")
+        self.assertEqual(package["identifier"], "sabor-mcp")
+        self.assertEqual(package["version"], VERSION)
+        self.assertEqual(package["runtimeHint"], "uvx")
+        self.assertEqual(package["transport"], {"type": "stdio"})
+        self.assertEqual(self.manifest["transports"], ["stdio", "streamable-http"])
 
     def test_description_promises_nothing_pending_verification(self):
         description = self.server["description"].casefold()
