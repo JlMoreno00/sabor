@@ -1,5 +1,7 @@
 # Sabor
 
+<!-- mcp-name: io.github.JlMoreno00/sabor -->
+
 A kitchen-intelligence layer with built-in SQLite or optional Mealie. Find or import recipes, plan the
 week, build a scaled shopping list, estimate its cost, then sync to Bring! with
 an explicit preview and digest-bound confirmation. The selected recipe

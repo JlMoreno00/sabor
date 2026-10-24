@@ -54,11 +54,29 @@ class PublishPyPITests(PublishWorkflowTests):
     def setUp(self):
         self.text = (ROOT / ".github/workflows/publish-pypi.yml").read_text(encoding="utf-8")
 
+    def test_runs_only_on_manual_dispatch_or_version_tags(self):
+        triggers = [line.strip() for line in _top_level_block(self.text, '"?on"?')]
+        self.assertEqual(triggers, [
+            "workflow_dispatch:", "inputs:", "target:",
+            "description: Package index (TestPyPI unless pypi is chosen explicitly)",
+            "type: choice", "options:", "- testpypi", "- pypi", "default: testpypi",
+            "push:", "tags:", '- "v*"'])
+        self.assertNotIn("pull_request", self.text)
+        self.assertNotIn("branches", self.text)
+
+    def test_manual_runs_default_to_testpypi_and_tags_to_pypi(self):
+        # Tag pushes carry no inputs, so `inputs.target || 'pypi'` selects PyPI only for tags
+        # or an explicit choice; a plain manual run uploads to TestPyPI (#62).
+        self.assertEqual(self.text.count("inputs.target || 'pypi'"), 2)
+        self.assertIn("environment: ${{ inputs.target || 'pypi' }}", self.text)
+        self.assertIn("repository-url: ${{ (inputs.target || 'pypi') == 'testpypi'"
+                      " && 'https://test.pypi.org/legacy/' || 'https://upload.pypi.org/legacy/' }}",
+                      self.text)
+
     def test_least_privilege_and_pinned_actions(self):
         permissions = [line.strip() for line in _top_level_block(self.text, "permissions")]
         self.assertEqual(permissions, ["contents: read"])
         self.assertRegex(self.text, r"    permissions:\n      contents: read\n      id-token: write")
-        self.assertIn("environment: pypi", self.text)
         self.assertIn("persist-credentials: false", self.text)
         uses = re.findall(r"uses:\s*(\S+)", self.text)
         self.assertEqual(uses, [

@@ -117,10 +117,14 @@ Nothing is published automatically from pull requests. Each external
 publication needs the maintainer's explicit approval, in this order:
 
 1. **PyPI.** Only with the maintainer's explicit OK (including the first
-   publication), use `.github/workflows/publish-pypi.yml`: manual dispatch or
-   a `vX.Y.Z` tag. Configure trusted publishing for the `pypi` environment
-   before running it. It builds wheel/sdist with uv and rejects a tag that
-   differs from the built version. Nothing publishes from PRs.
+   publication), use `.github/workflows/publish-pypi.yml`. A manual run uploads
+   to **TestPyPI** unless `target: pypi` is chosen; a `vX.Y.Z` tag uploads to
+   PyPI. Configure trusted publishing for the `testpypi` and `pypi`
+   environments (on test.pypi.org and pypi.org) before running it. It builds
+   wheel/sdist with uv and rejects a tag that differs from the built version.
+   Nothing publishes from PRs. The README carries the hidden
+   `mcp-name: io.github.JlMoreno00/sabor` marker the registry reads from the
+   PyPI description to verify ownership.
 2. **Image.** Pushing the annotated tag `vX.Y.Z` (or running *Publish image*
    by hand) builds `ghcr.io/jlmoreno00/sabor:X.Y.Z` with
    `.github/workflows/publish-image.yml`. The image carries the
@@ -131,8 +135,11 @@ publication needs the maintainer's explicit approval, in this order:
    Publish with the official `mcp-publisher` CLI: `mcp-publisher login github`
    as `JlMoreno00`, then `mcp-publisher publish` from the repository root.
 
-Keep `server.json` environment variables in sync with `mcp-manifest.json`;
-the test fails otherwise.
+`mcp-manifest.json` lists every environment variable. In `server.json` the OCI
+package advertises only the essential ones (store, config file, Mealie, LLM, Bring,
+Mercadona, Open Prices and toolsets), with the manifest's descriptions and defaults; the
+`pypi` package (`uvx sabor-mcp`, stdio) advertises none. The test fails if
+they drift.
 
 ## Tags and Changelog
 
