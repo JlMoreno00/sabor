@@ -43,10 +43,10 @@ The executable runtime, `.env.example`, and `mcp-manifest.json` all use
 | `SABOR_HOST` | `0.0.0.0` (container, `python sabor_mcp.py`); `127.0.0.1` for `sabor-mcp --transport http` | Server | Compose publishes only to host loopback; set it explicitly to listen on another interface |
 | `SABOR_HOST_PORT` | `9170` (Compose) | Docker host binding | Optional, non-secret; loopback only |
 | `SABOR_PORT` | `8080` | Server | Must match container port and health check unless all are changed together |
-| `MEALIE_BASE_URL` | Empty for registration; legacy client defaults localhost | Mealie tools | Remove trailing slash; use the container-reachable URL in Compose |
+| `MEALIE_BASE_URL` | Empty for registration; legacy client defaults localhost | Optional Mealie adapter only | Remove trailing slash; use the container-reachable URL in Compose |
 | `SABOR_STORE` | `mealie` if `MEALIE_BASE_URL` is non-empty, otherwise `sqlite` | Recipe backend | Explicit `sqlite` or `mealie` wins; invalid values fail startup |
 | `SABOR_STORE_DB` | `<data dir>/sabor.db` | SQLite backend | Parent directories created at startup; open failures are fatal, with no fallback |
-| `MEALIE_API_TOKEN` | Empty | Authenticated Mealie tools | Bearer token; secret |
+| `MEALIE_API_TOKEN` | Empty | Optional Mealie adapter only | Bearer token; secret |
 | `SPOONACULAR_API_KEY` | Empty | Spoonacular tools and nutrition profile fetches | Secret |
 | `GEMINI_API_KEY` | Empty | Video analysis/import | Secret |
 | `VIDEO_RECIPE_GEMINI_MODEL` | `gemini-2.5-flash-lite` | Native video | Same default as 0.1.x; set it to pin another Gemini model |

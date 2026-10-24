@@ -68,13 +68,13 @@
     {
       "name": "MEALIE_BASE_URL",
       "description": "Optional Mealie adapter URL; leave unset to use built-in SQLite. Set together with MEALIE_API_TOKEN.",
-      "required": true,
+      "required": false,
       "secret": false
     },
     {
       "name": "MEALIE_API_TOKEN",
       "description": "Required only for the optional Mealie adapter: API token sent as a bearer token; SQLite needs no token.",
-      "required": true,
+      "required": false,
       "secret": true
     },
     {
