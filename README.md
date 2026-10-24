@@ -81,7 +81,7 @@ configuration/reconciliation failure, 2 for invalid arguments. Review nested
 | Import: image | SQLite: vision-capable OpenAI-compatible LLM; Mealie: native import with Mealie's OpenAI configuration | Explicit `kind="image"`, public image URL; SQLite supports preview, Mealie remains commit-only |
 | Import: video | `gemini_native` or `openai_compatible` | URL download; up to 100 MiB / 10 minutes; no playlists or local paths; TikTok URLs unsupported (paste the caption/transcript with `kind='text'`) |
 | Shopping sync | Bring! email + password **and a recipe store** | Only unchecked source items; does not check off Mealie items |
-| Pricing | `pricing` toolset + `SABOR_MERCADONA_ENABLED=true` | Read-only quantity-aware estimates; Mercadona only in 0.3.0 |
+| Pricing | `pricing` toolset + `SABOR_MERCADONA_ENABLED=true` or `SABOR_OPEN_PRICES_ENABLED=true` | Read-only quantity-aware estimates; Mercadona catalog or Open Prices observations |
 | Legacy | Explicit toolset selection plus provider configuration | Promotions, memory, nutrition and Spanish catalog |
 
 Gemini-native uploads the whole video for audio + vision processing using
@@ -172,8 +172,25 @@ Egg reference prices per dozen are divided by 12 for the per-piece basis.
 Optional `location_id` and `currency` must match the configured adapter (stock
 configuration: warehouse `mad1`, EUR); incompatible contexts are rejected, never
 silently switched. Omit `store` only when exactly one pricing provider is present.
-Mercadona's unofficial API can change. Open Prices is deferred beyond 0.3.0;
-Todoist sync is planned for 0.3.1, not shipped here.
+Mercadona's unofficial API can change. Todoist sync is planned, not shipped here.
+
+Alternatively enable `SABOR_OPEN_PRICES_ENABLED=true` (default `false`) and the
+`pricing` toolset. Select `store={"provider":"open_prices","location_id":"ES","currency":"EUR"}`
+with `estimate_cost` or `get_product_price`; product IDs are barcodes. Country
+is an ISO alpha-2 code (default ES), currency defaults to EUR. Open Prices is
+universal crowd observations, not a current catalog: Spanish coverage is sparse
+and old. The latest matching country observation wins (ties: latest ID), never
+the cheapest. Missing locations/country observations return `not_found`, not zero.
+Search returns up to ten products with observations; some may lack a local quote.
+Quotes include observation date, public store/city, unknown availability and
+`observation` always; `stale_observation` means older than 180 days, `discounted`
+marks promotions, `single_observation` means only one matching observation in the
+fetched window, and `unknown_unit` leaves package/unit pricing unknown.
+Responses are cached per instance for ten minutes (up to 128 requests); prices
+inspect only the latest 50 observations, so country coverage can be incomplete.
+Attribution: **Open Prices (Open Food Facts), ODbL**, https://prices.openfoodfacts.org/.
+Do not combine with non-free data into a redistributed database. Contributor
+identifiers, proofs and coordinates are never included in quotes or errors.
 
 Choose exactly one `source` shape:
 
@@ -219,7 +236,7 @@ is trimmed, duplicates collapse, and unknown names prevent startup.
 | `core` | Default; built-in SQLite or Mealie URL + token |
 | `import` | Default; recipe store, compatible LLM or Gemini; kinds depend on provider |
 | `shopping_sync` | Default; Bring! credentials + recipe store for the tools |
-| `pricing` | Opt-in + `SABOR_MERCADONA_ENABLED=true`; no Mealie required for inline items |
+| `pricing` | Opt-in + `SABOR_MERCADONA_ENABLED=true` or `SABOR_OPEN_PRICES_ENABLED=true`; no Mealie required for inline items |
 | `legacy_spoonacular` | Opt-in + `SPOONACULAR_API_KEY` |
 | `legacy_pricing` | Opt-in + `SABOR_MERCADONA_ENABLED=true` |
 | `legacy_memory` | Opt-in; local `MEMORY_FILE` |

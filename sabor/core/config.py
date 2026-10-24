@@ -36,6 +36,7 @@ class Settings:
     normalize_imports: bool = True
     ingredient_parser: str = 'openai'
     normalize_confidence: float = 0.75
+    open_prices_enabled: bool = False
 
     @property
     def mealie_configured(self):
@@ -95,4 +96,5 @@ def load_settings(env: Mapping[str, str]) -> Settings:
                     store, legacy.SABOR_STORE_DB,
                     legacy.SABOR_NORMALIZE_IMPORTS,
                     legacy.SABOR_INGREDIENT_PARSER,
-                    legacy.SABOR_NORMALIZE_CONFIDENCE)
+                    legacy.SABOR_NORMALIZE_CONFIDENCE,
+                    get('SABOR_OPEN_PRICES_ENABLED').lower() == 'true')

@@ -268,6 +268,13 @@
           "default": "false",
           "isRequired": false,
           "isSecret": false
+        },
+        {
+          "name": "SABOR_OPEN_PRICES_ENABLED",
+          "description": "Enable read-only Open Prices crowd observations; add pricing to SABOR_TOOLSETS. Default false.",
+          "default": "false",
+          "isRequired": false,
+          "isSecret": false
         }
       ]
     },
@@ -512,6 +519,13 @@
         {
           "name": "SABOR_NUTRITION_AUTO_PUBLISH",
           "description": "Publish the automatic import calculation to Mealie (true/false).",
+          "default": "false",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "SABOR_OPEN_PRICES_ENABLED",
+          "description": "Enable read-only Open Prices crowd observations; add pricing to SABOR_TOOLSETS. Default false.",
           "default": "false",
           "isRequired": false,
           "isSecret": false

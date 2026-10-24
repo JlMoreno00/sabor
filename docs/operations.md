@@ -142,13 +142,28 @@ separately when selected. Other store adapters are not shipped.
 
 ## Pricing operations
 
-Add `pricing` to `SABOR_TOOLSETS` and set `SABOR_MERCADONA_ENABLED=true`.
+Add `pricing` to `SABOR_TOOLSETS` and set `SABOR_MERCADONA_ENABLED=true`
+or `SABOR_OPEN_PRICES_ENABLED=true` (both default false).
 The default toolset list stays `core,import,shopping_sync`; `legacy_pricing`
 keeps only price drops/new arrivals. Inline estimates need no Mealie; recipe,
 calendar and shopping-list sources require a store. `store` means retail context,
 with provider/location/currency, not a recipe backend. Mercadona uses the startup
-warehouse (default `mad1`) and EUR; incompatible contexts fail. Open Prices is
-not shipped. Catalog cache refresh failures may yield explicitly stale quotes;
+warehouse (default `mad1`) and EUR; incompatible contexts fail. Open Prices uses
+`store={"provider":"open_prices","location_id":"ES","currency":"EUR"}` with ISO
+alpha-2 country (default ES), currency default EUR and barcode product IDs.
+Country is filtered locally; absent locations are excluded. The latest of up to
+50 observations is selected by date then ID, not cheapest price. No matching
+observation returns `not_found`. Spanish coverage is sparse/old, not a catalog.
+Search is capped at ten products. Instance caches hold up to 128 responses for
+ten minutes; restart clears them, with no disk cache or background requests.
+Quotes always flag `observation`; older than 180 days adds `stale_observation`,
+promotions add `discounted`, and a single country observation in the fetched
+window adds `single_observation`. Unknown quantities add `unknown_unit`; never
+substitute zero. Availability is unknown. Attribution: Open Prices (Open Food
+Facts), ODbL, https://prices.openfoodfacts.org/. Do not combine observations with
+non-free data into a redistributed database. Public store/city and dates are
+reported, not contributor identifiers, proofs or coordinates.
+Catalog cache refresh failures may yield explicitly stale quotes;
 the unofficial API provides no availability guarantee.
 
 Search is food-only; whole-word names rank by fewer extra distinct normalized
@@ -246,7 +261,8 @@ configuration.
 | `SABOR_LLM_MODEL` | Empty | Explicit compatible model |
 | `SABOR_LLM_API_KEY` | Empty | Required remotely; localhost/127.0.0.1 may omit |
 | `SABOR_VIDEO_PROVIDER` | Empty | Auto: configured Gemini then compatible; explicit choice has no fallback |
-| `SABOR_MERCADONA_ENABLED` | `false` | Explicit readiness for selected legacy pricing |
+| `SABOR_MERCADONA_ENABLED` | `false` | Explicit readiness for Mercadona pricing and selected legacy pricing |
+| `SABOR_OPEN_PRICES_ENABLED` | `false` | Enable Open Prices observations; accepts true/false, case-insensitive; select pricing toolset |
 
 Endpoint examples: OpenAI `https://api.openai.com/v1`; Gemini-compatible
 `https://generativelanguage.googleapis.com/v1beta/openai/`; Ollama

@@ -69,7 +69,7 @@ with SQLite. Discovery lists the active `recipe_store` adapter and operations;
 `sabor_mcp.py` starts the server; `sabor/server.py` assembles settings,
 AppContext and registered tool closures. `sabor/store/` owns typed RecipeStore
 DTOs and the Mealie adapter/mixins; `sabor/pricing/` owns quote DTOs, the
-Mercadona adapter and Decimal costing. The `nutrition/` package isolates the
+Mercadona and Open Prices adapters and Decimal costing. The `nutrition/` package isolates the
 more complex legacy nutrition domain:
 
 | Module | Responsibility |
@@ -183,6 +183,16 @@ This is not a multi-tenant security boundary: legacy Mercadona promotion/catalog
 state remains process-wide, as do direct-call compatibility defaults. Separate
 processes/volumes remain recommended for untrusted households. Selection is not
 sandboxing.
+
+`OpenPricesPricing` is an opt-in read-only requests adapter with an identifying
+Sabor User-Agent, timeout and sanitized errors. It selects the latest country
+observation (date then ID) from a bounded 50-row window, filtering currency on
+the server and ISO country locally. Quantity conversion uses the shared quantity
+module. Its bounded 128-response, ten-minute TTL cache and HTTP session belong
+to the instance, with no startup I/O or module-global cache. Quotes distinguish
+observation/fetch dates, public store provenance and uncertainty, never contributor
+or proof data. Source: Open Prices (Open Food Facts), ODbL; do not redistribute
+a database combining these observations with non-free data.
 
 Pricing tools resolve a tagged source (items, recipe, shopping_list or mealplan)
 through the store when needed. The engine conservatively parses quantities,

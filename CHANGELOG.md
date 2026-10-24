@@ -17,6 +17,11 @@
   Runtime behavior with Mealie configured is unchanged (#36).
 
 ### Added
+- Opt-in Open Prices pricing provider (`SABOR_OPEN_PRICES_ENABLED=true` plus
+  `pricing` toolset): barcode search and country-scoped crowd observations,
+  observation/store provenance, stale/discount/single-observation uncertainty,
+  canonical package units and instance-owned ten-minute cache. Spanish coverage
+  is sparse/old. Attribution: Open Prices (Open Food Facts), ODbL (#2).
 - Pantry-aware `estimate_cost` sources accept `exclude_pantry: true`, excluding
   matched lines with `in_pantry` reasons and additive pantry counts. List building
   reports advisory `pantry_matches` from source lines without skipping additions;

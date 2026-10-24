@@ -275,6 +275,13 @@
       "required": false,
       "secret": false,
       "default": "false"
+    },
+    {
+      "name": "SABOR_OPEN_PRICES_ENABLED",
+      "description": "Enable read-only Open Prices crowd observations; add pricing to SABOR_TOOLSETS. Default false.",
+      "required": false,
+      "secret": false,
+      "default": "false"
     }
   ],
   "volumes": [
