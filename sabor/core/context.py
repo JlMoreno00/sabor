@@ -86,6 +86,7 @@ def assemble_context(settings: Settings, *, store_factory=None) -> AppContext:
     from sabor.importing.video import GeminiNativeVideo
     from sabor.sync.bring import BringSyncProvider
     from sabor.pricing.mercadona import MercadonaPricing
+    from sabor.pricing.open_prices import OpenPricesPricing
     from sabor.integrations.mercadona import MERCADONA_WAREHOUSE
     from sabor.server import _mercadona_cache_path
     return build_context(
@@ -93,9 +94,10 @@ def assemble_context(settings: Settings, *, store_factory=None) -> AppContext:
         store_factory=store_factory if store_factory is not None else (
             sqlite_store_factory if settings.store == 'sqlite' else
             mealie_store_factory if settings.mealie_configured else None),
-        pricing_factories=(lambda s: MercadonaPricing(
+        pricing_factories=((lambda s: MercadonaPricing(
             warehouse=MERCADONA_WAREHOUSE,
-            cache_path=_mercadona_cache_path(MERCADONA_WAREHOUSE, s.legacy_config.SABOR_DATA_DIR)),) if settings.mercadona_enabled else (),
+            cache_path=_mercadona_cache_path(MERCADONA_WAREHOUSE, s.legacy_config.SABOR_DATA_DIR)),) if settings.mercadona_enabled else ())
+        + ((lambda s: OpenPricesPricing(),) if settings.open_prices_enabled else ()),
         import_factories=((OpenAIImportProvider,) if settings.llm_configured else ())
         + ((GeminiNativeVideo,) if settings.gemini_configured else ()),
         sync_factories=(BringSyncProvider,) if settings.bring_email and settings.bring_password else ())

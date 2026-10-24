@@ -1,0 +1,10 @@
+{
+ "url": "https://prices.openfoodfacts.org/api/v1/prices?product_code=7790742330703&currency=EUR&order_by=-date&size=20",
+ "response": {
+  "items": [],
+  "page": 1,
+  "pages": 1,
+  "size": 20,
+  "total": 0
+ }
+}

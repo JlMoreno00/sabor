@@ -19,6 +19,11 @@
   Runtime behavior with Mealie configured is unchanged (#36).
 
 ### Added
+- Opt-in Open Prices pricing provider (`SABOR_OPEN_PRICES_ENABLED=true` plus
+  `pricing` toolset): barcode search and country-scoped crowd observations,
+  observation/store provenance, stale/discount/single-observation uncertainty,
+  canonical package units and instance-owned ten-minute cache. Spanish coverage
+  is sparse/old. Attribution: Open Prices (Open Food Facts), ODbL (#2).
 - The shared store contract runs against the real Mealie adapter using a stateful
   offline Mealie contract double, alongside Fake and SQLite (#5).
 - Pantry-aware `estimate_cost` sources accept `exclude_pantry: true`, excluding
