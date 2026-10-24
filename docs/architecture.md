@@ -8,7 +8,10 @@ data; Sabor owns orchestration and optional evidence. SQLite is the built-in def
 
 `sabor/preferences.py` owns schema-v1 JSON at the frozen Settings legacy-config
 `SABOR_DATA_DIR` / `preferences.json`; there is no new environment variable.
-The opt-in `preferences` toolset is always ready. RuntimeState owns its lock;
+The opt-in `preferences` toolset is always ready; it is not in the default
+toolsets and preferences are per instance/household (one `default` profile)
+until authenticated users exist (#28). Both are provisional, pending
+maintainer confirmation. RuntimeState owns its lock;
 read/modify/replace is serialized per AppContext, not across processes sharing
 one directory. Registration performs no preferences I/O. First confirmed write
 creates the directory, fsyncs a same-directory temporary file and atomically
@@ -17,6 +20,16 @@ file for operator inspection; they never truncate existing preferences.
 Corrupt/unreadable files return sanitized errors and block updates.
 Only `profiles.default` is exposed: this is household storage, not user auth.
 Legacy MEMORY.md and feedback behavior remain separate and unchanged.
+
+`sabor/pricing/pantry.py` reuses the locked read-only preferences call; consumers
+need not enable the preferences toolset. Pricing loads pantry only for explicit
+`source.exclude_pantry: true`, skips matching lines before product lookup and
+reports `in_pantry` through existing excluded-row/coverage structures. Shopping
+loads preferences before writing, derives advisory matches from source item text
+or each recipe occurrence's structured ingredients, and never removes items.
+Source-derived matches omit IDs because store writes may merge lines. Matching
+is whole-name, case/accent/whitespace insensitive with one trailing s/es strip
+on either side, not fuzzy matching or inventory quantity depletion.
 
 ## Recipe store selection
 

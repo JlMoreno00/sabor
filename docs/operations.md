@@ -162,8 +162,20 @@ Search products and inspect package/unit quotes before selecting overrides.
 Read `complete`, coverage, excluded rows, uncertainty and provenance. Consumption
 and procurement are different partial subtotals: the latter aggregates before
 rounding packages up. Decimal JSON values are strings; missing/all-unknown prices
-are null, never zero. No purchases or pantry subtraction occur. See the
+are null, never zero. No purchases occur; pantry exclusion is opt-in. See the
 [pricing contract](../README.md#quantity-aware-pricing) for source shapes/bounds.
+
+All estimate source kinds accept `exclude_pantry: true` to exclude whole-name
+pantry matches from pricing, reported as `in_pantry` in excluded rows/coverage
+and `pantry: {"applied": true, "matched": N}`. Absent/false does not read the
+preferences file and preserves existing responses. List additions never skip
+pantry items: a nonempty pantry adds `pantry_matches` based on source lines,
+without item IDs. Reread the list and approve removal separately. Missing
+preferences mean empty pantry; corrupt preferences block only pantry-aware
+estimates (`Unable to read preferences safely.`). List additions still write and
+return `pantry_warning` (`preferences_unreadable` or `pantry_matching_failed`)
+instead of `pantry_matches`. No toolset opt-in is
+needed to read this instance data. See [matching and examples](../README.md#pantry-aware-estimates).
 
 ## Sync with approved digests
 

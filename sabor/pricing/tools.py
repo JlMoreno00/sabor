@@ -13,6 +13,7 @@ from sabor.store import StoreError, store_error_envelope
 from .mercadona import CatalogWarming
 from .provider import RetailContext, ProductQuery
 from .engine import estimate, present_money
+from .pantry import load_pantry
 
 
 def pricing_ready(settings):
@@ -57,8 +58,16 @@ def _run(ctx, store, operation, argument, overrides=None, match_policy='cheapest
         if operation == 'estimate':
             if isinstance(argument, dict) and argument.get('kind') in {'recipe', 'shopping_list', 'mealplan'} and ctx.store is None:
                 return fail('provider_unconfigured', 'Recipe store is not configured.')
-            result = estimate(argument, retail, ctx.store, pricing, overrides, match_policy)
+            pantry = []
+            if isinstance(argument, dict) and argument.get('exclude_pantry') is True:
+                pantry, error = load_pantry(ctx)
+                if error:
+                    return error
+            result = estimate(argument, retail, ctx.store, pricing, overrides, match_policy, pantry)
             data = _public(result)
+            if isinstance(argument, dict) and argument.get('exclude_pantry') is True:
+                data['pantry'] = {'applied': True, 'matched': sum(
+                    'in_pantry' in line.uncertainty.reasons for line in result.lines)}
             for key in ('consumption_subtotal', 'procurement_subtotal'):
                 data[key] = present_money(getattr(result, key))
             # source_digest identifies the resolved source only; quote_digest

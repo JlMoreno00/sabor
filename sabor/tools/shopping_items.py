@@ -6,6 +6,8 @@ from sabor.store import (StoreError, store_error_envelope, ItemDraft, RecipeOccu
 from sabor.core import errors
 from sabor.core.envelope import fail, ok, preview
 from sabor.core.toolsets import current_context, store_ready, tool
+from sabor.pricing.pantry import load_pantry, match_pantry, item_name
+from sabor.pricing.quantities import ingredient_name
 
 @dataclass(frozen=True)
 class _ResolvedOccurrence(RecipeOccurrence):
@@ -95,6 +97,8 @@ def _add_to_shopping_list(ctx, list_id: str, items: list[str] | None = None,
         return _invalid("Require a UUID list, exactly one nonempty source, valid ISO range, and multiplier > 0 and <= 20.")
     source = "items" if items is not None else "recipe_slugs" if recipe_slugs is not None else "mealplan"
     recipes, skipped, occurrences = {}, [], []
+    # Pantry hints are advisory: an unreadable preferences file never blocks the write.
+    pantry, error = load_pantry(ctx)
     try:
         if recipe_slugs is not None:
             for slug in recipe_slugs:
@@ -120,6 +124,18 @@ def _add_to_shopping_list(ctx, list_id: str, items: list[str] | None = None,
         result_data = {"list_id": list_id, "source": source,
                        "added": {"items": 0, "recipe_occurrences": 0},
                        "recipes": list(recipes.values()), "skipped": skipped}
+        if error:
+            result_data['pantry_warning'] = 'preferences_unreadable'
+        elif pantry:
+            try:
+                names = [ingredient_name(text) for text in items] if items is not None else [
+                    item_name(ingredient) for occurrence in occurrences
+                    for ingredient in (ctx.store.get_recipe(occurrence['slug'] or occurrence['id']).recipeIngredient or ())]
+                result_data['pantry_matches'] = [
+                    {'name': name, 'pantry_entry': entry} for name in names
+                    if (entry := match_pantry(name, pantry)) is not None]
+            except Exception:
+                result_data['pantry_warning'] = 'pantry_matching_failed'
         if items is None and not occurrences:
             return ok(result_data)
         if items is not None:

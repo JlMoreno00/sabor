@@ -5,6 +5,7 @@ from datetime import date
 from decimal import Decimal, InvalidOperation, ROUND_CEILING
 from .provider import RetailContext, ProductQuery, PriceQuote
 from .quantities import from_structured, ingredient_name, to_base
+from .pantry import match_pantry
 from sabor.store import DateRange
 
 
@@ -60,7 +61,9 @@ def _resolve(source, store):
         raise ValueError('invalid source')
     kind = source['kind']
     required = shapes[kind] - {'multiplier'}
-    if source.keys() - (shapes[kind] | {'kind'}) or not required <= source.keys():
+    if type(source.get('exclude_pantry', False)) is not bool:
+        raise ValueError('invalid pantry option')
+    if source.keys() - (shapes[kind] | {'kind', 'exclude_pantry'}) or not required <= source.keys():
         raise ValueError('mixed or incomplete source')
     multiplier = _number(source.get('multiplier', 1))
     if not 0 < multiplier <= 20:
@@ -139,7 +142,7 @@ def _checkout_cost(required, unit, quote):
 
 
 def estimate(source, store_ctx: RetailContext, recipe_store, pricing, product_overrides=None,
-             match_policy='cheapest') -> CostEstimate:
+             match_policy='cheapest', pantry=()) -> CostEstimate:
     if match_policy not in ('cheapest', 'strict'):
         raise ValueError('invalid match policy')
     rows = _resolve(source, recipe_store)
@@ -165,6 +168,10 @@ def estimate(source, store_ctx: RetailContext, recipe_store, pricing, product_ov
         reasons, evidence = list(q.ambiguity), [f'quantity:{q.source}']
         candidates, quote, cost = [], None, None
         comparable, alternatives = [], ()
+        if source.get('exclude_pantry') and match_pantry(row['name'], pantry) is not None:
+            lines.append(CostLine(key, row['name'], required, q.unit, None, None, (),
+                                  Uncertainty('unknown', ('in_pantry',)), (key,), tuple(evidence)))
+            continue
         if required is not None:
             if key in overrides:
                 candidates = [overrides[key]]
