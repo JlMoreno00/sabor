@@ -417,11 +417,16 @@ class MealieRecipeStore(MealieShoppingItemsMixin, MealieShoppingListsMixin):
     def search_recipes(self, filters):
         f = filters
         if (type(f.page) is not int or f.page < 1 or type(f.per_page) is not int
-                or not 1 <= f.per_page <= 100 or f.sort != "name"
+                or not 1 <= f.per_page <= 100 or f.sort not in ("name", "created_at", "updated_at", "rating", "last_made", "random")
                 or f.direction not in ("asc", "desc")):
             raise StoreError("invalid_argument", self.id)
         params: dict[str, Any] = dict(search=f.query, page=f.page, perPage=f.per_page,
-                      orderBy=f.sort, orderDirection=f.direction)
+                      orderBy="update_at" if f.sort == "updated_at" else f.sort,
+                      orderDirection="asc" if f.sort == "random" else f.direction)
+        if f.sort in ("rating", "last_made"):
+            params["orderByNullPosition"] = "last"
+        if f.sort == "random":
+            params["paginationSeed"] = f.seed
         for name, value in (("tags", f.tag_ids), ("categories", f.category_ids),
                             ("foods", f.food_ids), ("tools", f.tool_ids),
                             ("cookbook", f.cookbook_id)):

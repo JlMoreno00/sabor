@@ -2,6 +2,8 @@
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass, fields, replace
 from decimal import Decimal
+from datetime import datetime, timezone
+from hashlib import sha256
 import json
 from math import isfinite
 from pathlib import Path
@@ -127,6 +129,10 @@ class SqliteRecipeStore:
             return self._get_recipe(db, slug)
 
     def _save_recipe(self, db, recipe):
+        columns = {r[1] for r in db.execute("PRAGMA table_info(recipes)")}
+        if "updated_at" in columns:
+            db.execute("UPDATE recipes SET updated_at=? WHERE slug=?",
+                       (datetime.now(timezone.utc).isoformat(), recipe.slug))
         db.execute("UPDATE recipes SET payload=? WHERE slug=?", (_json(recipe), recipe.slug))
         db.execute("DELETE FROM ingredients WHERE recipe_slug=?", (recipe.slug,))
         db.execute("DELETE FROM instructions WHERE recipe_slug=?", (recipe.slug,))
@@ -151,8 +157,10 @@ class SqliteRecipeStore:
                 raise StoreError("conflict", self.id)
             recipe = Recipe(**{f.name: getattr(draft, f.name) for f in fields(Recipe)})
             recipe = replace(recipe, slug=slug, id=draft.id or self._id(db))
-            db.execute("INSERT INTO recipes VALUES (?, ?, ?)", (slug, recipe.id, _json(recipe)))
+            db.execute("INSERT INTO recipes (slug, id, payload) VALUES (?, ?, ?)", (slug, recipe.id, _json(recipe)))
             self._save_recipe(db, recipe)
+            if "created_at" in {r[1] for r in db.execute("PRAGMA table_info(recipes)")}:
+                db.execute("UPDATE recipes SET created_at=updated_at WHERE slug=? AND created_at IS NULL", (slug,))
             return RecipeRef(recipe.id, recipe.name, slug)
 
     def update_recipe(self, slug, patch):
@@ -199,10 +207,12 @@ class SqliteRecipeStore:
     def search_recipes(self, filters):
         f = filters
         if (type(f.page) is not int or f.page < 1 or type(f.per_page) is not int
-                or not 1 <= f.per_page <= 100 or f.sort != "name"
+                or not 1 <= f.per_page <= 100 or f.sort not in ("name", "created_at", "updated_at", "rating", "last_made", "random")
                 or f.direction not in ("asc", "desc")):
             raise StoreError("invalid_argument", self.id)
         if any(x is not None for x in (f.tag_ids, f.category_ids, f.food_ids, f.tool_ids, f.cookbook_id)):
+            raise StoreError("unsupported_operation", self.id)
+        if f.sort == "rating":
             raise StoreError("unsupported_operation", self.id)
         with self._connect() as db:
             if f.query.strip():
@@ -218,6 +228,16 @@ class SqliteRecipeStore:
                 rows = db.execute("SELECT payload FROM recipes ORDER BY rowid").fetchall()
             recipes = sorted((_recipe(r[0]) for r in rows), key=lambda r: r.name or "",
                              reverse=f.direction == "desc")
+            if f.sort in ("created_at", "updated_at", "last_made"):
+                metadata = {r[0]: r[1:] for r in db.execute(
+                    "SELECT slug, rowid, created_at, updated_at, "
+                    "(SELECT max(created_at) FROM cooking_events WHERE recipe_slug=recipes.slug) FROM recipes")}
+                index = {"created_at": 1, "updated_at": 2, "last_made": 3}[f.sort]
+                recipes.sort(key=lambda r: (metadata[r.slug][index] or "", metadata[r.slug][0]),
+                             reverse=f.direction == "desc")
+                recipes.sort(key=lambda r: metadata[r.slug][index] is None)
+            elif f.sort == "random":
+                recipes.sort(key=lambda r: sha256(((f.seed or "") + (r.slug or "")).encode()).digest())
             start = (f.page - 1) * f.per_page
             return Page(tuple(RecipeSummary(r.id, r.name, r.slug) for r in recipes[start:start + f.per_page]),
                         len(recipes), f.page, f.per_page, (len(recipes) + f.per_page - 1) // f.per_page)
@@ -437,5 +457,6 @@ class SqliteRecipeStore:
             db.execute("BEGIN IMMEDIATE")
             self._get_recipe(db, slug)
             key = self._id(db)
-            db.execute("INSERT INTO cooking_events VALUES (?, ?, ?, ?)", (key, slug, subject, message))
+            db.execute("INSERT INTO cooking_events (id, recipe_slug, subject, message, created_at) VALUES (?, ?, ?, ?, ?)",
+                       (key, slug, subject, message, datetime.now(timezone.utc).isoformat()))
             return key

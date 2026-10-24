@@ -13,6 +13,9 @@
   `python -m sabor catalog status|apply`, with instance-bound Mealie settings,
   read-only status, create-only apply and JSON output. Existing catalog MCP
   tools remain unchanged, deprecated in documentation pending a future major (#14).
+- Recipe search supports created/updated dates, rating, last made and daily
+  seeded random ordering; SQLite persists search timestamps with migration v3
+  and reports rating ordering as unsupported (#16).
 - `sabor_capabilities` adds `data.mealie_only`: Mealie-only toolsets unavailable
   in this instance with a `reason` (`requires_mealie_store` for
   `legacy_nutrition`, `requires_mealie` for `legacy_catalog`) and `detail`.

@@ -418,6 +418,14 @@ sabor_capabilities()
 
 ### core
 
+`search_recipes` accepts `sort="name"` (default), `created_at`, `updated_at`,
+`rating`, `last_made`, or `random`, with `direction="asc"` or `"desc"`.
+Random ignores direction and uses the UTC date (`YYYY-MM-DD`) as its daily
+seed, keeping pagination stable within the day for unchanged recipes/filters.
+Unrated and never-made recipes sort last in either direction. SQLite has no
+ratings: `sort="rating"` returns `unsupported_operation`, not a substitute order.
+
+
 ```python
 add_recipe_comment(slug: str, text: str)
 log_cooking_event(slug: str, subject: str, message: str | None=None)

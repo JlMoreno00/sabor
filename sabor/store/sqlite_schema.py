@@ -19,7 +19,16 @@ def _search_schema(connection):
     connection.execute("INSERT INTO recipe_search(slug, name, description, ingredients) SELECT slug, json_extract(payload, '$.name'), json_extract(payload, '$.description'), COALESCE((SELECT group_concat(originalText, ' ') FROM ingredients WHERE recipe_slug=recipes.slug), '') FROM recipes WHERE slug NOT IN (SELECT slug FROM recipe_search)")
 
 
-MIGRATIONS = ((1, _base_schema), (2, _search_schema))
+def _sort_schema(connection):
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc).isoformat()
+    for table, column in (("recipes", "created_at"), ("recipes", "updated_at"),
+                          ("cooking_events", "created_at")):
+        connection.execute(f"ALTER TABLE {table} ADD COLUMN {column} TEXT")
+        connection.execute(f"UPDATE {table} SET {column}=?", (now,))
+
+
+MIGRATIONS = ((1, _base_schema), (2, _search_schema), (3, _sort_schema))
 
 
 def migrate(connection):
