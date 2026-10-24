@@ -79,6 +79,7 @@ def describe(registry: 'Registry | AppContext', registered_tools, version: str) 
     if registry.settings.video_provider and registry.video_provider is None:
         warnings.append('Requested video provider is not configured; no fallback was selected.')
     return ok({'version': version,
+               'config_source': registry.settings.config_source,
                'requested_toolsets': list(registry.settings.requested_toolsets),
                'registered_tools': list(registered_tools), 'capabilities': capabilities,
                'mealie': {'configured': registry.settings.mealie_configured},

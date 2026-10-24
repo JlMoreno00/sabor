@@ -5,16 +5,29 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
+from pathlib import Path
 import unittest
 from unittest.mock import Mock, patch
 
 from sabor import server
 
 
+@contextlib.contextmanager
+def _empty_config():
+    """A closed empty config.toml; Windows cannot reopen an open NamedTemporaryFile."""
+    with tempfile.TemporaryDirectory() as directory:
+        path = Path(directory) / 'config.toml'
+        path.touch()
+        yield str(path)
+
+
 class CatalogCliTests(unittest.TestCase):
     def invoke(self, command, env):
         out, err = io.StringIO(), io.StringIO()
-        with patch.dict(os.environ, env, clear=True), contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+        with _empty_config() as config, \
+                patch.dict(os.environ, dict(env, SABOR_CONFIG=config), clear=True), \
+                contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
             with self.assertRaises(SystemExit) as caught:
                 server.cli(command)
         return caught.exception.code, out.getvalue(), err.getvalue()
@@ -81,9 +94,11 @@ class CatalogCliTests(unittest.TestCase):
             self.assertIn('usage:', out + err)
 
     def test_module_entrypoint(self):
-        result = subprocess.run([sys.executable, '-m', 'sabor', 'catalog', 'status'],
-                                env={'PATH': os.defpath, 'PYTHONDONTWRITEBYTECODE': '1'},
-                                capture_output=True, text=True)
+        with _empty_config() as config:
+            result = subprocess.run(args=[sys.executable, '-m', 'sabor', 'catalog', 'status'],
+                                    env={'PATH': os.defpath, 'PYTHONDONTWRITEBYTECODE': '1',
+                                         'SABOR_CONFIG': config},
+                                    capture_output=True, text=True, check=False)
         self.assertEqual(result.returncode, 1)
         self.assertIn('Mealie', result.stderr)
         self.assertNotIn('Traceback', result.stderr)

@@ -89,9 +89,13 @@ class ImportTests(unittest.TestCase):
         self.assertEqual(payload['recipeIngredient'], ['salt'])
         self.assertEqual(payload['@type'], 'Recipe')
 
-    def test_video_and_image_preview(self):
+    @patch('yt_dlp.YoutubeDL')
+    def test_video_and_image_preview(self, youtube_dl):
+        # Offline: yt-dlp yields no media info, as for an unavailable video (no real download).
+        youtube_dl.return_value.__enter__.return_value.extract_info.return_value = None
         for source, kind in [('https://youtu.be/a', 'auto'), ('x', 'video'), ('https://x.org/a.png', 'image')]:
             self.assertEqual(t.import_recipe(source, kind)['error']['code'], 'unsupported_operation')
+        youtube_dl.return_value.__enter__.return_value.extract_info.assert_called_once()
 
     @patch.object(t.socket, 'getaddrinfo', return_value=[(2, 1, 6, '', ('127.0.0.1', 80))])
     def test_ssrf(self, dns):

@@ -1,6 +1,8 @@
 """FastMCP instance and explicit tool-group registration."""
 
 import argparse
+from dataclasses import replace
+from sabor.core.config_file import apply_config_file
 from importlib import import_module
 import os
 import sqlite3
@@ -54,12 +56,14 @@ def _mercadona_cache_path(warehouse: str, directory=None) -> str:
     return str(root / f"mercadona-catalog-{warehouse}.json")
 
 
-def register_tools(server=None, env=None, *, store_factory=None) -> None:
+def register_tools(server=None, env=None, *, store_factory=None, config_source=None) -> None:
     """Freeze configuration and register each selected tool once per server."""
     server = mcp if server is None else server
     if server in _registered:
         return
     settings = load_settings(os.environ if env is None else env)
+    if config_source is not None:
+        settings = replace(settings, config_source=config_source)
     context = (
         assemble_context(settings)
         if store_factory is None
@@ -114,6 +118,7 @@ def start_runtime_services(server=None) -> None:
 
 def cli(argv=None) -> None:
     """Run the installed command (stdio by default)."""
+    config_source = apply_config_file(os.environ)
     import sys
     arguments = list(sys.argv[1:] if argv is None else argv)
     if arguments[:1] == ["preferences"]:
@@ -140,7 +145,7 @@ def cli(argv=None) -> None:
             allowed_hosts=["127.0.0.1:*", "localhost:*", "[::1]:*"],
             allowed_origins=["http://127.0.0.1:*", "http://localhost:*", "http://[::1]:*"],
         )
-    register_tools()
+    register_tools(config_source=config_source)
     start_runtime_services()
     mcp.run(transport="stdio" if args.transport == "stdio" else "streamable-http")
 

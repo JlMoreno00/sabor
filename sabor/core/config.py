@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 from typing import Mapping
 from urllib.parse import urlsplit
 from .legacy_config import LegacyConfig, load_legacy_config
+from .config_file import FILE_KEYS, SECRET_ENV
 
 TOOLSETS = ('core', 'import', 'shopping_sync', 'pricing', 'legacy_spoonacular',
             'legacy_pricing', 'legacy_memory', 'legacy_nutrition', 'legacy_catalog', 'preferences')
@@ -37,6 +38,7 @@ class Settings:
     ingredient_parser: str = 'openai'
     normalize_confidence: float = 0.75
     open_prices_enabled: bool = False
+    config_source: str = 'defaults'
 
     @property
     def mealie_configured(self):
@@ -97,4 +99,5 @@ def load_settings(env: Mapping[str, str]) -> Settings:
                     legacy.SABOR_NORMALIZE_IMPORTS,
                     legacy.SABOR_INGREDIENT_PARSER,
                     legacy.SABOR_NORMALIZE_CONFIDENCE,
-                    get('SABOR_OPEN_PRICES_ENABLED').lower() == 'true')
+                    get('SABOR_OPEN_PRICES_ENABLED').lower() == 'true',
+                    'env' if any(env.get(key) for key in (*FILE_KEYS.values(), *SECRET_ENV)) else 'defaults')

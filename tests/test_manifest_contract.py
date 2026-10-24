@@ -82,7 +82,7 @@ class ManifestContractTests(unittest.TestCase):
 
 ROOT = Path(__file__).resolve().parents[1]
 # Documented in README/docs; .env.example update pending maintainer review (#37)
-PENDING_ENV_EXAMPLE = {"SABOR_STORE", "SABOR_STORE_DB", "SABOR_DATA_DIR", "SABOR_OPEN_PRICES_ENABLED"}
+PENDING_ENV_EXAMPLE = {"SABOR_CONFIG", "SABOR_STORE", "SABOR_STORE_DB", "SABOR_DATA_DIR", "SABOR_OPEN_PRICES_ENABLED"}
 
 
 class _RecordingEnv(dict):
@@ -128,7 +128,9 @@ def _compose_defaults():
 def _parsed(env):
     from sabor.core.config import load_settings
     settings = load_settings(env)
-    return settings, dict(settings.legacy_config.values)
+    from dataclasses import replace
+    # Defaults compare effective settings, not whether a value was explicitly set.
+    return replace(settings, config_source='defaults'), dict(settings.legacy_config.values)
 
 
 class ManifestEnvironmentContractTests(unittest.TestCase):
@@ -143,8 +145,17 @@ class ManifestEnvironmentContractTests(unittest.TestCase):
         from sabor.core.config import load_settings
         recorder = _RecordingEnv()
         load_settings(recorder)
-        runtime = recorder.read | set(_getenv_defaults()) | set(_compose_defaults())
+        runtime = recorder.read | set(_getenv_defaults()) | set(_compose_defaults()) | {"SABOR_CONFIG"}
         self.assertEqual(set(self.env_vars), runtime)
+
+    def test_file_keys_match_manifest(self):
+        from sabor.core.config_file import FILE_KEYS, SECRET_ENV
+        expected = {name for name, item in self.env_vars.items()
+                    if not item["secret"] and name not in
+                    {"SABOR_CONFIG", "SABOR_HOST", "SABOR_PORT", "SABOR_HOST_PORT"}
+                    and not name.startswith("COMPOSE_")}
+        self.assertCountEqual(FILE_KEYS.values(), expected)
+        self.assertEqual(SECRET_ENV, {name for name, item in self.env_vars.items() if item["secret"]})
 
     def test_names_match_env_example(self):
         example = {line.split("=", 1)[0].lstrip("# ").strip()

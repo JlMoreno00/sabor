@@ -136,7 +136,7 @@ publication needs the maintainer's explicit approval, in this order:
    as `JlMoreno00`, then `mcp-publisher publish` from the repository root.
 
 `mcp-manifest.json` lists every environment variable. In `server.json` the OCI
-package advertises only the essential ones (store, Mealie, LLM, Bring,
+package advertises only the essential ones (store, config file, Mealie, LLM, Bring,
 Mercadona, Open Prices and toolsets), with the manifest's descriptions and defaults; the
 `pypi` package (`uvx sabor-mcp`, stdio) advertises none. The test fails if
 they drift.

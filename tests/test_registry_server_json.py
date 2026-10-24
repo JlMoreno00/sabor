@@ -18,7 +18,7 @@ NOT_FOR_PACKAGE = {"SABOR_HOST", "SABOR_PORT", "SABOR_HOST_PORT"}
 # The OCI entry advertises only what the setup questions cover (#62); the full list
 # stays in mcp-manifest.json. The pypi entry advertises none: `sabor-mcp setup` configures it.
 OCI_ESSENTIAL = {
-    "SABOR_TOOLSETS", "SABOR_STORE", "MEALIE_BASE_URL", "MEALIE_API_TOKEN",
+    "SABOR_TOOLSETS", "SABOR_STORE", "SABOR_CONFIG", "MEALIE_BASE_URL", "MEALIE_API_TOKEN",
     "SABOR_LLM_BASE_URL", "SABOR_LLM_MODEL", "SABOR_LLM_API_KEY", "SABOR_VIDEO_PROVIDER",
     "GEMINI_API_KEY", "BRING_EMAIL", "BRING_PASSWORD", "SABOR_MERCADONA_ENABLED",
     "MERCADONA_WAREHOUSE", "SABOR_OPEN_PRICES_ENABLED",

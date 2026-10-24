@@ -3,6 +3,76 @@
 Start with configuration validation and health checks. Do not run pilots,
 backfills, catalog apply, or publication as a deployment smoke test.
 
+## Optional TOML configuration
+
+Non-empty environment values override file values, which override current defaults.
+Empty environment values count as absent. Restart after configuration changes.
+`SABOR_CONFIG` selects an explicit file; a missing explicit file fails startup.
+Otherwise Sabor uses:
+
+- macOS: `~/Library/Application Support/sabor/config.toml`
+- Linux: `$XDG_CONFIG_HOME/sabor/config.toml`, or `~/.config/sabor/config.toml`
+- Windows: `%APPDATA%/sabor/config.toml`, or `~/AppData/Roaming/sabor/config.toml`
+
+A missing default file is harmless. Invalid TOML, unknown sections/keys, invalid
+types, unreadable files and secret keys fail startup without echoing values.
+Keep secrets in environment variables only: `MEALIE_API_TOKEN`, `SABOR_LLM_API_KEY`,
+`GEMINI_API_KEY`, `BRING_EMAIL`, `BRING_PASSWORD`, `SPOONACULAR_API_KEY`.
+Transport variables remain env-only.
+
+| TOML key | Environment variable |
+|---|---|
+| `[general] toolsets` | `SABOR_TOOLSETS` |
+| `[general] data_dir` | `SABOR_DATA_DIR` |
+| `[general] memory_file` | `MEMORY_FILE` |
+| `[store] backend` | `SABOR_STORE` |
+| `[store] sqlite_path` | `SABOR_STORE_DB` |
+| `[mealie] base_url` | `MEALIE_BASE_URL` |
+| `[llm] base_url` | `SABOR_LLM_BASE_URL` |
+| `[llm] model` | `SABOR_LLM_MODEL` |
+| `[import] video_provider` | `SABOR_VIDEO_PROVIDER` |
+| `[import] gemini_model` | `VIDEO_RECIPE_GEMINI_MODEL` |
+| `[import] video_workdir` | `VIDEO_RECIPE_WORKDIR` |
+| `[import] normalize` | `SABOR_NORMALIZE_IMPORTS` |
+| `[import] ingredient_parser` | `SABOR_INGREDIENT_PARSER` |
+| `[import] normalize_confidence` | `SABOR_NORMALIZE_CONFIDENCE` |
+| `[bring] catalog_dir` | `BRING_CATALOG_DIR` |
+| `[pricing] mercadona` | `SABOR_MERCADONA_ENABLED` |
+| `[pricing] mercadona_warehouse` | `MERCADONA_WAREHOUSE` |
+| `[pricing] open_prices` | `SABOR_OPEN_PRICES_ENABLED` |
+| `[nutrition] enabled` | `SABOR_NUTRITION_ENABLED` |
+| `[nutrition] db` | `SABOR_NUTRITION_DB` |
+| `[nutrition] provider` | `SABOR_NUTRITION_PROVIDER` |
+| `[nutrition] min_profile_confidence` | `SABOR_NUTRITION_MIN_PROFILE_CONFIDENCE` |
+| `[nutrition] min_publish_coverage` | `SABOR_NUTRITION_MIN_PUBLISH_COVERAGE` |
+| `[nutrition] min_publish_confidence` | `SABOR_NUTRITION_MIN_PUBLISH_CONFIDENCE` |
+| `[nutrition] publish_estimates` | `SABOR_NUTRITION_PUBLISH_ESTIMATES` |
+| `[nutrition] profile_ttl_days` | `SABOR_NUTRITION_PROFILE_TTL_DAYS` |
+| `[nutrition] not_found_ttl_days` | `SABOR_NUTRITION_NOT_FOUND_TTL_DAYS` |
+| `[nutrition] source_language` | `SABOR_NUTRITION_SOURCE_LANGUAGE` |
+| `[nutrition] default_cup_ml` | `SABOR_NUTRITION_DEFAULT_CUP_ML` |
+| `[nutrition] auto_on_import` | `SABOR_NUTRITION_AUTO_ON_IMPORT` |
+| `[nutrition] auto_publish` | `SABOR_NUTRITION_AUTO_PUBLISH` |
+
+Each key accepts only its own type: TOML booleans for the switches (`pricing.mercadona`,
+`pricing.open_prices`, `import.normalize`, `nutrition.enabled`, `nutrition.publish_estimates`,
+`nutrition.auto_on_import`, `nutrition.auto_publish`), integers for the `nutrition.*_ttl_days`
+keys, numbers for the confidence/coverage thresholds and `nutrition.default_cup_ml`, and strings
+for everything else. A mismatch fails startup without echoing the value.
+Strings are preserved; numbers become strings; booleans become `true`/`false`.
+Only `general.toolsets` also accepts a string list, joined with commas:
+
+```toml
+[general]
+toolsets = ["core", "import"]
+[pricing]
+open_prices = true
+```
+
+`sabor_capabilities.data.config_source` is `file` whenever a file was loaded
+(even with environment overrides), otherwise `env` for known non-empty settings,
+or `defaults`.
+
 ## Transports and local data
 
 `uvx sabor-mcp` defaults to stdio for clients that launch the process.
