@@ -201,7 +201,7 @@ is trimmed, duplicates collapse, and unknown names prevent startup.
 With Mealie only, the current code registers **23 application tools plus discovery**
 (22 core tools and native import). The earlier planned baseline of 21 plus
 discovery was superseded by added core functionality.
-There are **50 selectable application tools plus the always-on
+There are **52 selectable application tools plus the always-on
 `sabor_capabilities`** at full configuration. Counts are not a health check.
 
 `sabor_capabilities()` reports version, requested toolsets, actual registered
@@ -469,7 +469,32 @@ mercadona_get_price_drops()
 mercadona_get_new_arrivals()
 ```
 
+### preferences
+
+Opt in with `SABOR_TOOLSETS=core,import,shopping_sync,preferences`; defaults
+remain unchanged. These tools need no provider. Preferences are per instance /
+household, not authenticated users; only the reserved default profile is used.
+Preview changes first, then repeat with `confirm=True` after approval.
+
+```python
+get_preferences()
+update_preferences(changes: dict, confirm: bool=False)
+```
+
+`changes` accepts `set` (replace fields), `add` and `remove` (list fields only).
+Fields: `diet`, `dislikes`, `pantry`, `notes` are lists of up to 200 strings;
+strings are trimmed, non-empty, at most 200 characters and deduplicated ignoring
+case. `household_size` is null or an integer from 1 to 20. Operations run in
+set → add → remove order. Unknown keys or invalid values write nothing.
+Responses include preferences, updated_at and source (`defaults` or `file`);
+updates also include a before/after field diff and preview flag. Preview does
+not change the timestamp. Pantry is stored only: no cost/list subtraction yet.
+
 ### legacy_memory
+
+Deprecated in favor of `preferences`. These tools still use MEMORY.md unchanged,
+including `save_feedback`; ratings/favorites/comments are not redirected.
+See [migration instructions](docs/operations.md#structured-preferences-migration).
 
 ```python
 save_feedback(recipe_name: str, rating: int | None=None, comment: str | None=None, tags: list[str] | None=None)

@@ -5,7 +5,7 @@ from urllib.parse import urlsplit
 from .legacy_config import LegacyConfig, load_legacy_config
 
 TOOLSETS = ('core', 'import', 'shopping_sync', 'pricing', 'legacy_spoonacular',
-            'legacy_pricing', 'legacy_memory', 'legacy_nutrition', 'legacy_catalog')
+            'legacy_pricing', 'legacy_memory', 'legacy_nutrition', 'legacy_catalog', 'preferences')
 
 
 class ConfigError(ValueError):
