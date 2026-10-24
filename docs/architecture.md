@@ -8,7 +8,10 @@ data; Sabor owns orchestration and optional evidence. SQLite is the built-in def
 
 `sabor/preferences.py` owns schema-v1 JSON at the frozen Settings legacy-config
 `SABOR_DATA_DIR` / `preferences.json`; there is no new environment variable.
-The opt-in `preferences` toolset is always ready. RuntimeState owns its lock;
+The opt-in `preferences` toolset is always ready; it is not in the default
+toolsets and preferences are per instance/household (one `default` profile)
+until authenticated users exist (#28). Both are provisional, pending
+maintainer confirmation. RuntimeState owns its lock;
 read/modify/replace is serialized per AppContext, not across processes sharing
 one directory. Registration performs no preferences I/O. First confirmed write
 creates the directory, fsyncs a same-directory temporary file and atomically

@@ -474,6 +474,8 @@ mercadona_get_new_arrivals()
 Opt in with `SABOR_TOOLSETS=core,import,shopping_sync,preferences`; defaults
 remain unchanged. These tools need no provider. Preferences are per instance /
 household, not authenticated users; only the reserved default profile is used.
+Both are provisional choices pending maintainer confirmation: the toolset stays
+opt-in, and per-user profiles wait for authenticated users (#28).
 Preview changes first, then repeat with `confirm=True` after approval.
 
 ```python
