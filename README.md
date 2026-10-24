@@ -44,6 +44,15 @@ not automatic retries or an assumed cross-system rollback.
 | Text / image / video import | Optional compatible LLM / Gemini; video needs ffmpeg | Optional providers; native image import uses Mealie configuration |
 | Bring! sync / Mercadona estimates | Optional credentials / pricing opt-in | Same optional integrations |
 | Spanish catalog / legacy nutrition | Not supported | Mealie adapter required |
+| Cookbooks | Not supported | Mealie cookbooks (`search_recipes(cookbook_id=...)`, nutrition cookbook tools) |
+| Web UI to browse and edit recipes | None: chat only | Mealie's web interface |
+
+`sabor_capabilities` reports Mealie-only toolsets that are unavailable in the
+current instance under `data.mealie_only`, each with a `reason`
+(`requires_mealie_store` for `legacy_nutrition`, `requires_mealie` for
+`legacy_catalog`) and a short `detail`. Already running Mealie? Nothing to
+migrate: keep `MEALIE_BASE_URL` and `MEALIE_API_TOKEN` and Sabor keeps using it.
+Step-by-step clean installs for both paths: [docs/install-beta.md](docs/install-beta.md).
 
 ## Capabilities and providers
 

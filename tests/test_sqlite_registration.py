@@ -120,3 +120,30 @@ def test_mealie_nutrition_unchanged():
     tools = registered({'MEALIE_BASE_URL': 'http://mealie.test', 'MEALIE_API_TOKEN': 'token',
                         'SABOR_TOOLSETS': 'legacy_nutrition'})
     assert 'nutrition_recipe_readiness' in tools
+
+
+def test_discovery_explains_mealie_only_toolsets(tmp_path):
+    from sabor.core.config import TOOLSETS
+    env = {'SABOR_DATA_DIR': str(tmp_path), 'BRING_EMAIL': 'a@b.c', 'BRING_PASSWORD': 'p',
+           'SABOR_MERCADONA_ENABLED': 'true'}
+    # Default toolsets plus pricing: everything available without Mealie.
+    data = registered(dict(env, SABOR_TOOLSETS='core,import,shopping_sync,pricing'))['sabor_capabilities']()['data']
+    for name in ('recipe_store', 'import', 'shopping_sync', 'pricing'):
+        assert data['capabilities'][name]['configured'] is True, name
+    expected = [
+        {'toolset': 'legacy_nutrition', 'reason': 'requires_mealie_store',
+         'detail': 'Nutrition is indexed by Mealie food and recipe IDs; select the Mealie store.'},
+        {'toolset': 'legacy_catalog', 'reason': 'requires_mealie',
+         'detail': 'The Spanish catalog seeds Mealie foods and units; configure Mealie.'},
+    ]
+    # Listed whether or not they were requested, so clients can explain the gap.
+    assert data['mealie_only'] == expected
+    data = registered(dict(env, SABOR_TOOLSETS=','.join(TOOLSETS)))['sabor_capabilities']()['data']
+    assert data['mealie_only'] == expected
+    assert {'name': 'legacy_nutrition', 'reason': 'missing_configuration'} in data['disabled_toolsets']
+
+
+def test_discovery_has_no_mealie_only_gaps_with_mealie():
+    data = registered({'MEALIE_BASE_URL': 'http://mealie.test', 'MEALIE_API_TOKEN': 'token',
+                       'SABOR_TOOLSETS': 'core,legacy_nutrition,legacy_catalog'})['sabor_capabilities']()['data']
+    assert data['mealie_only'] == []

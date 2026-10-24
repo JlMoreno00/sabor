@@ -9,6 +9,13 @@
   Runtime behavior with Mealie configured is unchanged (#36).
 
 ### Added
+- `sabor_capabilities` adds `data.mealie_only`: Mealie-only toolsets unavailable
+  in this instance with a `reason` (`requires_mealie_store` for
+  `legacy_nutrition`, `requires_mealie` for `legacy_catalog`) and `detail`.
+  Additive; `disabled_toolsets` is unchanged. Beta installation guide
+  (`docs/install-beta.md`) and draft release/migration notes
+  (`docs/release-notes-beta.md`); README lists cookbooks and the Mealie web UI
+  as Mealie-only (#40).
 - Standalone uvx/stdio and Docker/HTTP installation without Mealie, user data
   directory and ffmpeg guidance, dual registry packages, gated PyPI publishing,
   and installed-wheel/container MCP smoke tests in CI (#39).
