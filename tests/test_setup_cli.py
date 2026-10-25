@@ -55,6 +55,84 @@ class SetupTests(unittest.TestCase):
             code = main(list(args))
         return code, json.loads(output.getvalue())
 
+    def test_secret_toml_unicode_and_controls(self):
+        from sabor.secrets_store import resolve, store
+        value = '😀\x7f"\\\n\t\x01'
+        store(self.path, 'bring_password', value, 'file')
+        self.assertEqual(resolve(self.path, 'bring_password', 'file'), value)
+        with self.path.with_name('secrets.toml').open('rb') as stream:
+            self.assertEqual(tomllib.load(stream)['secrets']['bring_password'], value)
+
+    def test_atomic_write_cleans_failed_secrets(self):
+        from sabor.secrets_store import atomic_write
+        def fail_replace(source, target):
+            if os.name == 'posix':
+                self.assertEqual(Path(source).stat().st_mode & 0o777, 0o600)
+            raise OSError('replace failed')
+        with patch('sabor.secrets_store.os.replace', side_effect=fail_replace):
+            with self.assertRaises(OSError):
+                atomic_write(self.path, 'secret')
+        self.assertEqual(list(self.path.parent.iterdir()), [])
+
+    def test_malformed_llm_url_is_json_error(self):
+        for source in ('flag', 'file'):
+            with self.subTest(source=source):
+                self.path.write_text('[llm]\nbase_url = "http://["\n' if source == 'file' else '')
+                before = self.path.read_bytes()
+                args = ('--llm', 'openai', '--llm-base-url', 'http://[') if source == 'flag' else ()
+                code, result = self.run_setup('--non-interactive', '--json', *args)
+                self.assertEqual(code, 2)
+                self.assertIn('error', result)
+                self.assertNotIn('http://[', result['error'])
+                self.assertEqual(self.path.read_bytes(), before)
+
+    def test_interactive_answers_are_validated_and_normalized(self):
+        original = '[llm]\nbase_url = "https://example.com/v1"\nmodel = "model"\n'
+        for index in range(5):
+            with self.subTest(invalid_field=index):
+                self.path.write_text(original)
+                answers = ['en', 'sqlite', 'none', 'none', 'no']
+                answers[index] = 'typo'
+                with patch('builtins.input', side_effect=answers):
+                    code, result = self.run_setup('--json', tty=True)
+                self.assertEqual(code, 2, result)
+                self.assertEqual(self.path.read_text(), original)
+        for yes in (' YES ', 'y', 'sí', 'si', 's'):
+            with self.subTest(yes=yes):
+                self.path.write_text('')
+                with patch('builtins.input', side_effect=[' EN ', ' SQLITE ', 'mercadona, open_prices', ' NONE ', yes]), patch('getpass.getpass', return_value=''):
+                    code, result = self.run_setup('--json', tty=True)
+                self.assertEqual(code, 0, result)
+                document = tomllib.loads(self.path.read_text())
+                self.assertTrue(document['pricing']['open_prices'])
+                self.assertIn('bring_password', result['missing_secrets'])
+        with patch('builtins.input', side_effect=['en', 'sqlite', 'none', 'none', ' N ']):
+            self.assertEqual(self.run_setup('--json', tty=True)[0], 0)
+
+    def test_pricing_preserves_custom_toolsets(self):
+        for toolsets in ('["core","preferences","pricing"]', '"core,preferences,pricing"'):
+            with self.subTest(toolsets=toolsets):
+                original = '[general]\nlanguage = "en"\ntoolsets = ' + toolsets + '\n[pricing]\nopen_prices = true\n'
+                self.path.write_text(original)
+                self.assertEqual(self.run_setup('--non-interactive', '--json', '--lang', 'en')[0], 0)
+                self.assertEqual(self.path.read_bytes(), original.encode())
+                self.assertEqual(self.run_setup('--non-interactive', '--json', '--pricing', 'none')[0], 0)
+                value = tomllib.loads(self.path.read_text())['general']['toolsets']
+                self.assertEqual(value, ['core', 'preferences'] if toolsets.startswith('[') else 'core,preferences')
+                self.assertEqual(self.run_setup('--non-interactive', '--json', '--pricing', 'open_prices')[0], 0)
+                value = tomllib.loads(self.path.read_text())['general']['toolsets']
+                self.assertEqual(value, ['core', 'preferences', 'pricing'] if toolsets.startswith('[') else 'core,preferences,pricing')
+
+    def test_secret_permission_assertion_is_posix_only(self):
+        import ast
+        import inspect
+        import textwrap
+        tree = ast.parse(textwrap.dedent(inspect.getsource(self.test_secret_backends_and_resolution)))
+        permission_checks = [node for node in ast.walk(tree) if isinstance(node, ast.If)
+                             and ast.unparse(node.test) == "os.name == 'posix'"]
+        self.assertTrue(any(isinstance(child, ast.Constant) and child.value == 0o600
+                            for node in permission_checks for child in ast.walk(node)))
+
     def test_idempotence_and_validation(self):
         args = ('--non-interactive', '--json', '--sqlite-path', str(self.path.parent / 'recipes.db'))
         code, first = self.run_setup(*args)
@@ -70,12 +148,31 @@ class SetupTests(unittest.TestCase):
         self.assertNotIn('PRIVATE_SENTINEL', str(error))
         self.assertEqual(before, self.path.read_bytes())
 
+    def test_omitted_store_keeps_the_implicit_mealie_store(self):
+        # Without --store, setup must not pin a backend over Mealie configured implicitly.
+        self.path.write_text('[mealie]\nbase_url = "https://mealie.example"\n')
+        code, result = self.run_setup('--non-interactive', '--json', '--lang', 'en')
+        self.assertEqual(code, 0, result)
+        self.assertEqual(result['store'], 'mealie')
+        self.assertIn('mealie_api_token', result['missing_secrets'])
+        self.assertNotIn('backend', tomllib.loads(self.path.read_text()).get('store', {}))
+        self.path.unlink()
+        with patch.dict(os.environ, {'MEALIE_BASE_URL': 'https://mealie.example'}):
+            code, result = self.run_setup('--non-interactive', '--json', '--lang', 'en')
+        self.assertEqual(code, 0, result)
+        self.assertEqual(result['store'], 'mealie')
+        self.assertNotIn('store', tomllib.loads(self.path.read_text()))
+        code, result = self.run_setup('--non-interactive', '--json', '--store', 'sqlite')
+        self.assertEqual((code, result['store']), (0, 'sqlite'))
+        self.assertEqual(tomllib.loads(self.path.read_text())['store']['backend'], 'sqlite')
+
     def test_omitted_sqlite_path_uses_runtime_data_directory(self):
         before = dict(os.environ)
         code, result = self.run_setup('--non-interactive', '--json')
         self.assertEqual(code, 0, result)
-        document = tomllib.loads(self.path.read_text())
-        self.assertNotIn('sqlite_path', document['store'])
+        # No flags: nothing to pin, so config.toml may not even be created.
+        document = tomllib.loads(self.path.read_text()) if self.path.exists() else {}
+        self.assertNotIn('sqlite_path', document.get('store', {}))
         self.assertTrue((self.data_dir / 'sabor.db').is_file())
         self.assertFalse((self.path.parent / 'sabor.db').exists())
         self.assertEqual(dict(os.environ), before)
@@ -148,8 +245,8 @@ class SetupTests(unittest.TestCase):
                 self.assertEqual(env['MEALIE_API_TOKEN'], 'PRIVATE_SENTINEL')
                 apply_config_file(dict(env, MEALIE_API_TOKEN='override'))
         secrets = self.path.with_name('secrets.toml')
-        self.assertEqual(secrets.stat().st_mode & 0o777, 0o600)
         if os.name == 'posix':
+            self.assertEqual(secrets.stat().st_mode & 0o777, 0o600)
             secrets.chmod(0o644)
             from sabor.core.config import ConfigError
             with self.assertRaisesRegex(ConfigError, 'only by its owner'):
