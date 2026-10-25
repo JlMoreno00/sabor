@@ -14,7 +14,26 @@ from sabor.core.config import ConfigError, load_settings
 from sabor.core.config_file import FILE_KEYS, apply_config_file, config_path
 from sabor.core.context import assemble_context
 from sabor.core.redaction import redact
+from sabor.store.sqlite_schema import MIGRATIONS
 from sabor.secrets_store import SECRET_NAMES, required_secrets
+
+
+def _sqlite_schema_version(database):
+    """Read-only probe: never creates directories, files or runs migrations."""
+    if not database.exists():
+        parent = database.parent
+        while not parent.exists() and parent != parent.parent:
+            parent = parent.parent
+        if not (parent.is_dir() and os.access(parent, os.W_OK | os.X_OK)):
+            raise PermissionError('SQLite directory is not writable')
+        return None
+    connection = sqlite3.connect(database.resolve().as_uri() + '?mode=ro', uri=True)
+    try:
+        if not connection.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='schema_version'").fetchone():
+            return 0
+        return connection.execute('SELECT MAX(version) FROM schema_version').fetchone()[0] or 0
+    finally:
+        connection.close()
 
 
 def main(argv=None):
@@ -89,11 +108,12 @@ def main(argv=None):
             result['store']['backend'] = settings.store
             try:
                 if settings.store == 'sqlite':
-                    from sabor.store.sqlite import SqliteRecipeStore
-                    assert isinstance(context.store, SqliteRecipeStore)
-                    context.store.ensure_ready()
-                    with sqlite3.connect(settings.store_db) as connection:
-                        result['store']['schema_version'] = connection.execute('SELECT MAX(version) FROM schema_version').fetchone()[0]
+                    version = _sqlite_schema_version(Path(settings.store_db))
+                    result['store']['schema_version'] = version
+                    if version is None:
+                        result['warnings'].append('SQLite database does not exist yet; Sabor creates it on first start')
+                    elif version < max(v for v, _ in MIGRATIONS):
+                        result['warnings'].append('SQLite schema will be migrated on next start')
                 else:
                     response = requests.get(settings.mealie_base_url.rstrip('/') + '/api/app/about', timeout=5)
                     if not 200 <= response.status_code < 300:
