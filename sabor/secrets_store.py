@@ -36,18 +36,22 @@ def required_secrets(env, *, bring=False):
 
 def serialize(document):
     return ''.join(f'[{section}]\n' + ''.join(
-        f'{key} = {str(value).lower() if isinstance(value, bool) else json.dumps(value, ensure_ascii=True)}\n'
+        f'{key} = {str(value).lower() if isinstance(value, bool) else json.dumps(value, ensure_ascii=False).replace(chr(127), r'\u007f')}\n'
         for key, value in entries.items()) + '\n' for section, entries in document.items())
 
 
 def atomic_write(path, content):
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.NamedTemporaryFile(mode='w', dir=path.parent, delete=False) as stream:
-        os.chmod(stream.name, 0o600)
-        stream.write(content)
-        temporary = stream.name
-    os.replace(temporary, path)
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8', dir=path.parent, delete=False) as stream:
+            temporary = stream.name  # NamedTemporaryFile creates the file owner-only.
+            stream.write(content)
+        os.replace(temporary, path)
+    finally:
+        if temporary is not None:
+            Path(temporary).unlink(missing_ok=True)
 
 
 def file_values(path):
