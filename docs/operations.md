@@ -11,9 +11,11 @@ to inspect effective values and their origins. Omit `--json` for human output
 runtime configuration is applied, and leave the process environment unchanged.
 Neither registers tools nor serves MCP.
 
-Doctor initializes/migrates SQLite with `ensure_ready()` and reads its schema
-version. For Mealie it makes one unauthenticated GET to `/api/app/about` with a
-five-second timeout; it never prints response bodies or tokens. This checks
+Doctor is read-only: it opens an existing SQLite database with `mode=ro` and reads
+its schema version, never creating directories or files nor running migrations. A
+missing database is reported (created on first start) when its directory is writable;
+an older schema is reported as migrating on next start. For Mealie it makes one
+unauthenticated GET to `/api/app/about` with a five-second timeout; it never prints response bodies or tokens. This checks
 reachability, not token validity or authenticated permissions.
 
 The stable JSON key order and nesting are:
@@ -25,7 +27,8 @@ The stable JSON key order and nesting are:
 `schema_version` is null for Mealie or failed probes. Invalid configuration adds
 an `error` string and sets `config.valid` false. Missing secret names get a
 `sabor-mcp setup secret <name>` next step. Warnings are deterministic and advisory:
-keyring declared but unavailable, and presence of an owner-only `secrets.toml`.
+keyring declared but unavailable, presence of an owner-only `secrets.toml`, a SQLite
+database not created yet, and a SQLite schema that will be migrated on next start.
 A temporary SQLite directory alone is not a warning.
 
 | Exit | Meaning |
