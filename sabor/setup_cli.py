@@ -104,8 +104,17 @@ def main(argv=None):
                             default = 'gemini' if document.get('import', {}).get('video_provider') == 'gemini_native' else 'openai' if document.get('llm', {}).get('base_url') else default
                         elif field == 'bring' and 'bring_email' in refs:
                             default = 'yes'
-                        answer = input(f'{label} [{default}]: ').strip() or default
-                        setattr(args, field, answer.split(',') if field == 'pricing' else answer == 'yes' if field == 'bring' else answer)
+                        answer = (input(f'{label} [{default}]: ').strip() or default).lower()
+                        if field == 'bring':
+                            if answer not in ('yes', 'y', 'sí', 'si', 's', 'no', 'n'):
+                                raise ConfigError('Invalid bring choice')
+                            value = answer not in ('no', 'n')
+                        else:
+                            choices = next(action.choices for action in parser._actions if action.dest == field) or ()
+                            value = [item.strip() for item in answer.split(',')] if field == 'pricing' else answer
+                            if any(item not in choices for item in (value if isinstance(value, list) else [value])):
+                                raise ConfigError('Invalid ' + field + ' choice')
+                        setattr(args, field, value)
                 if args.store == 'mealie' and not args.mealie_url and not document.get('mealie', {}).get('base_url'):
                     args.mealie_url = input('Mealie URL: ').strip()
                 if args.llm in ('ollama', 'openai') and not args.llm_model:
@@ -122,11 +131,12 @@ def main(argv=None):
             if args.pricing is not None:
                 for provider in ('mercadona', 'open_prices'):
                     put('pricing', provider, provider in args.pricing)
-            pricing = document.get('pricing', {})
-            if pricing.get('mercadona') or pricing.get('open_prices'):
-                put('general', 'toolsets', ['core', 'import', 'shopping_sync', 'pricing'])
-            elif document.get('general', {}).get('toolsets') == ['core', 'import', 'shopping_sync', 'pricing']:
-                document['general'].pop('toolsets')
+                existing = document.get('general', {}).get('toolsets', ['core', 'import', 'shopping_sync'])
+                toolsets = existing.split(',') if isinstance(existing, str) else existing
+                toolsets = list(dict.fromkeys(item.strip() for item in toolsets if item.strip() != 'pricing'))
+                if any(document['pricing'].get(provider) for provider in ('mercadona', 'open_prices')):
+                    toolsets.append('pricing')
+                put('general', 'toolsets', ','.join(toolsets) if isinstance(existing, str) else toolsets)
             if args.llm is not None:
                 for section, keys in [('llm', ('base_url', 'model')), ('import', ('video_provider', 'gemini_model'))]:
                     for key in keys:
