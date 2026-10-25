@@ -840,7 +840,11 @@ Run `sabor-mcp setup` in a terminal for English/español prompts, or
 Use `--help` for pricing, Mealie, LLM and Bring options. Omitted flags retain existing
 file values and never add keys: without `--store`, the store the runtime would pick
 is kept (`SABOR_STORE`, then `[store] backend`, then Mealie when a Mealie URL is set,
-otherwise SQLite). `SABOR_CONFIG` overrides the OS config path; non-empty environment
+otherwise SQLite).
+When config.toml has no `[general] toolsets` yet, setup writes
+`core, import, shopping_sync, preferences` (plus `pricing` when a price provider is
+enabled) so onboarding can save the cooking profile; an existing toolsets value is
+never rewritten, and without config.toml the runtime default is unchanged. `SABOR_CONFIG` overrides the OS config path; non-empty environment
 values override file settings at runtime. `SABOR_LANGUAGE` accepts `es` or `en`.
 
 Store credentials with `sabor-mcp setup secret mealie_api_token` in an interactive

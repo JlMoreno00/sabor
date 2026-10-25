@@ -281,3 +281,23 @@ class SetupHelpTests(unittest.TestCase):
                     same_line = re.match(r'\s+\S.*?\s{2,}\S', lines[row])
                     next_line = row + 1 < len(lines) and re.match(r'\s{20,}[^-\s]', lines[row + 1])
                     self.assertTrue(same_line or next_line, option)
+
+
+class SetupPreferencesToolsetTests(unittest.TestCase):
+    setUp = SetupTests.setUp
+    run_setup = SetupTests.run_setup
+
+    def test_new_setup_enables_preferences_and_respects_custom_lists(self):
+        code, result = self.run_setup('--non-interactive', '--json', '--lang', 'es')
+        self.assertEqual(code, 0, result)
+        self.assertEqual(tomllib.loads(self.path.read_text())['general']['toolsets'],
+                         ['core', 'import', 'shopping_sync', 'preferences'])
+        before = self.path.read_bytes()
+        self.assertFalse(self.run_setup('--non-interactive', '--json', '--lang', 'es')[1]['changed'])
+        self.assertEqual(before, self.path.read_bytes())
+        self.run_setup('--non-interactive', '--json', '--pricing', 'open_prices')
+        self.assertEqual(tomllib.loads(self.path.read_text())['general']['toolsets'],
+                         ['core', 'import', 'shopping_sync', 'preferences', 'pricing'])
+        self.path.write_text('[general]\ntoolsets = "core,import"\n')
+        self.run_setup('--non-interactive', '--json', '--lang', 'en')
+        self.assertEqual(tomllib.loads(self.path.read_text())['general']['toolsets'], 'core,import')

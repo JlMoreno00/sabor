@@ -25,6 +25,9 @@
   Runtime behavior with Mealie configured is unchanged (#36).
 
 ### Added
+- `sabor-mcp setup` enables the `preferences` toolset when config.toml does not
+  choose toolsets yet, so onboarding can save the cooking profile; existing
+  toolsets and the runtime default without config.toml are unchanged (#67).
 - Portable Agent Skill `skills/sabor-onboarding/SKILL.md`: the cooking-profile
   interview for any client that supports Agent Skills. It separates the profile
   (preference tools, when the opt-in `preferences` toolset is registered) from
