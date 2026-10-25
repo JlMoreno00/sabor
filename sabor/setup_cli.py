@@ -23,6 +23,13 @@ def write_config(path, old, document):
     return True
 
 
+def _effective_store(document):
+    """Store the runtime would select: SABOR_STORE, then the file, then implicit Mealie."""
+    explicit = os.environ.get('SABOR_STORE', '').strip() or document.get('store', {}).get('backend')
+    mealie = os.environ.get('MEALIE_BASE_URL', '').strip() or document.get('mealie', {}).get('base_url')
+    return explicit or ('mealie' if mealie else 'sqlite')
+
+
 def main(argv=None):
     arguments = list(sys.argv[1:] if argv is None else argv)
     secret = arguments[:1] == ['secret']
@@ -90,15 +97,24 @@ def main(argv=None):
                         if field == 'lang':
                             default = document.get('general', {}).get('language', default)
                         elif field == 'store':
-                            default = document.get('store', {}).get('backend', default)
+                            default = _effective_store(document)
                         elif field == 'pricing':
                             default = ','.join(p for p in ('mercadona', 'open_prices') if document.get('pricing', {}).get(p)) or default
                         elif field == 'llm':
                             default = 'gemini' if document.get('import', {}).get('video_provider') == 'gemini_native' else 'openai' if document.get('llm', {}).get('base_url') else default
                         elif field == 'bring' and 'bring_email' in refs:
                             default = 'yes'
-                        answer = input(f'{label} [{default}]: ').strip() or default
-                        setattr(args, field, answer.split(',') if field == 'pricing' else answer == 'yes' if field == 'bring' else answer)
+                        answer = (input(f'{label} [{default}]: ').strip() or default).lower()
+                        if field == 'bring':
+                            if answer not in ('yes', 'y', 'sí', 'si', 's', 'no', 'n'):
+                                raise ConfigError('Invalid bring choice')
+                            value = answer not in ('no', 'n')
+                        else:
+                            choices = next(action.choices for action in parser._actions if action.dest == field) or ()
+                            value = [item.strip() for item in answer.split(',')] if field == 'pricing' else answer
+                            if any(item not in choices for item in (value if isinstance(value, list) else [value])):
+                                raise ConfigError('Invalid ' + field + ' choice')
+                        setattr(args, field, value)
                 if args.store == 'mealie' and not args.mealie_url and not document.get('mealie', {}).get('base_url'):
                     args.mealie_url = input('Mealie URL: ').strip()
                 if args.llm in ('ollama', 'openai') and not args.llm_model:
@@ -107,18 +123,20 @@ def main(argv=None):
                 if value is not None:
                     document.setdefault(section, {})[key] = value
             put('general', 'language', args.lang)
-            put('store', 'backend', args.store or document.get('store', {}).get('backend', 'sqlite'))
+            # An omitted --store never pins a backend: keep the implicit Mealie selection.
+            put('store', 'backend', args.store)
             put('store', 'sqlite_path', args.sqlite_path)
             put('mealie', 'base_url', args.mealie_url)
             put('pricing', 'mercadona_warehouse', args.mercadona_warehouse)
             if args.pricing is not None:
                 for provider in ('mercadona', 'open_prices'):
                     put('pricing', provider, provider in args.pricing)
-            pricing = document.get('pricing', {})
-            if pricing.get('mercadona') or pricing.get('open_prices'):
-                put('general', 'toolsets', ['core', 'import', 'shopping_sync', 'pricing'])
-            elif document.get('general', {}).get('toolsets') == ['core', 'import', 'shopping_sync', 'pricing']:
-                document['general'].pop('toolsets')
+                existing = document.get('general', {}).get('toolsets', ['core', 'import', 'shopping_sync'])
+                toolsets = existing.split(',') if isinstance(existing, str) else existing
+                toolsets = list(dict.fromkeys(item.strip() for item in toolsets if item.strip() != 'pricing'))
+                if any(document['pricing'].get(provider) for provider in ('mercadona', 'open_prices')):
+                    toolsets.append('pricing')
+                put('general', 'toolsets', ','.join(toolsets) if isinstance(existing, str) else toolsets)
             if args.llm is not None:
                 for section, keys in [('llm', ('base_url', 'model')), ('import', ('video_provider', 'gemini_model'))]:
                     for key in keys:
@@ -133,12 +151,16 @@ def main(argv=None):
                 put('llm', 'base_url', args.llm_base_url)
                 put('llm', 'model', args.llm_model)
                 put('import', 'gemini_model', args.gemini_model)
-            if document['store']['backend'] == 'mealie' and not document.get('mealie', {}).get('base_url'):
+            if _effective_store(document) == 'mealie' and not (
+                    document.get('mealie', {}).get('base_url') or os.environ.get('MEALIE_BASE_URL', '').strip()):
                 raise ConfigError('Mealie store requires a base URL')
             from sabor.core.config_file import FILE_KEYS
             required_env = {envkey: str(document[section][key])
                             for (section, key), envkey in FILE_KEYS.items()
                             if key in document.get(section, {})}
+            # Non-empty environment values win, exactly as at runtime.
+            required_env.update({envkey: os.environ[envkey] for envkey in FILE_KEYS.values()
+                                 if os.environ.get(envkey, '').strip()})
             required = required_secrets(required_env, bring=args.bring is True or (
                 args.bring is None and any(n in refs for n in ('bring_email', 'bring_password'))))
             if args.bring is False:
@@ -169,7 +191,7 @@ def main(argv=None):
                 SqliteRecipeStore(settings.store_db).ensure_ready()
         document = {section: entries for section, entries in document.items() if entries}
         result.update(ok=True, changed=write_config(path, old, document),
-                      store=document.get('store', {}).get('backend', 'sqlite'), secrets_backend=dict(refs))
+                      store=_effective_store(document), secrets_backend=dict(refs))
     except ConfigError as exc:
         code = 2
         result['error'] = str(exc)
