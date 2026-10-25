@@ -131,13 +131,31 @@ class PostgresStoreContract(StoreContractMixin, unittest.TestCase):
         from tempfile import TemporaryDirectory
         from unittest.mock import patch
         from sabor.doctor_cli import main
-        output = io.StringIO()
-        with TemporaryDirectory() as directory, patch.dict(os.environ, {
-                'SABOR_STORE': 'postgres', 'SABOR_DATABASE_URL': DSN}, clear=True):
-            with patch('sabor.doctor_cli.config_path', return_value=Path(directory) / 'config.toml'):
-                with patch('sabor.core.context.postgres_store_factory', return_value=self.store):
-                    with contextlib.redirect_stdout(output):
-                        code = main(['doctor', '--json'])
-        result = json.loads(output.getvalue())
+        assert psycopg is not None
+
+        def doctor(store):
+            output = io.StringIO()
+            with TemporaryDirectory() as directory, patch.dict(os.environ, {
+                    'SABOR_STORE': 'postgres', 'SABOR_DATABASE_URL': DSN}, clear=True):
+                with patch('sabor.doctor_cli.config_path', return_value=Path(directory) / 'config.toml'):
+                    with patch('sabor.core.context.postgres_store_factory', return_value=store):
+                        with contextlib.redirect_stdout(output):
+                            code = main(['doctor', '--json'])
+            return code, json.loads(output.getvalue())
+
+        def schema_exists(name):
+            with psycopg.connect(DSN) as connection:
+                return connection.execute('SELECT 1 FROM pg_namespace WHERE nspname=%s', (name,)).fetchone()
+
+        # Read-only: a missing store schema is reported, never created or migrated.
+        migrated = self.store
+        fresh = self.make_store()  # new random schema, cleaned up by make_store
+        code, result = doctor(fresh)
+        self.assertEqual(code, 0, result)
+        self.assertEqual(result['store'], {'backend': 'postgres', 'reachable': True, 'schema_version': None})
+        self.assertIn('Postgres schema does not exist yet; Sabor creates it on first start', result['warnings'])
+        self.assertIsNone(schema_exists(self.schema))
+        migrated.ensure_ready()
+        code, result = doctor(migrated)
         self.assertEqual(code, 0, result)
         self.assertEqual(result['store'], {'backend': 'postgres', 'reachable': True, 'schema_version': 1})

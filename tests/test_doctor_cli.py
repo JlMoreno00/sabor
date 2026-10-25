@@ -49,7 +49,13 @@ class DoctorTests(unittest.TestCase):
         return result.exception.code, json.loads(output.getvalue())
 
     def test_snapshot(self):
+        from sabor.store.sqlite import SqliteRecipeStore
+        database = self.path.parent / 'data' / 'sabor.db'
+        SqliteRecipeStore(database).ensure_ready()
+        before = database.read_bytes()
         code, result = self.run_cli('doctor', '--json')
+        # Diagnostics are read-only: the existing database is not touched.
+        self.assertEqual(database.read_bytes(), before)
         self.assertEqual(code, 0)
         self.assertEqual(list(result), ['ok', 'version', 'config_path', 'config', 'store', 'toolsets',
                                       'capabilities_summary', 'missing_secrets', 'warnings', 'next_steps'])
@@ -71,6 +77,28 @@ class DoctorTests(unittest.TestCase):
                          toolsets=['core', 'import'],
                          capabilities_summary={'recipe_store': ['sqlite'], 'pricing': [], 'import': [], 'shopping_sync': []},
                          missing_secrets=[], warnings=[], next_steps=[]))
+
+    def test_missing_database_is_reported_not_created(self):
+        code, result = self.run_cli('doctor', '--json')
+        self.assertEqual(code, 0, result)
+        self.assertEqual(result['store'], {'backend': 'sqlite', 'reachable': True, 'schema_version': None})
+        self.assertIn('SQLite database does not exist yet; Sabor creates it on first start', result['warnings'])
+        self.assertFalse((self.path.parent / 'data').exists())
+
+    def test_outdated_database_is_reported_not_migrated(self):
+        import sqlite3
+        database = self.path.parent / 'data' / 'sabor.db'
+        database.parent.mkdir()
+        with sqlite3.connect(database) as connection:
+            connection.execute('CREATE TABLE schema_version (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)')
+            connection.execute("INSERT INTO schema_version VALUES (1, 'then')")
+        connection.close()
+        before = database.read_bytes()
+        code, result = self.run_cli('doctor', '--json')
+        self.assertEqual(code, 0, result)
+        self.assertEqual(result['store']['schema_version'], 1)
+        self.assertIn('SQLite schema will be migrated on next start', result['warnings'])
+        self.assertEqual(database.read_bytes(), before)
 
     def test_human_and_help(self):
         from sabor.server import cli
@@ -104,7 +132,7 @@ class DoctorTests(unittest.TestCase):
         self.assertEqual(code, 3)
 
     def test_failures(self):
-        with patch('sabor.store.sqlite.SqliteRecipeStore.ensure_ready', side_effect=PermissionError):
+        with patch('sabor.doctor_cli.os.access', return_value=False):
             code, result = self.run_cli('doctor', '--json')
         self.assertEqual(code, 3)
         self.assertFalse(result['store']['reachable'])
