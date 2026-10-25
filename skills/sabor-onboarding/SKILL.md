@@ -24,7 +24,8 @@ Call `sabor_capabilities()` and read `data.registered_tools`. Use only tools lis
 - If `get_preferences` and `update_preferences` are registered, the profile can be saved
   in Sabor. Read the current one with `get_preferences()` and only ask about what is missing
   or what the user wants to change.
-- If they are not registered, the `preferences` toolset is not enabled for this install.
+- `sabor-mcp setup` enables them for new installs. If they are not registered, the
+  `preferences` toolset is not enabled for this install (for example a custom toolsets list).
   Do the interview anyway, keep the confirmed summary in the conversation or your client's
   own notes, and tell the user plainly that it was not saved in Sabor. Do not claim
   otherwise and do not try to enable it from the chat.
