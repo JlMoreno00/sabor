@@ -39,6 +39,7 @@ class Settings:
     normalize_confidence: float = 0.75
     open_prices_enabled: bool = False
     config_source: str = 'defaults'
+    language: str | None = None
 
     @property
     def mealie_configured(self):
@@ -70,6 +71,9 @@ def load_settings(env: Mapping[str, str]) -> Settings:
                 raise ConfigError(f'{key} requires an HTTP(S) service URL') from None
         return value
 
+    language = get('SABOR_LANGUAGE')
+    if language not in ('', 'es', 'en'):
+        raise ConfigError('Invalid SABOR_LANGUAGE')
     requested = tuple(dict.fromkeys(x.strip() for x in
                       get('SABOR_TOOLSETS', 'core,import,shopping_sync').split(',') if x.strip()))
     if set(requested) - set(TOOLSETS):
@@ -100,4 +104,5 @@ def load_settings(env: Mapping[str, str]) -> Settings:
                     legacy.SABOR_INGREDIENT_PARSER,
                     legacy.SABOR_NORMALIZE_CONFIDENCE,
                     get('SABOR_OPEN_PRICES_ENABLED').lower() == 'true',
-                    'env' if any(env.get(key) for key in (*FILE_KEYS.values(), *SECRET_ENV)) else 'defaults')
+                    'env' if any(env.get(key) for key in (*FILE_KEYS.values(), *SECRET_ENV)) else 'defaults',
+                    language or None)
