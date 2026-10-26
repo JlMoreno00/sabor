@@ -9,7 +9,10 @@ store is the source of truth for cooking data; core workflows work without Meali
 
 Optional non-secret `config.toml` settings use environment > file > defaults.
 Set `SABOR_CONFIG` to select a file; see [configuration keys and OS paths](docs/operations.md#optional-toml-configuration).
-Secrets remain environment-only; `sabor_capabilities` reports `data.config_source`.
+Secrets may use environment variables or setup-managed keyring/file references;
+`sabor_capabilities` reports `data.config_source`. Run `sabor-mcp doctor --json`
+to check store health, or `sabor-mcp config show --json` for masked values and
+origins. See [terminal diagnostics](docs/operations.md#terminal-diagnostics).
 
 ## The everyday flow
 

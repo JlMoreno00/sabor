@@ -9,7 +9,6 @@ import tomllib
 import unittest
 from unittest.mock import patch
 
-import keyring
 from keyring.backend import KeyringBackend
 from keyring.compat import properties
 
@@ -43,9 +42,11 @@ class SetupTests(unittest.TestCase):
                                            'SABOR_DATA_DIR': str(self.data_dir)}, clear=True)
         self.env.start()
         self.addCleanup(self.env.stop)
-        previous = keyring.get_keyring()
-        keyring.set_keyring(FakeKeyring())
-        self.addCleanup(keyring.set_keyring, previous)
+        backend = FakeKeyring()
+        for target in ('keyring.get_keyring', 'keyring.core.get_keyring'):
+            replacement = patch(target, return_value=backend)
+            replacement.start()
+            self.addCleanup(replacement.stop)
 
     def run_setup(self, *args, tty=False):
         from sabor.setup_cli import main

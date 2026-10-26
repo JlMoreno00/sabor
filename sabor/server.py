@@ -123,6 +123,9 @@ def cli(argv=None) -> None:
     if arguments[:1] == ['setup']:
         from sabor.setup_cli import main as setup_main
         raise SystemExit(setup_main(arguments[1:]))
+    if arguments[:1] in (['doctor'], ['config']):
+        from sabor.doctor_cli import main as doctor_main
+        raise SystemExit(doctor_main(arguments))
     config_source = apply_config_file(os.environ)
     if arguments[:1] == ["preferences"]:
         from sabor.preferences_cli import main as preferences_main
@@ -130,6 +133,9 @@ def cli(argv=None) -> None:
     parser = argparse.ArgumentParser(description="Sabor MCP server")
     parser.add_argument("--transport", choices=("stdio", "http"), default="stdio")
     commands = parser.add_subparsers(dest="command")
+    commands.add_parser("doctor", help="Check configuration and store health (--json)")
+    commands.add_parser("config", help="Show effective configuration: config show [--json]")
+    commands.add_parser("setup", help="Configure Sabor and secret references")
     catalog_parser = commands.add_parser("catalog", help="Preview or apply the Spanish Mealie catalog")
     catalog_parser.add_argument("action", choices=("status", "apply"))
     args = parser.parse_args(argv)
