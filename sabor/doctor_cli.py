@@ -118,7 +118,9 @@ def main(argv=None):
                 elif settings.store == 'postgres':
                     from sabor.store.postgres import PostgresRecipeStore
                     from sabor.store.postgres_schema import MIGRATIONS as POSTGRES_MIGRATIONS
+                    from sabor.supabase_setup import supabase_warnings
                     assert isinstance(context.store, PostgresRecipeStore)
+                    result['warnings'].extend(supabase_warnings(settings.database_url))
                     if 'database_url' in missing:
                         raise StoreError('upstream_error', 'postgres')
                     try:
@@ -142,6 +144,8 @@ def main(argv=None):
                     if settings.store == 'sqlite' else
                     'Check the database URL and that Postgres accepts connections (`sabor-mcp setup secret database_url`)'
                     if settings.store == 'postgres' else 'Check that Mealie is running at the configured base_url')
+                if settings.store == 'postgres' and any('Supabase' in w for w in result['warnings']):
+                    result['next_steps'].append('If the project is paused, restore it in the Supabase dashboard')
             if code == 0 and missing:
                 code = 1
             result['ok'] = code == 0

@@ -131,7 +131,9 @@ store the secret `SABOR_DATABASE_URL` through the environment or
 `sabor-mcp setup secret database_url`. The adapter uses the private `sabor` schema,
 requires no extensions and enables RLS without public policies. SQLite and Mealie
 do not require the extra. See [Postgres / Supabase operations](docs/operations.md#postgres--supabase-store)
-for role permissions, Supabase session-pooler settings and backups.
+for role permissions, Supabase session-pooler settings and backups, and
+[docs/supabase-agentes.md](docs/supabase-agentes.md) to set up Supabase with an agent
+(`sabor-mcp setup supabase --create-role`).
 
 An `AppContext` binds settings, store, registry and pricing providers to registered
 tools. Mealie sessions, Mercadona catalog caches and Bring authentication/cache

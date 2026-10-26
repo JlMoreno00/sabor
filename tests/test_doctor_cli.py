@@ -177,6 +177,18 @@ class DoctorTests(unittest.TestCase):
         _, result = self.run_cli('doctor', '--json')
         self.assertIn('Keyring is unavailable', result['warnings'])
 
+    def test_supabase_warnings_and_paused_hint(self):
+        from sabor.store import StoreError
+        dsn = 'postgresql://sabor_app.abcd:PRIVATE_SENTINEL@db.abcd.supabase.co:5432/postgres?sslmode=require'
+        self.path.write_text('[store]\nbackend = "postgres"\n')
+        with patch.dict(os.environ, {'SABOR_DATABASE_URL': dsn}), \
+                patch('sabor.store.postgres.PostgresRecipeStore.probe_schema_version',
+                      side_effect=StoreError('upstream_error', 'postgres')):
+            code, result = self.run_cli('doctor', '--json')
+        self.assertEqual(code, 3)
+        self.assertEqual(len([w for w in result['warnings'] if 'Supabase' in w]), 3)
+        self.assertIn('If the project is paused, restore it in the Supabase dashboard', result['next_steps'])
+
     def test_missing_remote_and_video_secrets(self):
         self.path.write_text('[llm]\nbase_url = "https://llm.example/v1"\nmodel = "test"\n[import]\nvideo_provider = "gemini_native"\n')
         code, result = self.run_cli('doctor', '--json')

@@ -31,8 +31,9 @@
 ## 2. Ask (defaults in brackets)
 
 1. Language [the user's language: `es` or `en`].
-2. Where to keep recipes: [local on this computer (SQLite)] | Mealie (they already run one).
-   A Postgres/Supabase store is planned but not available yet: do not offer it.
+2. Where to keep recipes: [local on this computer (SQLite)] | Supabase or another Postgres (cloud,
+   several devices) | Mealie (they already run one). For Supabase, follow
+   [docs/supabase-agentes.md](docs/supabase-agentes.md) before step 3.
 3. Supermarket prices? [none] | Mercadona | Open Prices (Open Food Facts, crowd-sourced, sparse in Spain).
 4. Import recipes from text or video with an AI model? [no] | OpenAI-compatible | Gemini | Ollama (local).
 5. Sync the shopping list with Bring!? [no] | yes.
@@ -43,6 +44,7 @@
 SABOR setup --non-interactive --json --lang es --store sqlite
 # options, only when chosen:
 #   --store mealie --mealie-url https://mealie.example
+#   Supabase/Postgres: the user runs `sabor-mcp setup supabase --create-role` (docs/supabase-agentes.md)
 #   --pricing mercadona [--mercadona-warehouse mad1]   (repeat --pricing to add open_prices)
 #   --llm openai --llm-base-url https://api.openai.com/v1 --llm-model MODEL
 #   --llm ollama --llm-model MODEL      (no key; default URL http://localhost:11434/v1)
@@ -128,7 +130,8 @@ opt-in); it never changes the configuration.
    (todavía no está en PyPI), usa `uvx --from git+https://github.com/JlMoreno00/sabor sabor-mcp`
    en todos los pasos. Ejecuta `doctor --json`; si `config.found` es true, ofrece reconfigurar o salir.
 2. **Pregunta, de una en una:** idioma [el del usuario]; almacén [local en este equipo (SQLite)] |
-   Mealie (ya tiene uno; Postgres/Supabase todavía no está disponible, no lo ofrezcas); precios
+   Supabase u otro Postgres (en la nube, varios dispositivos; sigue
+   [docs/supabase-agentes.md](docs/supabase-agentes.md)) | Mealie (ya tiene uno); precios
    [ninguno] | Mercadona | Open Prices (colaborativo, con pocos datos de España); importar recetas
    con un modelo de IA [no] | OpenAI-compatible | Gemini | Ollama local; sincronizar con Bring! [no] | sí.
 3. **Configura** con `setup --non-interactive --json` y los flags de la sección 3 de arriba. Lee
