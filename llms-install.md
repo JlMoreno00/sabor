@@ -32,7 +32,9 @@
 
 1. Language [the user's language: `es` or `en`].
 2. Where to keep recipes: [local on this computer (SQLite)] | Mealie (they already run one: ask for
-   its base URL, e.g. `https://mealie.home.lan`; a URL is not a secret).
+   its base URL only: `scheme://host[:port][/path]`, e.g. `https://mealie.home.lan`. If what the
+   user gives contains `user:password@`, `?…` or `#…`, do not use or repeat it: ask for the bare base
+   URL; the API token goes through `SABOR setup secret mealie_api_token`).
    A Postgres/Supabase store is planned but not available yet: do not offer it.
 3. Supermarket prices? [none] | Mercadona | Open Prices (Open Food Facts, crowd-sourced, sparse in Spain).
 4. Import recipes from text or video with an AI model? [no] | OpenAI-compatible | Gemini | Ollama (local).
@@ -128,7 +130,8 @@ For the profile (diners, allergies, budget…), use the preference tools; never 
    (todavía no está en PyPI), usa `uvx --from git+https://github.com/JlMoreno00/sabor sabor-mcp`
    en todos los pasos y registros; llamamos `SABOR` al lanzador elegido. Ejecuta `SABOR doctor --json`; si `config.found` es true, ofrece reconfigurar o salir.
 2. **Pregunta, de una en una:** idioma [el del usuario]; almacén [local en este equipo (SQLite)] |
-   Mealie (ya tiene uno: pide su URL base, que no es un secreto; Postgres/Supabase todavía no está disponible, no lo ofrezcas); precios
+   Mealie (ya tiene uno: pide solo su URL base, `esquema://host[:puerto][/ruta]`; si trae `usuario:contraseña@`, `?…` o `#…`, no
+   la uses ni la repitas y pide la URL limpia: el token va por `SABOR setup secret mealie_api_token`; Postgres/Supabase todavía no está disponible, no lo ofrezcas); precios
    [ninguno] | Mercadona | Open Prices (colaborativo, con pocos datos de España); importar recetas
    con un modelo de IA [no] | OpenAI-compatible | Gemini | Ollama local; sincronizar con Bring! [no] | sí.
 3. **Configura** con `SABOR setup --non-interactive --json --lang IDIOMA` (el idioma elegido) y los flags
