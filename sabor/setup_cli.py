@@ -23,6 +23,10 @@ def write_config(path, old, document):
     return True
 
 
+# Runtime defaults plus `preferences`, written only when config.toml has no toolsets yet.
+SETUP_TOOLSETS = ('core', 'import', 'shopping_sync', 'preferences')
+
+
 def _effective_store(document):
     """Store the runtime would select: SABOR_STORE, then the file, then implicit Mealie."""
     explicit = os.environ.get('SABOR_STORE', '').strip() or document.get('store', {}).get('backend')
@@ -131,12 +135,18 @@ def main(argv=None):
             if args.pricing is not None:
                 for provider in ('mercadona', 'open_prices'):
                     put('pricing', provider, provider in args.pricing)
-                existing = document.get('general', {}).get('toolsets', ['core', 'import', 'shopping_sync'])
+                existing = document.get('general', {}).get('toolsets', list(SETUP_TOOLSETS))
                 toolsets = existing.split(',') if isinstance(existing, str) else existing
                 toolsets = list(dict.fromkeys(item.strip() for item in toolsets if item.strip() != 'pricing'))
                 if any(document['pricing'].get(provider) for provider in ('mercadona', 'open_prices')):
                     toolsets.append('pricing')
                 put('general', 'toolsets', ','.join(toolsets) if isinstance(existing, str) else toolsets)
+            if 'toolsets' not in document.get('general', {}):
+                # Onboarding saves the cooking profile with the preference tools; an
+                # existing toolsets choice is never rewritten.
+                pricing = document.get('pricing', {})
+                put('general', 'toolsets', [*SETUP_TOOLSETS, *(['pricing'] if any(
+                    pricing.get(provider) for provider in ('mercadona', 'open_prices')) else [])])
             if args.llm is not None:
                 for section, keys in [('llm', ('base_url', 'model')), ('import', ('video_provider', 'gemini_model'))]:
                     for key in keys:
