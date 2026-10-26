@@ -49,7 +49,7 @@ for code in re.findall(r'`([^`\n]+)`', readme):
     assert {k.arg for k in call.keywords} <= {a.arg for a in args.args}, code
 print(f'PASS: {len(seen)} tool names, toolsets and full signatures match code; discovery and inline calls checked')
 
-paths = [ROOT / 'README.md', ROOT / 'CHANGELOG.md']
+paths = [ROOT / 'README.md', ROOT / 'CHANGELOG.md', ROOT / 'llms-install.md']
 paths += sorted((ROOT / 'docs').rglob('*.md')) + sorted((ROOT / 'examples').rglob('*.md'))
 links = 0
 for path in paths:
