@@ -10,7 +10,7 @@
 
 1. Ask ONE question at a time and always offer the default. Talk to the user in their language.
 2. NEVER ask for, accept or repeat passwords, tokens, API keys or connection strings in the chat.
-   If the user pastes one, do not repeat it: tell them to rotate it, then use `sabor-mcp setup secret`.
+   If the user pastes one, do not repeat it: tell them to rotate it, then use `SABOR setup secret` (step 1).
 3. Configure Sabor ONLY with `sabor-mcp setup` in a terminal. No MCP tool changes Sabor's configuration.
 4. Do not overwrite the MCP client configuration: MERGE a `sabor` entry and keep a `.bak` copy first.
 5. Do not invent URLs, paths or flags. If something fails, run `sabor-mcp doctor --json` and show the result.
@@ -31,7 +31,8 @@
 ## 2. Ask (defaults in brackets)
 
 1. Language [the user's language: `es` or `en`].
-2. Where to keep recipes: [local on this computer (SQLite)] | Mealie (they already run one).
+2. Where to keep recipes: [local on this computer (SQLite)] | Mealie (they already run one: ask for
+   its base URL, e.g. `https://mealie.home.lan`; a URL is not a secret).
    A Postgres/Supabase store is planned but not available yet: do not offer it.
 3. Supermarket prices? [none] | Mercadona | Open Prices (Open Food Facts, crowd-sourced, sparse in Spain).
 4. Import recipes from text or video with an AI model? [no] | OpenAI-compatible | Gemini | Ollama (local).
@@ -40,9 +41,10 @@
 ## 3. Configure Sabor
 
 ```bash
-SABOR setup --non-interactive --json --lang es --store sqlite
-# options, only when chosen:
-#   --store mealie --mealie-url https://mealie.example
+SABOR setup --non-interactive --json --lang LANG --store sqlite
+# LANG is the language chosen in question 1 (es or en).
+# options, only when chosen (replace every UPPERCASE value; never run a placeholder):
+#   --store mealie --mealie-url MEALIE_URL      (the URL the user gave in question 2)
 #   --pricing mercadona [--mercadona-warehouse mad1]   (repeat --pricing to add open_prices)
 #   --llm openai --llm-base-url https://api.openai.com/v1 --llm-model MODEL
 #   --llm ollama --llm-model MODEL      (no key; default URL http://localhost:11434/v1)
@@ -66,7 +68,9 @@ that exact command, ask them to run it themselves and wait until they say "done"
 
 ## 4. Register the server in the client (always the same, no environment variables)
 
-Entry: command `uvx`, args `["sabor-mcp"]` (or the `--from git+…` form from step 1).
+Entry: command `uvx`, args `["sabor-mcp"]`. **If step 1 chose the git form (not on PyPI yet), use it in
+every row below instead of `uvx sabor-mcp`:** args `["--from", "git+https://github.com/JlMoreno00/sabor", "sabor-mcp"]`,
+CLI form `uvx --from git+https://github.com/JlMoreno00/sabor sabor-mcp`. Otherwise the client cannot start Sabor.
 
 | Client | How | File / key |
 |---|---|---|
@@ -77,10 +81,9 @@ Entry: command `uvx`, args `["sabor-mcp"]` (or the `--from git+…` form from st
 | Cursor | merge, or the "Add to Cursor" button in the README | `~/.cursor/mcp.json`, `mcpServers` |
 | Claude Desktop (macOS) | merge | `~/Library/Application Support/Claude/claude_desktop_config.json`, `mcpServers` |
 | OpenClaw | see [examples/openclaw/README.md](examples/openclaw/README.md) | — |
-| Several at once (Node available) | `npx add-mcp "uvx sabor-mcp" --name sabor -g` | — |
+| Several at once (Node available) | `npx add-mcp "uvx sabor-mcp" --name sabor -g` (git form: `npx add-mcp "uvx --from git+https://github.com/JlMoreno00/sabor sabor-mcp" --name sabor -g`) | — |
 
-With the git form, the args are `["--from", "git+https://github.com/JlMoreno00/sabor", "sabor-mcp"]`
-(CLI form: `… -- uvx --from git+https://github.com/JlMoreno00/sabor sabor-mcp`).
+For example, with the git form: `claude mcp add --scope user sabor -- uvx --from git+https://github.com/JlMoreno00/sabor sabor-mcp`.
 Then ask the user to reload or restart the client.
 
 ## 5. Verify
@@ -112,7 +115,7 @@ For the profile (diners, allergies, budget…), use the preference tools; never 
 
 1. Haz UNA pregunta cada vez y propón siempre la opción por defecto. Habla en el idioma del usuario.
 2. NUNCA pidas, aceptes ni repitas en el chat contraseñas, tokens, claves de API ni cadenas de
-   conexión. Si el usuario pega uno, no lo repitas: dile que lo rote y usa `sabor-mcp setup secret`.
+   conexión. Si el usuario pega uno, no lo repitas: dile que lo rote y usa `SABOR setup secret` (paso 1).
 3. Configura Sabor SOLO con `sabor-mcp setup` en una terminal. Ninguna tool MCP cambia la configuración.
 4. No sobrescribas la configuración MCP del cliente: FUSIONA la entrada `sabor` y guarda antes una copia `.bak`.
 5. No inventes URLs, rutas ni flags. Si algo falla, ejecuta `sabor-mcp doctor --json` y enseña el resultado.
@@ -123,19 +126,20 @@ For the profile (diners, allergies, budget…), use the preference tools; never 
 1. **Detecta el entorno.** SO, `uv --version` (si falta, pide permiso e instálalo con los comandos
    de arriba) y el cliente MCP. Comprueba `uvx sabor-mcp --help`; si uv no encuentra el paquete
    (todavía no está en PyPI), usa `uvx --from git+https://github.com/JlMoreno00/sabor sabor-mcp`
-   en todos los pasos. Ejecuta `doctor --json`; si `config.found` es true, ofrece reconfigurar o salir.
+   en todos los pasos y registros; llamamos `SABOR` al lanzador elegido. Ejecuta `SABOR doctor --json`; si `config.found` es true, ofrece reconfigurar o salir.
 2. **Pregunta, de una en una:** idioma [el del usuario]; almacén [local en este equipo (SQLite)] |
-   Mealie (ya tiene uno; Postgres/Supabase todavía no está disponible, no lo ofrezcas); precios
+   Mealie (ya tiene uno: pide su URL base, que no es un secreto; Postgres/Supabase todavía no está disponible, no lo ofrezcas); precios
    [ninguno] | Mercadona | Open Prices (colaborativo, con pocos datos de España); importar recetas
    con un modelo de IA [no] | OpenAI-compatible | Gemini | Ollama local; sincronizar con Bring! [no] | sí.
-3. **Configura** con `setup --non-interactive --json` y los flags de la sección 3 de arriba. Lee
+3. **Configura** con `SABOR setup --non-interactive --json --lang IDIOMA` (el idioma elegido) y los flags
+   de la sección 3 de arriba, sustituyendo los valores en MAYÚSCULAS (nunca ejecutes un ejemplo). Lee
    `ok`, `changed`, `missing_secrets` y `next_steps`. Para cada nombre de `missing_secrets`, el
-   usuario escribe el secreto en una terminal con `sabor-mcp setup secret <nombre>` (entrada oculta;
+   usuario escribe el secreto en una terminal con `SABOR setup secret <nombre>` (entrada oculta;
    se guarda en el llavero del sistema o en un `secrets.toml` 0600). Si no tienes terminal
    interactiva, dale el comando exacto y espera a que diga "hecho".
-4. **Registra el servidor** con la tabla de la sección 4 (siempre `uvx sabor-mcp`, sin variables de
-   entorno) y pide al usuario que recargue o reinicie el cliente.
-5. **Verifica:** `doctor --json` con `"ok": true`; después la tool `sabor_capabilities`
+4. **Registra el servidor** con la tabla de la sección 4, sin variables de entorno y con el mismo
+   lanzador del paso 1 (`uvx sabor-mcp`, o la forma `--from git+…` mientras no esté en PyPI) y pide al usuario que recargue o reinicie el cliente.
+5. **Verifica:** `SABOR doctor --json` con `"ok": true`; después la tool `sabor_capabilities`
    (almacén elegido en `recipe_store.adapters`, `pricing.configured` si eligió precios,
    `config_source` = `file`); y una prueba real reversible con tools `core`: crear la lista de la
    compra "Prueba Sabor" (`create_shopping_list`), verla en `get_shopping_lists` y borrarla con
