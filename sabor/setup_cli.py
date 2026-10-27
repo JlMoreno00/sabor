@@ -36,6 +36,9 @@ def _effective_store(document):
 
 def main(argv=None):
     arguments = list(sys.argv[1:] if argv is None else argv)
+    if arguments[:1] == ['supabase']:
+        from sabor.supabase_setup import main as supabase_main
+        return supabase_main(arguments[1:])
     secret = arguments[:1] == ['secret']
     parser = argparse.ArgumentParser(
         prog='sabor-mcp setup secret' if secret else 'sabor-mcp setup',

@@ -24,20 +24,23 @@
   Windows `powershell -c "irm https://astral.sh/uv/install.ps1 | iex"`.
 - Choose the launch command `SABOR`: run `uvx sabor-mcp --help`. If uv cannot find the package
   (Sabor is not on PyPI yet), use `uvx --from git+https://github.com/JlMoreno00/sabor sabor-mcp`
-  instead, everywhere below.
+  instead, everywhere below. If the user picks Supabase/Postgres in step 2, add the extra to
+  `SABOR` and to the client entry in step 4: `uvx --from 'sabor-mcp[postgres]' sabor-mcp`
+  (git form: `uvx --from 'sabor-mcp[postgres] @ git+https://github.com/JlMoreno00/sabor' sabor-mcp`).
 - The MCP client you are running in (table in step 4).
 - An earlier install: `SABOR doctor --json`. If `config.found` is true, offer to reconfigure or stop.
 
 ## 2. Ask (defaults in brackets)
 
 1. Language [the user's language: `es` or `en`].
-2. Where to keep recipes: [local on this computer (SQLite)] | Mealie (they already run one: ask for
+2. Where to keep recipes: [local on this computer (SQLite)] | Supabase or another Postgres (cloud,
+   several devices; follow [docs/supabase-agentes.md](docs/supabase-agentes.md) before step 3) |
+   Mealie (they already run one: ask for
    its base URL only: `scheme://host[:port][/path]`, e.g. `https://mealie.home.lan`. If what the
    user gives contains `user:password@`, `?…` or `#…`, do not use or repeat it: ask for the bare base
    URL; the API token goes through `SABOR setup secret mealie_api_token`). If it is `http://` and the
    host is not local (`localhost`, `127.0.0.1`, `host.docker.internal` or a Docker service name), warn
    that the token would travel unencrypted and recommend `https://`.
-   A Postgres/Supabase store is planned but not available yet: do not offer it.
 3. Supermarket prices? [none] | Mercadona | Open Prices (Open Food Facts, crowd-sourced, sparse in Spain).
 4. Import recipes from text or video with an AI model? [no] | OpenAI-compatible | Gemini | Ollama (local).
 5. Sync the shopping list with Bring!? [no] | yes.
@@ -49,6 +52,7 @@ SABOR setup --non-interactive --json --lang LANG --store sqlite
 # LANG is the language chosen in question 1 (es or en).
 # options, only when chosen (replace every UPPERCASE value; never run a placeholder):
 #   --store mealie --mealie-url MEALIE_URL      (the URL the user gave in question 2)
+#   Supabase/Postgres: the user runs `SABOR setup supabase --create-role` (docs/supabase-agentes.md)
 #   --pricing mercadona [--mercadona-warehouse mad1]   (repeat --pricing to add open_prices)
 #   --llm openai --llm-base-url https://api.openai.com/v1 --llm-model MODEL
 #   --llm ollama --llm-model MODEL      (no key; default URL http://localhost:11434/v1)
@@ -133,12 +137,16 @@ opt-in); it never changes the configuration.
 1. **Detecta el entorno.** SO, `uv --version` (si falta, pide permiso e instálalo con los comandos
    de arriba) y el cliente MCP. Comprueba `uvx sabor-mcp --help`; si uv no encuentra el paquete
    (todavía no está en PyPI), usa `uvx --from git+https://github.com/JlMoreno00/sabor sabor-mcp`
-   en todos los pasos y registros; llamamos `SABOR` al lanzador elegido. Ejecuta `SABOR doctor --json`; si `config.found` es true, ofrece reconfigurar o salir.
+   en todos los pasos y registros; llamamos `SABOR` al lanzador elegido. Si el usuario elige
+   Supabase/Postgres en el paso 2, añade el extra en `SABOR` y en el registro del cliente:
+   `uvx --from 'sabor-mcp[postgres]' sabor-mcp` (forma git:
+   `uvx --from 'sabor-mcp[postgres] @ git+https://github.com/JlMoreno00/sabor' sabor-mcp`). Ejecuta `SABOR doctor --json`; si `config.found` es true, ofrece reconfigurar o salir.
 2. **Pregunta, de una en una:** idioma [el del usuario]; almacén [local en este equipo (SQLite)] |
-   Mealie (ya tiene uno: pide solo su URL base, `esquema://host[:puerto][/ruta]`; si trae `usuario:contraseña@`, `?…` o `#…`, no
+   Supabase u otro Postgres (en la nube, varios dispositivos; sigue
+   [docs/supabase-agentes.md](docs/supabase-agentes.md)) | Mealie (ya tiene uno: pide solo su URL base, `esquema://host[:puerto][/ruta]`; si trae `usuario:contraseña@`, `?…` o `#…`, no
    la uses ni la repitas y pide la URL limpia: el token va por `SABOR setup secret mealie_api_token`. Si es `http://` y el host no es local
    (`localhost`, `127.0.0.1`, `host.docker.internal` o un servicio de Docker), avisa de que el token viajaría
-   sin cifrar y recomienda `https://`; Postgres/Supabase todavía no está disponible, no lo ofrezcas); precios
+   sin cifrar y recomienda `https://`); precios
    [ninguno] | Mercadona | Open Prices (colaborativo, con pocos datos de España); importar recetas
    con un modelo de IA [no] | OpenAI-compatible | Gemini | Ollama local; sincronizar con Bring! [no] | sí.
 3. **Configura** con `SABOR setup --non-interactive --json --lang IDIOMA` (el idioma elegido) y los flags

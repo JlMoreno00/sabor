@@ -49,7 +49,10 @@ def migrate(connection, schema):
     for version, apply in MIGRATIONS:
         with connection.transaction():
             connection.execute('SELECT pg_advisory_xact_lock(%s)', (lock,))
-            connection.execute(sql.SQL('CREATE SCHEMA IF NOT EXISTS {}').format(sql.Identifier(schema)))
+            # CREATE SCHEMA checks the database CREATE privilege even with IF NOT EXISTS, and
+            # sabor_app loses it once its schema exists; the advisory lock serializes this check.
+            if not connection.execute('SELECT 1 FROM pg_namespace WHERE nspname=%s', (schema,)).fetchone():
+                connection.execute(sql.SQL('CREATE SCHEMA {}').format(sql.Identifier(schema)))
             connection.execute('CREATE TABLE IF NOT EXISTS schema_version '
                                '(version integer PRIMARY KEY, applied_at text NOT NULL)')
             if connection.execute('SELECT 1 FROM schema_version WHERE version=%s', (version,)).fetchone():

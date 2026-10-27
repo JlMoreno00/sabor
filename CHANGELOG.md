@@ -25,6 +25,13 @@
   Runtime behavior with Mealie configured is unchanged (#36).
 
 ### Added
+- `sabor-mcp setup supabase [--create-role]`: the Postgres/Supabase connection string
+  is typed only in a terminal (hidden input). With `--create-role` the `postgres`
+  string is used once, in memory, to create or rotate the `sabor_app` role that
+  owns only the `sabor` schema; only that role's string is stored (keychain or
+  0600 file). Supabase transaction pooler strings are rejected and `sslmode=require`
+  is added. `doctor` warns about Free-plan pauses, missing backups and IPv6-only
+  direct hosts. New agent guide `docs/supabase-agentes.md` (#69).
 - Optional generic Postgres recipe store (`sabor-mcp[postgres]`) with secret
   `SABOR_DATABASE_URL`, private schema migrations, RLS on every table and
   extension-free phrase search. Setup, doctor and discovery support `postgres`;

@@ -294,7 +294,12 @@ reconnect/retry once on connection failure, **writes never auto-retry**. Reconci
 uncertain writes by reading back before retrying manually.
 
 For Supabase use the **session pooler on port 5432** with `sslmode=require`, not
-the transaction pooler on port 6543. Generic local/self-hosted Postgres and Neon
+the transaction pooler on port 6543. `sabor-mcp setup supabase --create-role`
+reads the `postgres` session-pooler string from hidden terminal input, creates or
+rotates the least-privilege `sabor_app` role that owns only the `sabor` schema,
+and stores only the `sabor_app` string; see the agent guide
+[docs/supabase-agentes.md](supabase-agentes.md). For Supabase hosts, `doctor`
+warns about Free-plan pauses, missing automatic backups and IPv6-only direct hosts. Generic local/self-hosted Postgres and Neon
 use the same adapter; connection TLS is controlled by the URL. Construction and
 registration do not connect. `SABOR_STORE_DB` still controls SQLite only; memory,
 preferences and nutrition-sidecar persistence are unchanged by this recipe store.
