@@ -33,8 +33,9 @@ def parse_memory(text):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="sabor-mcp preferences")
-    parser.add_argument("command", choices=("import-memory",))
-    parser.add_argument("--apply", action="store_true")
+    parser.add_argument("command", choices=("import-memory", "import-file"),
+                        help="import-memory: merge MEMORY.md; import-file: merge local JSON into Postgres (file preserved)")
+    parser.add_argument("--apply", action="store_true", help="Write changes; default is a read-only preview")
     try:
         args = parser.parse_args(argv)
     except SystemExit as exc:
@@ -44,6 +45,10 @@ def main(argv=None):
     except ValueError:
         print(json.dumps(fail("invalid_argument", "Invalid Sabor configuration.")))
         return 1
+    if args.command == "import-file":
+        result = preferences_call(build_context(settings), confirm=args.apply, _import_file=True)
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return 0 if result["ok"] else 1
     try:
         additions, skipped = parse_memory(Path(settings.memory_file).read_text(encoding="utf-8"))
     except (OSError, UnicodeError):

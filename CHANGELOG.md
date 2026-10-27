@@ -25,6 +25,9 @@
   Runtime behavior with Mealie configured is unchanged (#36).
 
 ### Added
+- Structured preferences use Postgres when selected (private migration v2), with
+  shared file/Postgres behavior and `preferences import-file [--apply]` for an
+  optional, non-destructive local JSON merge; SQLite/Mealie stay unchanged (#70).
 - `sabor-mcp setup supabase [--create-role]`: the Postgres/Supabase connection string
   is typed only in a terminal (hidden input). With `--create-role` the `postgres`
   string is used once, in memory, to create or rotate the `sabor_app` role that

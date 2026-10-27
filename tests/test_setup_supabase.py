@@ -261,7 +261,7 @@ class CreateRoleTests(CommandTests):
             self.assertEqual(connection.execute('SELECT current_user').fetchone(), ('sabor_app',))
             owner = connection.execute("SELECT pg_get_userbyid(nspowner) FROM pg_namespace WHERE nspname='sabor'").fetchone()
             self.assertEqual(owner, ('sabor_app',))
-            self.assertEqual(connection.execute('SELECT MAX(version) FROM sabor.schema_version').fetchone(), (1,))
+            self.assertEqual(connection.execute('SELECT MAX(version) FROM sabor.schema_version').fetchone(), (2,))
             with self.assertRaises(psycopg.errors.InsufficientPrivilege):
                 connection.execute('CREATE SCHEMA other_schema')
         code, result, _ = self.run_setup('--create-role', secret=self.admin_with_sentinel_password())
@@ -276,7 +276,7 @@ class CreateRoleTests(CommandTests):
         store = PostgresRecipeStore(self.backend.values['sabor', 'database_url'])
         self.addCleanup(store.close)
         store.ensure_ready()
-        self.assertEqual(store.schema_version(), 1)
+        self.assertEqual(store.schema_version(), 2)
 
     def test_failure_after_rotation_tells_how_to_recover(self):
         from sabor.supabase_setup import _Unreachable
