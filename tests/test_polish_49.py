@@ -29,6 +29,13 @@ class SqliteLastMadeTests(unittest.TestCase):
                                         ('asc', ['older', 'newer', 'never'])):
                 page = store.search_recipes(RecipeSearch(sort='last_made', direction=direction))
                 self.assertEqual([r.slug for r in page.items], expected)
+            # The tie-break uses the event that holds the latest date, not the last inserted one.
+            store.log_cooking_event('older', 'made', '')
+            with store._connect() as db:
+                db.execute("UPDATE cooking_events SET created_at='2025-01-01T00:00:00+00:00' "
+                           "WHERE rowid=(SELECT max(rowid) FROM cooking_events)")
+            page = store.search_recipes(RecipeSearch(sort='last_made', direction='desc'))
+            self.assertEqual([r.slug for r in page.items], ['newer', 'older', 'never'])
             # Other sorts keep their recipe insertion-order tie-break.
             page = store.search_recipes(RecipeSearch(sort='created_at'))
             self.assertEqual(len(page.items), 3)
@@ -121,7 +128,7 @@ class CatalogSettingsTests(unittest.TestCase):
 
     def test_unrelated_invalid_setting_does_not_block_catalog(self):
         env = {'MEALIE_BASE_URL': 'http://mealie:9000', 'MEALIE_API_TOKEN': 'TOKEN_SENTINEL',
-               'SABOR_LLM_BASE_URL': 'not a url'}
+               'SABOR_LLM_BASE_URL': 'not a url', 'SABOR_LANGUAGE': 'fr'}
         code, out, err = self.run_catalog(env, {'ok': True, 'units': {}, 'foods': {}})
         self.assertEqual((code, err), (0, ''))
         self.assertTrue(json.loads(out)['ok'])
@@ -189,6 +196,30 @@ class UrlExtractionTests(unittest.TestCase):
                 self.assertEqual(result['recipeIngredient'], ['arroz'])
                 self.assertEqual(result['recipeInstructions'], [{'@type': 'HowToStep', 'text': 'Cocer'}])
                 self.assertEqual(result['recipeYield'], expected)
+
+    def test_non_text_ingredient_skips_to_the_next_recipe(self):
+        from sabor.importing.scrape import recipe_from_html
+        bad = {'@type': 'Recipe', 'name': 'Mala', 'recipeIngredient': ['arroz', None],
+               'recipeInstructions': ['Cocer']}
+        good = {'@type': 'Recipe', 'name': 'Buena', 'recipeIngredient': ['sal'], 'recipeInstructions': ['Cocer']}
+        html = ''.join('<script type="application/ld+json">' + json.dumps(d) + '</script>' for d in (bad, good))
+        with patch('recipe_scrapers.scrape_html', side_effect=ValueError):
+            result = recipe_from_html(html.encode(), 'https://example.org/soup')
+        assert result is not None
+        self.assertEqual(result['name'], 'Buena')
+
+    def test_scraper_path_is_cleaned_too(self):
+        from sabor.importing.scrape import recipe_from_html
+        scraper = MagicMock()
+        scraper.title.return_value = 'Sopa'
+        scraper.ingredients.return_value = ['arroz', '  ']
+        scraper.instructions_list.return_value = ['', 'Cocer']
+        scraper.yields.return_value = 4
+        with patch('recipe_scrapers.scrape_html', return_value=scraper):
+            result = recipe_from_html(b'<html></html>', 'https://example.org/soup')
+        assert result is not None
+        self.assertEqual((result['recipeIngredient'], result['recipeInstructions'], result['recipeYield']),
+                         (['arroz'], ['Cocer'], '4'))
 
     def test_only_blank_ingredients_is_not_a_recipe(self):
         self.assertIsNone(self.extract({'@type': 'Recipe', 'name': 'Sopa', 'recipeIngredient': [' ', ''],

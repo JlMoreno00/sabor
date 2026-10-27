@@ -53,7 +53,8 @@ def clean(data):
     """Drop blank ingredient/step lines and keep a textual recipeYield (or None)."""
     data = dict(data)
     if isinstance(data.get('recipeIngredient'), list):
-        data['recipeIngredient'] = [x.strip() for x in data['recipeIngredient']
+        # Non-text values are kept so valid() rejects the recipe and the next one is tried.
+        data['recipeIngredient'] = [x.strip() if isinstance(x, str) else x for x in data['recipeIngredient']
                                     if not isinstance(x, str) or x.strip()]
     if isinstance(data.get('recipeInstructions'), list):
         data['recipeInstructions'] = [x for x in data['recipeInstructions']

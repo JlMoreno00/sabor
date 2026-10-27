@@ -8,7 +8,7 @@ from sabor.core.context import build_context
 from sabor.core.toolsets import use_context
 
 
-_CATALOG_ENV = ('SABOR_DATA_DIR', 'SABOR_LANGUAGE', 'MEMORY_FILE')
+_CATALOG_ENV = ('SABOR_DATA_DIR', 'MEMORY_FILE')
 
 
 def run_catalog(action):
