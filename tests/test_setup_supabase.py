@@ -58,6 +58,11 @@ class ValidationTests(unittest.TestCase):
                       '?sslmode=require', 'newpass')
         self.assertEqual(dsn, 'postgresql://sabor_app.abcd:newpass@aws-0-eu.pooler.supabase.com:5432/postgres'
                               '?sslmode=require')
+        # libpq applies ?user=/?password= after the authority: never carry the admin ones over.
+        dsn = app_dsn(f'postgresql://aws-0-eu.pooler.supabase.com:5432/postgres?user=postgres.abcd'
+                      f'&password={SENTINEL}&sslmode=require&PASSWORD=x', 'newpass')
+        self.assertEqual(dsn, 'postgresql://sabor_app.abcd:newpass@aws-0-eu.pooler.supabase.com:5432/postgres'
+                              '?sslmode=require')
         local = app_dsn(f'postgresql://postgres:{SENTINEL}@/postgres?host=/tmp/x&port=5', 'p')
         self.assertEqual(local, 'postgresql://sabor_app:p@/postgres?host=/tmp/x&port=5')
 

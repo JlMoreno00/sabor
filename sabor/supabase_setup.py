@@ -91,14 +91,17 @@ def supabase_warnings(dsn):
 def app_dsn(admin_dsn, password):
     """Same server, database and options; user `sabor_app` (`sabor_app.<ref>` on the pooler)."""
     parts = urlsplit(admin_dsn)
-    user = parts.username or ''
+    query = parse_qsl(parts.query, keep_blank_values=True)
+    user = parts.username or dict(query).get('user') or ''
     app_user = ROLE + '.' + user.split('.', 1)[1] if user.startswith('postgres.') else ROLE
     host = parts.hostname or ''
     if ':' in host:
         host = f'[{host}]'
     port = f':{parts.port}' if parts.port else ''
     netloc = f'{quote(app_user, safe="")}:{quote(password, safe="")}@{host}{port}'
-    return urlunsplit(parts._replace(netloc=netloc))
+    # libpq applies ?user=/?password= after the authority: drop the administrator ones.
+    query = [(key, value) for key, value in query if key.lower() not in ('user', 'password')]
+    return urlunsplit(parts._replace(netloc=netloc, query=urlencode(query, quote_via=quote, safe='/')))
 
 
 def _check(dsn):
