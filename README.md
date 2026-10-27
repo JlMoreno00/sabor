@@ -1,3 +1,11 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/marca/plantillas/banner-readme-oscuro.png">
+    <source media="(prefers-color-scheme: light)" srcset="docs/marca/plantillas/banner-readme-claro.png">
+    <img alt="Sabor · Lo que se cuece en tu casa. Pregunta qué hay de comer. Tu IA ya lo tiene pensado." src="docs/marca/plantillas/banner-readme-claro.png" width="100%">
+  </picture>
+</p>
+
 # Sabor
 
 <!-- mcp-name: io.github.JlMoreno00/sabor -->
@@ -6,6 +14,8 @@ A kitchen-intelligence layer with built-in SQLite or optional Mealie/Postgres. F
 week, build a scaled shopping list, estimate its cost, then sync to Bring! with
 an explicit preview and digest-bound confirmation. The selected recipe
 store is the source of truth for cooking data; core workflows work without Mealie.
+
+Brand guide: [docs/marca/](docs/marca/manual-de-marca.md).
 
 Optional non-secret `config.toml` settings use environment > file > defaults.
 Set `SABOR_CONFIG` to select a file; see [configuration keys and OS paths](docs/operations.md#optional-toml-configuration).
