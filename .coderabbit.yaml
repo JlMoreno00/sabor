@@ -15,6 +15,10 @@ reviews:
   high_level_summary: true
   poem: false
   collapse_walkthrough: true
+  # Tool docstrings are frozen by contract tests, not a generic coverage target.
+  pre_merge_checks:
+    docstrings:
+      mode: "off"
   auto_review:
     enabled: true
     # Re-review on every push to the PR.

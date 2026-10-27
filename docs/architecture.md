@@ -2,7 +2,9 @@
 
 Sabor is one stateless FastMCP HTTP process around multiple external systems,
 plus local recipe, memory and nutrition persistence. The configured RecipeStore owns cooking
-data; Sabor owns orchestration and optional evidence. SQLite is the built-in default without a Mealie URL; Mealie remains supported.
+data; Sabor owns orchestration and optional evidence. Without an explicit `SABOR_STORE`,
+SQLite is the built-in default only when `MEALIE_BASE_URL` is empty; a non-empty URL
+selects Mealie. An explicit `SABOR_STORE` takes precedence over this automatic selection.
 
 ## Structured preferences
 
