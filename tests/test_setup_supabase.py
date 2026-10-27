@@ -160,6 +160,90 @@ class CreateRoleTests(CommandTests):
         # Trust auth ignores the password: it stands in for the postgres password.
         return DSN.replace('postgresql://postgres@', f'postgresql://postgres:{SENTINEL}@', 1)
 
+    def test_create_role_takes_ownership_of_existing_postgres_schema(self):
+        assert psycopg is not None
+        from sabor.store.postgres import PostgresRecipeStore
+
+        store = PostgresRecipeStore(DSN)
+        try:
+            store.ensure_ready()
+        finally:
+            store.close()
+        with psycopg.connect(DSN) as connection:
+            connection.execute('CREATE SEQUENCE sabor.standalone_sequence')
+            owners = connection.execute(
+                "SELECT DISTINCT pg_get_userbyid(relowner) FROM pg_class "
+                "WHERE relnamespace='sabor'::regnamespace AND relkind IN ('r', 'p', 'S')"
+            ).fetchall()
+            self.assertEqual(owners, [('postgres',)])
+
+        code, result, _ = self.run_setup('--create-role', secret=self.admin_with_sentinel_password())
+        self.assertEqual(code, 0, result)
+        with psycopg.connect(DSN) as connection:
+            self.assertEqual(connection.execute(
+                "SELECT pg_get_userbyid(nspowner) FROM pg_namespace WHERE nspname='sabor'"
+            ).fetchone(), ('sabor_app',))
+            owners = connection.execute(
+                "SELECT DISTINCT pg_get_userbyid(relowner) FROM pg_class "
+                "WHERE relnamespace='sabor'::regnamespace AND relkind IN ('r', 'p', 'S')"
+            ).fetchall()
+            self.assertEqual(owners, [('sabor_app',)])
+        store = PostgresRecipeStore(self.backend.values['sabor', 'database_url'])
+        try:
+            store.ensure_ready()
+            self.assertEqual(store.get_shopping_lists(), [])
+            store.create_shopping_list('Ownership transfer')
+            self.assertEqual(len(store.get_shopping_lists()), 1)
+        finally:
+            store.close()
+        code, result, _ = self.run_setup('--create-role', secret=self.admin_with_sentinel_password())
+        self.assertEqual(code, 0, result)
+        self.assertEqual(result['role'], 'rotated')
+
+    def test_non_superuser_admin_takes_ownership_like_supabase(self):
+        # Supabase's postgres has CREATEROLE but is not superuser: on PostgreSQL 16+ it may only
+        # hand objects to sabor_app after granting itself membership in that role.
+        assert psycopg is not None and sql is not None
+        from urllib.parse import urlsplit, urlunsplit
+        from sabor.store.postgres import PostgresRecipeStore
+        with psycopg.connect(DSN, autocommit=True) as connection:
+            if connection.execute("SELECT 1 FROM pg_roles WHERE rolname='sabor_admin_test'").fetchone():
+                self.skipTest('sabor_admin_test already exists outside this test')
+            connection.execute("CREATE ROLE sabor_admin_test LOGIN CREATEROLE PASSWORD 'admin-pass'")
+            connection.execute(sql.SQL('GRANT CREATE ON DATABASE {} TO sabor_admin_test').format(
+                sql.Identifier(connection.execute('SELECT current_database()').fetchone()[0])))
+        self.addCleanup(self.drop_admin)
+        parts = urlsplit(DSN)
+        admin = urlunsplit(parts._replace(netloc=f'sabor_admin_test:admin-pass@{parts.netloc.rpartition("@")[2]}'))
+        store = PostgresRecipeStore(admin)
+        try:
+            store.ensure_ready()
+        finally:
+            store.close()
+        for expected in ('created', 'rotated'):
+            code, result, _ = self.run_setup('--create-role', secret=admin)
+            self.assertEqual((code, result['role']), (0, expected), result)
+        with psycopg.connect(DSN) as connection:
+            owners = connection.execute(
+                "SELECT pg_get_userbyid(nspowner) FROM pg_namespace WHERE nspname='sabor' UNION "
+                "SELECT pg_get_userbyid(relowner) FROM pg_class WHERE relnamespace='sabor'::regnamespace"
+            ).fetchall()
+            self.assertEqual(owners, [('sabor_app',)])
+        store = PostgresRecipeStore(self.backend.values['sabor', 'database_url'])
+        try:
+            store.ensure_ready()
+            store.create_shopping_list('Supabase-like admin')
+            self.assertEqual(len(store.get_shopping_lists()), 1)
+        finally:
+            store.close()
+
+    def drop_admin(self):
+        assert psycopg is not None
+        self.drop()
+        with psycopg.connect(DSN, autocommit=True) as connection:
+            connection.execute('DROP OWNED BY sabor_admin_test')
+            connection.execute('DROP ROLE sabor_admin_test')
+
     def test_create_then_rotate_keeps_only_the_app_string(self):
         assert psycopg is not None and sql is not None
         code, result, text = self.run_setup('--create-role', secret=self.admin_with_sentinel_password())

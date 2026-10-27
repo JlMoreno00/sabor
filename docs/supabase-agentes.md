@@ -53,7 +53,9 @@ The user pastes the string (hidden). Sabor then:
 2. with the `postgres` string, creates (or, on a rerun, rotates the password of) the role
    `sabor_app` with a password generated locally;
 3. lets `sabor_app` create and own the `sabor` schema, runs the migrations (row level security
-   on every table, no access for `anon`/`authenticated`), then removes its right to create schemas;
+   on every table, no access for `anon`/`authenticated`), then removes its right to create schemas.
+   If `sabor` already exists (e.g. configured earlier with the postgres string), `--create-role`
+   transfers ownership of the schema and its tables and sequences to `sabor_app`;
 4. stores **only** the `sabor_app` string (OS keychain, or an owner-only `secrets.toml`) and
    forgets the `postgres` one; `config.toml` gets `[store] backend = "postgres"`.
 

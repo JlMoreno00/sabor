@@ -154,6 +154,31 @@ def _create_role(admin_dsn):
             database = sql.Identifier(row[0] if row else '')
             # CREATE on the database only while sabor_app creates and owns its schema.
             admin.execute(sql.SQL('GRANT CONNECT, CREATE ON DATABASE {} TO {}').format(database, role))
+            schema = 'sabor'  # PostgresRecipeStore's default schema.
+            if admin.execute('SELECT 1 FROM pg_namespace WHERE nspname=%s', (schema,)).fetchone():
+                # Supabase postgres is not superuser: OWNER TO requires SET ROLE rights
+                # to the new owner (PG16+); a normal membership grant supplies them.
+                if not admin.execute("SELECT pg_has_role(current_user, %s, 'MEMBER')", (ROLE,)).fetchone()[0]:
+                    admin.execute(sql.SQL('GRANT {} TO CURRENT_USER').format(role))
+                if admin.execute(
+                        'SELECT 1 FROM pg_namespace WHERE nspname=%s '
+                        'AND nspowner <> (SELECT oid FROM pg_roles WHERE rolname=%s)',
+                        (schema, ROLE)).fetchone():
+                    admin.execute(sql.SQL('ALTER SCHEMA {} OWNER TO {}').format(sql.Identifier(schema), role))
+                objects = admin.execute(
+                    "SELECT c.relname, c.relkind FROM pg_class c "
+                    "JOIN pg_namespace n ON n.oid=c.relnamespace "
+                    "WHERE n.nspname=%s AND c.relkind IN ('r', 'p', 'S') "
+                    "AND c.relowner <> (SELECT oid FROM pg_roles WHERE rolname=%s) "
+                    "AND NOT (c.relkind='S' AND EXISTS ("
+                    "SELECT 1 FROM pg_depend d WHERE d.classid='pg_class'::regclass "
+                    "AND d.objid=c.oid AND d.refclassid='pg_class'::regclass "
+                    "AND d.deptype IN ('a', 'i'))) ORDER BY c.relkind, c.relname",
+                    (schema, ROLE)).fetchall()
+                # Column-owned sequences follow their table's ownership automatically.
+                for name, kind in objects:
+                    statement = 'ALTER SEQUENCE {} OWNER TO {}' if kind == 'S' else 'ALTER TABLE {} OWNER TO {}'
+                    admin.execute(sql.SQL(statement).format(sql.Identifier(schema, name), role))
             admin.commit()
             # From here the previously stored sabor_app string no longer authenticates.
             rotated = bool(exists)
