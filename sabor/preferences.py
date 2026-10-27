@@ -28,6 +28,7 @@ def validate(field, value) -> Any:
     for item in value:
         if not isinstance(item, str) or not item.strip() or len(item.strip()) > 200:
             raise ValueError
+        item.encode('utf-8')  # lone surrogates raise UnicodeEncodeError, a ValueError
         item = item.strip()
         if item.casefold() not in seen:
             result.append(item)

@@ -1,5 +1,6 @@
 """Optional non-secret TOML configuration, applied only by entry points."""
 from pathlib import Path
+import os
 import sys
 import tomllib
 
@@ -45,16 +46,29 @@ _SECRET_KEYS = {('store', 'database_url'), ('mealie', 'api_token'), ('llm', 'api
 
 
 def config_path(env, platform=sys.platform):
-    """Resolve a config path using only the supplied mapping and platform."""
+    """Resolve a config path from the supplied mapping and platform; `~` expands to its home."""
+    def home():
+        configured = env.get('HOME') or env.get('USERPROFILE')
+        try:
+            return Path(configured) if configured else Path.home()
+        except RuntimeError:
+            from .config import ConfigError
+            raise ConfigError('Unable to locate the home directory; set SABOR_CONFIG') from None
+
+    def expand(value):
+        path = Path(value)
+        if path.parts and path.parts[0] == '~':
+            path = Path(home(), *path.parts[1:])
+        return Path(os.path.normpath(path))
+
     if env.get('SABOR_CONFIG', '').strip():
-        return Path(env['SABOR_CONFIG'].strip())
-    home = Path(env.get('HOME') or env.get('USERPROFILE') or '~')
+        return expand(env['SABOR_CONFIG'].strip())
     if platform == 'darwin':
-        root = home / 'Library/Application Support'
+        root = home() / 'Library/Application Support'
     elif platform == 'win32':
-        root = Path(env.get('APPDATA') or home / 'AppData/Roaming')
+        root = expand(env.get('APPDATA') or home() / 'AppData/Roaming')
     else:
-        root = Path(env.get('XDG_CONFIG_HOME') or home / '.config')
+        root = expand(env.get('XDG_CONFIG_HOME') or home() / '.config')
     return root / 'sabor/config.toml'
 
 

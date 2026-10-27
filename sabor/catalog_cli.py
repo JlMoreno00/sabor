@@ -8,10 +8,15 @@ from sabor.core.context import build_context
 from sabor.core.toolsets import use_context
 
 
+_CATALOG_ENV = ('SABOR_DATA_DIR', 'SABOR_LANGUAGE', 'MEMORY_FILE')
+
+
 def run_catalog(action):
     """Use instance configuration without starting server runtime services."""
     try:
-        settings = load_settings(os.environ)
+        # Only what the catalog uses: an unrelated invalid setting must not block it.
+        settings = load_settings({key: value for key, value in os.environ.items()
+                                  if key.startswith('MEALIE_') or key in _CATALOG_ENV})
     except ConfigError as exc:
         print(f"Catalog configuration error: {exc}", file=sys.stderr)
         return 1

@@ -137,16 +137,25 @@ class PostgresRecipeStore:
         """Read-only diagnostics: connect, never create the schema nor migrate."""
         from psycopg import sql
         with self._lock:
-            try:
-                if self._connection is None or self._connection.closed:
-                    self._open()
-                table = self._connection.execute('SELECT to_regclass(%s)', (
-                    sql.Identifier(self.schema, 'schema_version').as_string(self._connection),)).fetchone()[0]
-                if table is None:
-                    return None
-                return self._connection.execute('SELECT MAX(version) FROM schema_version').fetchone()[0] or 0
-            except self._driver.Error:
-                raise StoreError('upstream_error', self.id) from None
+            # Like read operations, reconnect once after a lost connection; never migrate here.
+            for attempt in range(2):
+                try:
+                    if self._connection is None or self._connection.closed:
+                        self._open()
+                    table = self._connection.execute('SELECT to_regclass(%s)', (
+                        sql.Identifier(self.schema, 'schema_version').as_string(self._connection),)).fetchone()[0]
+                    if table is None:
+                        return None
+                    return self._connection.execute('SELECT MAX(version) FROM schema_version').fetchone()[0] or 0
+                except self._driver.OperationalError:
+                    if self._connection is not None:
+                        self._connection.close()
+                        self._connection = None
+                    if attempt == 0:
+                        continue
+                    raise StoreError('upstream_error', self.id) from None
+                except self._driver.Error:
+                    raise StoreError('upstream_error', self.id) from None
 
     def close(self):
         with self._lock:
