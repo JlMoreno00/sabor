@@ -25,6 +25,9 @@
   Runtime behavior with Mealie configured is unchanged (#36).
 
 ### Added
+- Setup CLI: terminal onboarding, JSON automation, language configuration and secret
+  references; system keyring preferred with an owner-only local fallback; no MCP
+  configuration tools (#64).
 - Structured preferences use Postgres when selected (private migration v2), with
   shared file/Postgres behavior and `preferences import-file [--apply]` for an
   optional, non-destructive local JSON merge; SQLite/Mealie stay unchanged (#70).
@@ -362,8 +365,3 @@ Initial public release.
 - Integration code is split into a `sabor/` package while preserving the
   `sabor_mcp.py` entry point and public tool contract.
 - Nutrition and automatic publication remain disabled by default.
-
-### Setup CLI (#64)
-
-- Add terminal onboarding, JSON automation, language configuration and secret references.
-- Prefer system keyring with an owner-only local fallback; no MCP configuration tools.

@@ -102,9 +102,12 @@ Then ask the user to reload or restart the client.
    - with prices: `data.capabilities.pricing.configured` is true;
    - `data.config_source` is `file`;
    - `data.warnings` is empty or informational only.
-3. Real round trip (all `core` tools, fully reversible): `create_shopping_list(name="Prueba Sabor")`,
-   check that `get_shopping_lists` returns it, then `delete_shopping_list(list_id=…, confirm=True)`
-   after the user agrees. (There is no recipe-delete tool, so do not test with a recipe.)
+3. Real round trip (all `core` tools): first call `get_shopping_lists()` and check for
+   "Prueba Sabor". If it already exists, leave it untouched and skip creation on a retry.
+   Otherwise, after approval, call `create_shopping_list(name="Prueba Sabor")` and record
+   the returned ID. Check that `get_shopping_lists()` returns it, then, after the user agrees,
+   call `delete_shopping_list(list_id=…, confirm=True)` only for the ID created by this run.
+   Never delete a pre-existing list. (There is no recipe-delete tool; do not test with a recipe.)
 
 ## 6. Finish
 
@@ -159,9 +162,12 @@ opt-in); it never changes the configuration.
    lanzador del paso 1 (`uvx sabor-mcp`, o la forma `--from git+…` mientras no esté en PyPI) y pide al usuario que recargue o reinicie el cliente.
 5. **Verifica:** `SABOR doctor --json` con `"ok": true`; después la tool `sabor_capabilities`
    (almacén elegido en `recipe_store.adapters`, `pricing.configured` si eligió precios,
-   `config_source` = `file`); y una prueba real reversible con tools `core`: crear la lista de la
-   compra "Prueba Sabor" (`create_shopping_list`), verla en `get_shopping_lists` y borrarla con
-   `delete_shopping_list(confirm=True)` cuando el usuario lo acepte. No hay tool para borrar recetas:
+   `config_source` = `file`); y una prueba real con tools `core`: primero llama a
+   `get_shopping_lists()` y busca "Prueba Sabor". Si ya existe, no la toques y omite la creación
+   al repetir la prueba. Si no existe, con aprobación, llama a `create_shopping_list(name="Prueba Sabor")`
+   y guarda el ID devuelto. Comprueba que aparece con `get_shopping_lists()` y, cuando el usuario
+   lo acepte, llama a `delete_shopping_list(list_id=…, confirm=True)` solo con el ID creado en
+   esta ejecución. Nunca borres una lista preexistente. No hay tool para borrar recetas:
    no pruebes con una receta.
 6. **Termina:** "Sabor está listo. Di *Empieza con Sabor* para configurar tu perfil de cocina." y
    sigue la skill portable [skills/sabor-onboarding/SKILL.md](skills/sabor-onboarding/SKILL.md). El perfil

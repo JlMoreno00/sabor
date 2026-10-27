@@ -329,7 +329,9 @@ https://github.com/JlMoreno00/sabor/blob/main/llms-install.md
 In Cursor, [open this prompt in the chat](https://cursor.com/link/prompt?text=Install%20and%20configure%20Sabor%20by%20following%20https%3A%2F%2Fgithub.com%2FJlMoreno00%2Fsabor%2Fblob%2Fmain%2Fllms-install.md)
 (it only fills the chat; nothing runs until you send it). The agent asks a few
 questions one at a time, configures Sabor with `sabor-mcp setup` in a terminal and
-verifies it with `sabor-mcp doctor --json`. Secrets are typed by you in a terminal
+verifies configuration and store health with `sabor-mcp doctor --json`. This does
+not check MCP transport or provider credentials; complete verification with
+`sabor_capabilities` and the real round trip in [llms-install.md](llms-install.md). Secrets are typed by you in a terminal
 (`sabor-mcp setup secret <name>`), never in the chat. See [llms-install.md](llms-install.md).
 
 ### 2. One click (local SQLite, no questions)
@@ -632,7 +634,7 @@ Fields: `diet`, `dislikes`, `pantry`, `notes` are lists of up to 200 strings;
 strings are trimmed, non-empty, at most 200 characters and deduplicated ignoring
 case. `household_size` is null or an integer from 1 to 20. Operations run in
 set → add → remove order. Unknown keys or invalid values write nothing.
-Responses include preferences, updated_at and source (`defaults` or `file`);
+Responses include preferences, updated_at and source (`defaults`, `file`, or `postgres`);
 updates also include a before/after field diff and preview flag. Preview does
 not change the timestamp. Pantry is also available to pricing and list building
 without enabling this toolset; see [pantry-aware estimates](#pantry-aware-estimates).
