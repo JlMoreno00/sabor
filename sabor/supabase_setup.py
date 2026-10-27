@@ -13,7 +13,7 @@ import secrets
 import sys
 import tomllib
 from typing import Any
-from urllib.parse import parse_qsl, quote, urlencode, urlsplit, urlunsplit
+from urllib.parse import quote, unquote, urlsplit, urlunsplit
 
 from sabor.core.config import ConfigError
 from sabor.core.config_file import config_path, read_config_file
@@ -36,6 +36,19 @@ class _Unreachable(Exception):
         self.rotated = rotated
 
 
+def _query(raw):
+    """(key, value, segment) per query parameter, decoded like libpq: '+' stays literal."""
+    pairs = []
+    for segment in raw.split('&') if raw else ():
+        key, _, value = segment.partition('=')
+        pairs.append((unquote(key, errors='strict'), unquote(value, errors='strict'), segment))
+    return pairs
+
+
+def _params(raw):
+    return [(key, value) for key, value, _ in _query(raw)]
+
+
 def _host(parts, query):
     return parts.hostname or dict(query).get('host') or ''
 
@@ -53,7 +66,7 @@ def validate_dsn(dsn):
     try:
         parts = urlsplit((dsn or '').strip())
         port = parts.port
-        query = parse_qsl(parts.query, keep_blank_values=True)
+        query = _params(parts.query)
     except ValueError:
         raise ConfigError('Invalid Postgres connection string') from None
     if parts.scheme not in ('postgresql', 'postgres'):
@@ -68,9 +81,12 @@ def validate_dsn(dsn):
         ports += [p.strip() for key, value in query if key == 'port' for p in value.split(',')]
         if '6543' in ports:
             raise ConfigError('Use the Session pooler connection string (port 5432), not the transaction pooler (6543)')
-        if 'sslmode' not in dict(query):
-            query.append(('sslmode', 'require'))
-            parts = parts._replace(query=urlencode(query))
+        modes = [value for key, value in query if key == 'sslmode']
+        if any(mode not in ('require', 'verify-ca', 'verify-full') for mode in modes):
+            raise ConfigError('Supabase requires sslmode=require, verify-ca or verify-full')
+        if not modes:
+            # Append without re-encoding: the rest of the query is kept byte for byte.
+            parts = parts._replace(query='&'.join(filter(None, (parts.query, 'sslmode=require'))))
         if _is_direct(host):
             warnings.append(IPV6_WARNING)
     return urlunsplit(parts), warnings
@@ -80,7 +96,7 @@ def supabase_warnings(dsn):
     """Deterministic doctor warnings for Supabase hosts; empty for any other host."""
     try:
         parts = urlsplit(dsn or '')
-        host = _host(parts, parse_qsl(parts.query))
+        host = _host(parts, _params(parts.query))
     except ValueError:
         return []
     if not _is_supabase(host):
@@ -91,8 +107,9 @@ def supabase_warnings(dsn):
 def app_dsn(admin_dsn, password):
     """Same server, database and options; user `sabor_app` (`sabor_app.<ref>` on the pooler)."""
     parts = urlsplit(admin_dsn)
-    query = parse_qsl(parts.query, keep_blank_values=True)
-    user = parts.username or dict(query).get('user') or ''
+    query = _query(parts.query)
+    # libpq connects as the last ?user=, which overrides the authority user.
+    user = dict((key, value) for key, value, _ in query).get('user') or parts.username or ''
     app_user = ROLE + '.' + user.split('.', 1)[1] if user.startswith('postgres.') else ROLE
     host = parts.hostname or ''
     if ':' in host:
@@ -100,8 +117,8 @@ def app_dsn(admin_dsn, password):
     port = f':{parts.port}' if parts.port else ''
     netloc = f'{quote(app_user, safe="")}:{quote(password, safe="")}@{host}{port}'
     # libpq applies ?user=/?password= after the authority: drop the administrator ones.
-    query = [(key, value) for key, value in query if key.lower() not in ('user', 'password')]
-    return urlunsplit(parts._replace(netloc=netloc, query=urlencode(query, quote_via=quote, safe='/')))
+    kept = '&'.join(segment for key, _, segment in query if key.lower() not in ('user', 'password'))
+    return urlunsplit(parts._replace(netloc=netloc, query=kept))
 
 
 def _check(dsn):

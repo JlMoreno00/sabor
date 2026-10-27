@@ -37,6 +37,13 @@ class ValidationTests(unittest.TestCase):
         dsn, _ = self.check(pooler + '?sslmode=verify-full')
         self.assertIn('sslmode=verify-full', dsn)
         self.assertNotIn('sslmode=require', dsn)
+        for mode in ('disable', 'allow', 'prefer'):
+            with self.subTest(mode=mode), self.assertRaises(ConfigError) as caught:
+                self.check(pooler + '?sslmode=' + mode)
+            self.assertNotIn(SENTINEL, str(caught.exception))
+        # The query is kept byte for byte: libpq reads '+' literally.
+        dsn, _ = self.check(pooler + '?application_name=a+b')
+        self.assertTrue(dsn.endswith('?application_name=a+b&sslmode=require'))
         _, warnings = self.check(f'postgresql://postgres:{SENTINEL}@db.abcd.supabase.co:5432/postgres')
         self.assertEqual(len(warnings), 1)
         self.assertIn('IPv6', warnings[0])
@@ -63,6 +70,11 @@ class ValidationTests(unittest.TestCase):
                       f'&password={SENTINEL}&sslmode=require&PASSWORD=x', 'newpass')
         self.assertEqual(dsn, 'postgresql://sabor_app.abcd:newpass@aws-0-eu.pooler.supabase.com:5432/postgres'
                               '?sslmode=require')
+        # libpq connects as the last ?user=, even over the authority user.
+        dsn = app_dsn(f'postgresql://postgres:{SENTINEL}@aws-0-eu.pooler.supabase.com:5432/postgres'
+                      '?user=other&user=postgres.abcd&host=/tmp/pg+dev', 'newpass')
+        self.assertEqual(dsn, 'postgresql://sabor_app.abcd:newpass@aws-0-eu.pooler.supabase.com:5432/postgres'
+                              '?host=/tmp/pg+dev')
         local = app_dsn(f'postgresql://postgres:{SENTINEL}@/postgres?host=/tmp/x&port=5', 'p')
         self.assertEqual(local, 'postgresql://sabor_app:p@/postgres?host=/tmp/x&port=5')
 

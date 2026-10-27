@@ -49,7 +49,7 @@ sabor-mcp setup supabase --create-role
 
 The user pastes the string (hidden). Sabor then:
 
-1. validates it and adds `sslmode=require` for Supabase hosts;
+1. validates it and, for Supabase hosts, adds `sslmode=require` (a weaker `sslmode` is rejected);
 2. with the `postgres` string, creates (or, on a rerun, rotates the password of) the role
    `sabor_app` with a password generated locally;
 3. lets `sabor_app` create and own the `sabor` schema, runs the migrations (row level security
