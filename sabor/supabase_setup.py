@@ -49,16 +49,18 @@ def _params(raw):
     return [(key, value) for key, value, _ in _query(raw)]
 
 
-def _host(parts, query):
-    return parts.hostname or dict(query).get('host') or ''
+def _hosts(parts, query):
+    """Hosts libpq connects to: the last ?host= (a comma list) overrides the authority host."""
+    raw = dict(query).get('host') or parts.hostname or ''
+    return [host.strip().lower() for host in raw.split(',') if host.strip()]
 
 
-def _is_supabase(host):
-    return host.endswith(('.supabase.com', '.supabase.co'))
+def _is_supabase(hosts):
+    return any(host.endswith(('.supabase.com', '.supabase.co')) for host in hosts)
 
 
-def _is_direct(host):
-    return host.startswith('db.') and host.endswith('.supabase.co')
+def _is_direct(hosts):
+    return any(host.startswith('db.') and host.endswith('.supabase.co') for host in hosts)
 
 
 def validate_dsn(dsn):
@@ -71,7 +73,7 @@ def validate_dsn(dsn):
         raise ConfigError('Invalid Postgres connection string') from None
     if parts.scheme not in ('postgresql', 'postgres'):
         raise ConfigError('The connection string must start with postgresql://')
-    host = _host(parts, query)
+    host = _hosts(parts, query)
     if not host:
         raise ConfigError('The connection string needs a host')
     warnings = []
@@ -96,7 +98,7 @@ def supabase_warnings(dsn):
     """Deterministic doctor warnings for Supabase hosts; empty for any other host."""
     try:
         parts = urlsplit(dsn or '')
-        host = _host(parts, _params(parts.query))
+        host = _hosts(parts, _params(parts.query))
     except ValueError:
         return []
     if not _is_supabase(host):

@@ -41,6 +41,14 @@ class ValidationTests(unittest.TestCase):
             with self.subTest(mode=mode), self.assertRaises(ConfigError) as caught:
                 self.check(pooler + '?sslmode=' + mode)
             self.assertNotIn(SENTINEL, str(caught.exception))
+        # libpq connects to ?host= (a comma list for several hosts) over the authority host.
+        for bad in ('postgresql://u:p@localhost/postgres?host=db.abcd.supabase.co&sslmode=disable',
+                    'postgresql://u:p@localhost/postgres?host=localhost,db.abcd.supabase.co&sslmode=prefer',
+                    'postgresql://u:p@localhost:5432/postgres?host=aws-0-eu.pooler.supabase.com&port=6543'):
+            with self.subTest(bad=bad), self.assertRaises(ConfigError):
+                self.check(bad)
+        _, warnings = self.check('postgresql://u:p@localhost/postgres?host=db.abcd.supabase.co')
+        self.assertEqual(len(warnings), 1)
         # The query is kept byte for byte: libpq reads '+' literally.
         dsn, _ = self.check(pooler + '?application_name=a+b')
         self.assertTrue(dsn.endswith('?application_name=a+b&sslmode=require'))
