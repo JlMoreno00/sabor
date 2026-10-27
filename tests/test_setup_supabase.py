@@ -14,6 +14,8 @@ from sabor.core.config import ConfigError
 
 DSN = os.environ.get('SABOR_TEST_DATABASE_URL', '')
 SENTINEL = 'PRIVATE_SENTINEL'
+RECOVERY = ('The sabor_app password was already rotated, so the stored connection string no longer works: '
+            'fix the cause and run `sabor-mcp setup supabase --create-role` again')
 try:
     import psycopg
     from psycopg import sql
@@ -41,6 +43,9 @@ class ValidationTests(unittest.TestCase):
 
     def test_rejections_never_echo_the_string(self):
         for bad in (f'postgresql://postgres.abcd:{SENTINEL}@aws-0-eu.pooler.supabase.com:6543/postgres',
+                    # libpq reads ?port= after the authority port: that is the effective port.
+                    f'postgresql://postgres.abcd:{SENTINEL}@aws-0-eu.pooler.supabase.com:5432/postgres?port=6543',
+                    f'postgresql://postgres.abcd:{SENTINEL}@aws-0-eu.pooler.supabase.com/postgres?port=5432,6543',
                     f'mysql://u:{SENTINEL}@host/db', f'postgresql://u:{SENTINEL}@', SENTINEL, ''):
             with self.subTest(bad=bad.replace(SENTINEL, '***')), self.assertRaises(ConfigError) as caught:
                 self.check(bad)
@@ -150,6 +155,35 @@ class CreateRoleTests(CommandTests):
         code, result, _ = self.run_setup('--create-role', secret=self.admin_with_sentinel_password())
         self.assertEqual((code, result['role']), (0, 'rotated'))
         self.assertNotEqual(self.backend.values['sabor', 'database_url'], stored)
+
+    def test_app_role_reopens_the_store_after_create_is_revoked(self):
+        from sabor.store.postgres import PostgresRecipeStore
+        code, result, _ = self.run_setup('--create-role', secret=self.admin_with_sentinel_password())
+        self.assertEqual(code, 0, result)
+        # What the server does on every start with the stored sabor_app string.
+        store = PostgresRecipeStore(self.backend.values['sabor', 'database_url'])
+        self.addCleanup(store.close)
+        store.ensure_ready()
+        self.assertEqual(store.schema_version(), 1)
+
+    def test_failure_after_rotation_tells_how_to_recover(self):
+        from sabor.supabase_setup import _Unreachable
+        self.assertEqual(self.run_setup('--create-role', secret=self.admin_with_sentinel_password())[0], 0)
+        stored = self.backend.values['sabor', 'database_url']
+        config = self.path.read_text()
+        for target, error, code in (('sabor.supabase_setup._check', _Unreachable, 3),
+                                    ('sabor.secrets_store.store', OSError, 3)):
+            with self.subTest(target=target), patch(target, side_effect=error):
+                result = self.run_setup('--create-role', secret=self.admin_with_sentinel_password())[1]
+            self.assertFalse(result['ok'])
+            self.assertIn(RECOVERY, result['next_steps'])
+            self.assertEqual(self.backend.values['sabor', 'database_url'], stored)
+            self.assertEqual(self.path.read_text(), config)
+        # A failure before any rotation does not claim the stored string broke.
+        with patch('psycopg.connect', side_effect=psycopg.OperationalError):
+            code, result, _ = self.run_setup('--create-role', secret=self.admin_with_sentinel_password())
+        self.assertEqual(code, 3)
+        self.assertNotIn(RECOVERY, result['next_steps'])
 
     def test_own_role_string_is_stored_without_creating_roles(self):
         code, result, _ = self.run_setup(secret=DSN)

@@ -59,6 +59,8 @@ The user pastes the string (hidden). Sabor then:
 
 Without `--create-role` the pasted string is stored as is: use that only for a role you already
 created with limited privileges. Exit codes: 0 ok, 2 invalid string or no terminal, 3 unreachable.
+If a rerun fails after rotating the password, the stored string no longer works and `next_steps`
+says so: fix the cause and run `sabor-mcp setup supabase --create-role` again.
 ⚠️ The pooler user format `sabor_app.<ref>` for custom roles is documented by Supabase but has not
 been tried on a real project here.
 

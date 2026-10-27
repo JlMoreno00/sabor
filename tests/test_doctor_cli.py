@@ -178,6 +178,7 @@ class DoctorTests(unittest.TestCase):
         _, result = self.run_cli('doctor', '--json')
         self.assertIn('Keyring is unavailable', result['warnings'])
 
+    @unittest.skipUnless(importlib.util.find_spec('psycopg'), 'requires psycopg')
     def test_supabase_warnings_and_paused_hint(self):
         from sabor.store import StoreError
         dsn = 'postgresql://sabor_app.abcd:PRIVATE_SENTINEL@db.abcd.supabase.co:5432/postgres?sslmode=require'

@@ -24,7 +24,9 @@
   Windows `powershell -c "irm https://astral.sh/uv/install.ps1 | iex"`.
 - Choose the launch command `SABOR`: run `uvx sabor-mcp --help`. If uv cannot find the package
   (Sabor is not on PyPI yet), use `uvx --from git+https://github.com/JlMoreno00/sabor sabor-mcp`
-  instead, everywhere below.
+  instead, everywhere below. If the user picks Supabase/Postgres in step 2, add the extra to
+  `SABOR` and to the client entry in step 4: `uvx --from 'sabor-mcp[postgres]' sabor-mcp`
+  (git form: `uvx --from 'sabor-mcp[postgres] @ git+https://github.com/JlMoreno00/sabor' sabor-mcp`).
 - The MCP client you are running in (table in step 4).
 - An earlier install: `SABOR doctor --json`. If `config.found` is true, offer to reconfigure or stop.
 
@@ -135,7 +137,10 @@ opt-in); it never changes the configuration.
 1. **Detecta el entorno.** SO, `uv --version` (si falta, pide permiso e instálalo con los comandos
    de arriba) y el cliente MCP. Comprueba `uvx sabor-mcp --help`; si uv no encuentra el paquete
    (todavía no está en PyPI), usa `uvx --from git+https://github.com/JlMoreno00/sabor sabor-mcp`
-   en todos los pasos y registros; llamamos `SABOR` al lanzador elegido. Ejecuta `SABOR doctor --json`; si `config.found` es true, ofrece reconfigurar o salir.
+   en todos los pasos y registros; llamamos `SABOR` al lanzador elegido. Si el usuario elige
+   Supabase/Postgres en el paso 2, añade el extra en `SABOR` y en el registro del cliente:
+   `uvx --from 'sabor-mcp[postgres]' sabor-mcp` (forma git:
+   `uvx --from 'sabor-mcp[postgres] @ git+https://github.com/JlMoreno00/sabor' sabor-mcp`). Ejecuta `SABOR doctor --json`; si `config.found` es true, ofrece reconfigurar o salir.
 2. **Pregunta, de una en una:** idioma [el del usuario]; almacén [local en este equipo (SQLite)] |
    Supabase u otro Postgres (en la nube, varios dispositivos; sigue
    [docs/supabase-agentes.md](docs/supabase-agentes.md)) | Mealie (ya tiene uno: pide solo su URL base, `esquema://host[:puerto][/ruta]`; si trae `usuario:contraseña@`, `?…` o `#…`, no

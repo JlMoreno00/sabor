@@ -24,8 +24,16 @@ PAUSE_WARNING = 'Supabase Free projects pause after a week of inactivity; reacti
 BACKUP_WARNING = 'Supabase Free has no automatic backups'
 
 
+RECOVERY = ('The sabor_app password was already rotated, so the stored connection string no longer works: '
+            'fix the cause and run `sabor-mcp setup supabase --create-role` again')
+
+
 class _Unreachable(Exception):
     """The database refused or could not be reached; never carries driver text."""
+
+    def __init__(self, rotated=False):
+        super().__init__()
+        self.rotated = rotated
 
 
 def _host(parts, query):
@@ -55,7 +63,10 @@ def validate_dsn(dsn):
         raise ConfigError('The connection string needs a host')
     warnings = []
     if _is_supabase(host):
-        if port == 6543:
+        # libpq lets ?port= (a comma list for several hosts) override the authority port.
+        ports = [str(port)] if port else []
+        ports += [p.strip() for key, value in query if key == 'port' for p in value.split(',')]
+        if '6543' in ports:
             raise ConfigError('Use the Session pooler connection string (port 5432), not the transaction pooler (6543)')
         if 'sslmode' not in dict(query):
             query.append(('sslmode', 'require'))
@@ -111,6 +122,7 @@ def _create_role(admin_dsn):
         raise ConfigError('Postgres store requires the optional extra: install sabor-mcp[postgres]') from None
     password = secrets.token_urlsafe(32)
     role = sql.Identifier(ROLE)
+    exists = rotated = False
     try:
         with psycopg.connect(admin_dsn, connect_timeout=10) as admin:
             exists = admin.execute('SELECT 1 FROM pg_roles WHERE rolname=%s', (ROLE,)).fetchone()
@@ -121,14 +133,16 @@ def _create_role(admin_dsn):
             # CREATE on the database only while sabor_app creates and owns its schema.
             admin.execute(sql.SQL('GRANT CONNECT, CREATE ON DATABASE {} TO {}').format(database, role))
             admin.commit()
+            # From here the previously stored sabor_app string no longer authenticates.
+            rotated = bool(exists)
             dsn = app_dsn(admin_dsn, password)
             try:
                 _check(dsn)
             finally:
                 admin.execute(sql.SQL('REVOKE CREATE ON DATABASE {} FROM {}').format(database, role))
                 admin.commit()
-    except psycopg.Error:
-        raise _Unreachable from None
+    except (psycopg.Error, _Unreachable):
+        raise _Unreachable(rotated) from None
     return dsn, 'rotated' if exists else 'created'
 
 
@@ -148,6 +162,7 @@ def main(argv):
     result: dict[str, Any] = dict(ok=False, changed=False, config_path=str(path), store=None, role=None,
                                   warnings=[], next_steps=[])
     code = 0
+    role = None
     try:
         if not sys.stdin.isatty():
             raise ConfigError('Run this in an interactive terminal: sabor-mcp setup supabase'
@@ -167,7 +182,6 @@ def main(argv):
             dsn, role = _create_role(dsn)
         else:
             _check(dsn)
-            role = None
         document = copy.deepcopy(old)
         document.setdefault('store', {})['backend'] = 'postgres'
         document.setdefault('secrets', {})['database_url'] = store(path, 'database_url', dsn, 'auto')
@@ -177,13 +191,17 @@ def main(argv):
     except ConfigError as exc:
         code = 2
         result['error'] = str(exc)
-    except _Unreachable:
+    except _Unreachable as exc:
         code = 3
         result['error'] = 'Unable to reach Postgres with that connection string'
         result['next_steps'] = ['Check the Session pooler string and that the project is not paused']
+        if exc.rotated:
+            result['next_steps'].append(RECOVERY)
     except OSError:
         code = 3
         result['error'] = 'Unable to store the connection string'
+        if role == 'rotated':
+            result['next_steps'] = [RECOVERY]
     if args.json:
         print(json.dumps(result))
     else:
