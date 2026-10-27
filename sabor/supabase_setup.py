@@ -52,7 +52,7 @@ def _params(raw):
 def _hosts(parts, query):
     """Hosts libpq connects to: the last ?host= (a comma list) overrides the authority host."""
     raw = dict(query).get('host') or parts.hostname or ''
-    return [host.strip().lower() for host in raw.split(',') if host.strip()]
+    return [host.strip().lower().rstrip('.') for host in raw.split(',') if host.strip()]
 
 
 def _is_supabase(hosts):

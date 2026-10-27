@@ -44,7 +44,10 @@ class ValidationTests(unittest.TestCase):
         # libpq connects to ?host= (a comma list for several hosts) over the authority host.
         for bad in ('postgresql://u:p@localhost/postgres?host=db.abcd.supabase.co&sslmode=disable',
                     'postgresql://u:p@localhost/postgres?host=localhost,db.abcd.supabase.co&sslmode=prefer',
-                    'postgresql://u:p@localhost:5432/postgres?host=aws-0-eu.pooler.supabase.com&port=6543'):
+                    'postgresql://u:p@localhost:5432/postgres?host=aws-0-eu.pooler.supabase.com&port=6543',
+                    # A fully qualified name with the trailing root dot is the same host.
+                    'postgresql://u:p@localhost/postgres?host=db.abcd.supabase.co.&sslmode=disable',
+                    'postgresql://u:p@DB.abcd.Supabase.CO./postgres?sslmode=disable'):
             with self.subTest(bad=bad), self.assertRaises(ConfigError):
                 self.check(bad)
         _, warnings = self.check('postgresql://u:p@localhost/postgres?host=db.abcd.supabase.co')
