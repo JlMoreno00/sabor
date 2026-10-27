@@ -64,7 +64,7 @@ def config_path(env, platform=sys.platform):
     if env.get('SABOR_CONFIG', '').strip():
         return expand(env['SABOR_CONFIG'].strip())
     if platform == 'darwin':
-        root = home() / 'Library/Application Support'
+        root = expand(home() / 'Library/Application Support')
     elif platform == 'win32':
         root = expand(env.get('APPDATA') or home() / 'AppData/Roaming')
     else:
