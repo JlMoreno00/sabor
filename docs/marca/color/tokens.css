@@ -1,0 +1,37 @@
+/* Sabor · tokens de marca v1.0. */
+:root {
+  --sabor-granate: #7A1F35;  /* Granate · rgb(122, 31, 53) */
+  --sabor-cal: #F3EBDD;  /* Cal · rgb(243, 235, 221) */
+  --sabor-negro: #1C1A19;  /* Negro tizón · rgb(28, 26, 25) */
+  --sabor-piedra: #5E5850;  /* Piedra · rgb(94, 88, 80) */
+  --sabor-ocre: #B5862A;  /* Ocre · rgb(181, 134, 42) */
+  --sabor-rosa: #E8C9C4;  /* Rosa polvo · rgb(232, 201, 196) */
+  --sabor-granada: #E59AAB;  /* Granada · rgb(229, 154, 171) */
+  --sabor-ocre-claro: #D9B25E;  /* Ocre claro · rgb(217, 178, 94) */
+  --sabor-pizarra: #2A2624;  /* Pizarra · rgb(42, 38, 36) */
+  --sabor-piedra-clara: #B8B0A5;  /* Piedra clara · rgb(184, 176, 165) */
+
+  /* Tema claro (por defecto) */
+  --sabor-fondo: var(--sabor-cal);
+  --sabor-superficie: var(--sabor-rosa);
+  --sabor-texto: var(--sabor-negro);
+  --sabor-texto-secundario: var(--sabor-piedra);
+  --sabor-acento: var(--sabor-granate);
+  --sabor-decorativo: var(--sabor-ocre); /* solo decorativo: 2,77:1 sobre cal */
+
+  --sabor-fuente-titular: Gloock, Georgia, 'Times New Roman', serif;
+  --sabor-fuente-texto: Figtree, 'Segoe UI', system-ui, -apple-system, Roboto, sans-serif;
+  --sabor-t-display: 3.5rem; --sabor-t-h1: 2.5rem; --sabor-t-h2: 1.875rem; --sabor-t-h3: 1.375rem;
+  --sabor-t-cuerpo: 1.0625rem; --sabor-t-pequeno: 0.875rem; --sabor-t-micro: 0.75rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --sabor-fondo: var(--sabor-negro);
+    --sabor-superficie: var(--sabor-pizarra);
+    --sabor-texto: var(--sabor-cal);
+    --sabor-texto-secundario: var(--sabor-piedra-clara);
+    --sabor-acento: var(--sabor-granada);
+    --sabor-decorativo: var(--sabor-ocre-claro);
+  }
+}
