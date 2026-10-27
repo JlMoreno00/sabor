@@ -156,10 +156,12 @@ def _create_role(admin_dsn):
             admin.execute(sql.SQL('GRANT CONNECT, CREATE ON DATABASE {} TO {}').format(database, role))
             schema = 'sabor'  # PostgresRecipeStore's default schema.
             if admin.execute('SELECT 1 FROM pg_namespace WHERE nspname=%s', (schema,)).fetchone():
-                # Supabase postgres is not superuser: OWNER TO requires SET ROLE rights
-                # to the new owner (PG16+); a normal membership grant supplies them.
-                if not admin.execute("SELECT pg_has_role(current_user, %s, 'MEMBER')", (ROLE,)).fetchone()[0]:
-                    admin.execute(sql.SQL('GRANT {} TO CURRENT_USER').format(role))
+                # Supabase postgres is not superuser: OWNER TO requires being able to SET ROLE to
+                # sabor_app. PG16+ gives a role's creator an ADMIN-only membership (SET FALSE).
+                pg16 = admin.execute("SELECT current_setting('server_version_num')::int >= 160000").fetchone()[0]
+                if not admin.execute('SELECT pg_has_role(current_user, %s, %s)',
+                                     (ROLE, 'SET' if pg16 else 'MEMBER')).fetchone()[0]:
+                    admin.execute(sql.SQL('GRANT {} TO CURRENT_USER' + (' WITH SET TRUE' if pg16 else '')).format(role))
                 if admin.execute(
                         'SELECT 1 FROM pg_namespace WHERE nspname=%s '
                         'AND nspowner <> (SELECT oid FROM pg_roles WHERE rolname=%s)',
