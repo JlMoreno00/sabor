@@ -139,6 +139,25 @@ Core recipes, planning and shopping do not need ffmpeg or Mealie.
 
 ## Structured preferences migration
 
+With Postgres, structured preferences live in `sabor.preferences` (migration v2,
+profile `default`), shared across devices. SQLite and Mealie keep the existing
+local JSON backend. Nutrition, Mercadona and memory caches remain local.
+
+To merge an existing `<data dir>/preferences.json` into Postgres:
+
+```sh
+sabor-mcp preferences import-file
+sabor-mcp preferences import-file --apply
+```
+
+The first command previews without writing preferences; `--apply` commits atomically.
+List fields merge case-insensitively; household size is copied only if unset in
+Postgres. The local file is never rewritten or deleted. Missing or corrupt files
+fail safely; non-Postgres stores return `invalid_argument`. Exit codes are 0 for
+success, 1 for an envelope error and 2 for usage errors. Repeated imports preserve
+existing database values and do not duplicate list entries. First access may run
+schema migrations, including during preview.
+
 Add `preferences` to `SABOR_TOOLSETS` and restart; the default toolset list is
 unchanged. Back up `<data dir>/preferences.json` and the configured `MEMORY_FILE`.
 No new environment variable is needed. `.env.example` intentionally does not

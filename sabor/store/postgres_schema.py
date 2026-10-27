@@ -40,7 +40,19 @@ def _base_schema(connection, schema):
                 sql.Identifier(schema), sql.Identifier(role)))
 
 
-MIGRATIONS = ((1, _base_schema),)
+def _preferences_schema(connection, schema):
+    from psycopg import sql
+    connection.execute('CREATE TABLE preferences (profile text PRIMARY KEY, payload jsonb NOT NULL, '
+                       'updated_at text NOT NULL)')
+    connection.execute('ALTER TABLE preferences ENABLE ROW LEVEL SECURITY')
+    connection.execute('REVOKE ALL ON preferences FROM PUBLIC')
+    for role in ('anon', 'authenticated'):
+        if connection.execute('SELECT 1 FROM pg_roles WHERE rolname=%s', (role,)).fetchone():
+            connection.execute(sql.SQL('REVOKE ALL ON {} FROM {}').format(
+                sql.Identifier(schema, 'preferences'), sql.Identifier(role)))
+
+
+MIGRATIONS = ((1, _base_schema), (2, _preferences_schema))
 
 
 def migrate(connection, schema):

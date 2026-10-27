@@ -72,47 +72,75 @@ def _write(path, preferences):
     return updated
 
 
-def preferences_call(context, changes=None, confirm=False):
-    path = Path(context.settings.legacy_config.SABOR_DATA_DIR) / 'preferences.json'
+class FilePreferences:
+    source = 'file'
+
+    def __init__(self, path):
+        self.path = path
+
+    def read(self):
+        return _read(self.path)
+
+    def write(self, preferences):
+        return _write(self.path, preferences)
+
+
+def preferences_call(context, changes=None, confirm=False, *, _import_file=False):
+    from sabor.store import StoreError
+    from sabor.store.postgres import PostgresRecipeStore
     if type(confirm) is not bool:
         return fail('invalid_argument', 'confirm must be a boolean.')
     with context.state.preferences_lock:
-        try:
-            before, updated, source = _read(path)
-        except (OSError, ValueError, KeyError, TypeError, AttributeError):
-            return fail('invalid_response', 'Unable to read preferences safely.')
-        data = {'preferences': before, 'updated_at': updated, 'source': source}
-        if changes is None:
-            return ok(data)
-        try:
-            if not isinstance(changes, dict) or set(changes) - {'set', 'add', 'remove'}:
-                raise ValueError
-            after = deepcopy(before)
-            for operation in ('set', 'add', 'remove'):
-                values = changes.get(operation, {})
-                if not isinstance(values, dict):
-                    raise ValueError
-                for field, value in values.items():
-                    if field not in FIELDS or operation != 'set' and field not in LIST_FIELDS:
-                        raise ValueError
-                    value = validate(field, value)
-                    if operation == 'set':
-                        after[field] = value
-                    elif operation == 'add':
-                        seen = {item.casefold() for item in after[field]}
-                        added = [item for item in value if item.casefold() not in seen]
-                        after[field] = validate(field, after[field] + added)
-                    else:
-                        removed = {item.casefold() for item in value}
-                        after[field] = [item for item in after[field] if item.casefold() not in removed]
-        except (ValueError, TypeError):
-            return fail('invalid_argument', 'Invalid preference changes.')
-        diff = {key: {'before': before[key], 'after': after[key]} for key in FIELDS
-                if before[key] != after[key]}
-        if confirm:
+        # Postgres keeps preferences next to the recipes, shared by every device (#70).
+        if isinstance(context.store, PostgresRecipeStore):
             try:
-                updated = _write(path, after)
-            except (OSError, ValueError):
-                return fail('upstream_error', 'Unable to write preferences safely.')
-        return ok({'preferences': after, 'updated_at': updated,
-                   'source': 'file' if confirm else source, 'diff': diff, 'preview': not confirm})
+                return context.store._preferences_call(context, changes, confirm, _import_file)
+            except StoreError:
+                return fail('upstream_error' if confirm else 'invalid_response',
+                            'Unable to access preferences safely.')
+        if _import_file:
+            return fail('invalid_argument', 'import-file requires a Postgres store.')
+        backend = FilePreferences(Path(context.settings.legacy_config.SABOR_DATA_DIR) / 'preferences.json')
+        return _preferences_call(backend, changes, confirm)
+
+
+def _preferences_call(backend, changes=None, confirm=False):
+    try:
+        before, updated, source = backend.read()
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
+        return fail('invalid_response', 'Unable to read preferences safely.')
+    data = {'preferences': before, 'updated_at': updated, 'source': source}
+    if changes is None:
+        return ok(data)
+    try:
+        if not isinstance(changes, dict) or set(changes) - {'set', 'add', 'remove'}:
+            raise ValueError
+        after = deepcopy(before)
+        for operation in ('set', 'add', 'remove'):
+            values = changes.get(operation, {})
+            if not isinstance(values, dict):
+                raise ValueError
+            for field, value in values.items():
+                if field not in FIELDS or operation != 'set' and field not in LIST_FIELDS:
+                    raise ValueError
+                value = validate(field, value)
+                if operation == 'set':
+                    after[field] = value
+                elif operation == 'add':
+                    seen = {item.casefold() for item in after[field]}
+                    added = [item for item in value if item.casefold() not in seen]
+                    after[field] = validate(field, after[field] + added)
+                else:
+                    removed = {item.casefold() for item in value}
+                    after[field] = [item for item in after[field] if item.casefold() not in removed]
+    except (ValueError, TypeError):
+        return fail('invalid_argument', 'Invalid preference changes.')
+    diff = {key: {'before': before[key], 'after': after[key]} for key in FIELDS
+            if before[key] != after[key]}
+    if confirm:
+        try:
+            updated = backend.write(after)
+        except (OSError, ValueError):
+            return fail('upstream_error', 'Unable to write preferences safely.')
+    return ok({'preferences': after, 'updated_at': updated,
+               'source': backend.source if confirm else source, 'diff': diff, 'preview': not confirm})

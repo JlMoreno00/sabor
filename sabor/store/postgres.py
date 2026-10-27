@@ -159,6 +159,19 @@ class PostgresRecipeStore:
         # The public operation wrapper owns the lock and transaction.
         yield self._connection
 
+    def _preferences_call(self, context, changes, confirm, import_file=False):
+        from .postgres_preferences import PostgresPreferences, import_changes
+        from sabor.preferences import _preferences_call
+        from sabor.core.envelope import fail
+        backend = PostgresPreferences(self._connection, self.schema)
+        backend.lock()
+        if import_file:
+            try:
+                changes = import_changes(context, backend)
+            except (OSError, UnicodeError, ValueError, KeyError, TypeError, AttributeError):
+                return fail('invalid_response', 'Unable to read preferences safely.')
+        return _preferences_call(backend, changes, confirm)
+
     def _id(self, db):
         return str(db.execute("INSERT INTO serial DEFAULT VALUES RETURNING id").fetchone()[0])
 
@@ -521,6 +534,6 @@ def _operation(method):
 
 
 # All public persistence operations have one transaction and one error boundary.
-for _name in (*PostgresRecipeStore.operations, 'normalize_imported', 'schema_version'):
+for _name in (*PostgresRecipeStore.operations, 'normalize_imported', 'schema_version', '_preferences_call'):
     if hasattr(PostgresRecipeStore, _name):
         setattr(PostgresRecipeStore, _name, _operation(getattr(PostgresRecipeStore, _name)))

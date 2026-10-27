@@ -75,6 +75,13 @@ been tried on a real project here.
 
 ## 5. Afterwards
 
+Structured preferences now share the Postgres store (`sabor.preferences`, schema
+version 2); local nutrition, Mercadona and memory caches do not move. To copy an
+existing local profile, run `sabor-mcp preferences import-file` to preview, then
+`sabor-mcp preferences import-file --apply`. Lists merge without case-insensitive
+duplicates and household size is copied only when unset. The source
+`preferences.json` is never changed or deleted. See [operations](operations.md#structured-preferences-migration).
+
 - Disconnect the Supabase MCP, or keep it with `?project_ref=<ref>&read_only=true`.
 - If `doctor` reports the store unreachable, the project may be paused: restore it in the
   dashboard. ⚠️ the exact error of a paused project has not been checked.
