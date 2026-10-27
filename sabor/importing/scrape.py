@@ -73,8 +73,7 @@ def clean(data):
         # Non-text values are kept so valid() rejects the recipe and the next one is tried.
         data['recipeIngredient'] = [x.strip() if isinstance(x, str) else x for x in data['recipeIngredient']
                                     if not isinstance(x, str) or x.strip()]
-    if isinstance(data.get('recipeInstructions'), list):
-        data['recipeInstructions'] = clean_steps(data['recipeInstructions'])
+    data['recipeInstructions'] = clean_steps(data.get('recipeInstructions', []))
     value = data.get('recipeYield')
     if isinstance(value, list):
         value = next((x for x in value if isinstance(x, (str, int, float))
