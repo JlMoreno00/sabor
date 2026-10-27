@@ -16,6 +16,7 @@ from sabor.core.context import assemble_context
 from sabor.core.redaction import redact
 from sabor.store.sqlite_schema import MIGRATIONS
 from sabor.secrets_store import SECRET_NAMES, required_secrets
+from sabor.store import StoreError
 
 
 def _sqlite_schema_version(database):
@@ -67,7 +68,7 @@ def main(argv=None):
         # Validate the rest of the configuration independently of absent credentials.
         validation = dict(effective)
         for name in missing:
-            validation[SECRET_NAMES[name]] = 'missing-secret'
+            validation[SECRET_NAMES[name]] = 'postgres:///missing-secret' if name == 'database_url' else 'missing-secret'
         load_settings(validation)
         result['config']['valid'] = True
         if args.command == 'config':
@@ -114,16 +115,33 @@ def main(argv=None):
                         result['warnings'].append('SQLite database does not exist yet; Sabor creates it on first start')
                     elif version < max(v for v, _ in MIGRATIONS):
                         result['warnings'].append('SQLite schema will be migrated on next start')
+                elif settings.store == 'postgres':
+                    from sabor.store.postgres import PostgresRecipeStore
+                    from sabor.store.postgres_schema import MIGRATIONS as POSTGRES_MIGRATIONS
+                    assert isinstance(context.store, PostgresRecipeStore)
+                    if 'database_url' in missing:
+                        raise StoreError('upstream_error', 'postgres')
+                    try:
+                        version = context.store.probe_schema_version()
+                    finally:
+                        context.store.close()
+                    result['store']['schema_version'] = version
+                    if version is None:
+                        result['warnings'].append('Postgres schema does not exist yet; Sabor creates it on first start')
+                    elif version < max(v for v, _ in POSTGRES_MIGRATIONS):
+                        result['warnings'].append('Postgres schema will be migrated on next start')
                 else:
                     response = requests.get(settings.mealie_base_url.rstrip('/') + '/api/app/about', timeout=5)
                     if not 200 <= response.status_code < 300:
                         raise requests.ConnectionError
                 result['store']['reachable'] = True
-            except (OSError, sqlite3.Error, requests.RequestException):
+            except (OSError, sqlite3.Error, requests.RequestException, StoreError):
                 code = 3
                 result['next_steps'].append(
                     f'SQLite directory {Path(settings.store_db).parent}: check that it exists and is writable, or set `[store] sqlite_path`'
-                    if settings.store == 'sqlite' else 'Check that Mealie is running at the configured base_url')
+                    if settings.store == 'sqlite' else
+                    'Check the database URL and that Postgres accepts connections (`sabor-mcp setup secret database_url`)'
+                    if settings.store == 'postgres' else 'Check that Mealie is running at the configured base_url')
             if code == 0 and missing:
                 code = 1
             result['ok'] = code == 0

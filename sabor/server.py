@@ -6,6 +6,7 @@ from sabor.core.config_file import apply_config_file
 from importlib import import_module
 import os
 import sqlite3
+from sabor.store import StoreError
 from weakref import WeakKeyDictionary
 
 from sabor.core.config import ConfigError, load_settings
@@ -108,6 +109,10 @@ def start_runtime_services(server=None) -> None:
     if callable(ensure_ready):
         try:
             ensure_ready()
+        except StoreError:
+            if context is not None and context.settings.store == 'postgres':
+                raise ConfigError("Unable to open Postgres recipe store") from None
+            raise
         except (OSError, sqlite3.Error):
             raise ConfigError("Unable to open SQLite recipe store") from None
     for provider in (context.pricing if context is not None else ()):

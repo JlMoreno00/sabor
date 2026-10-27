@@ -44,6 +44,11 @@ def sqlite_store_factory(settings: Settings) -> RecipeStore:
     return SqliteRecipeStore(settings.store_db)
 
 
+def postgres_store_factory(settings: Settings) -> RecipeStore:
+    from sabor.store.postgres import PostgresRecipeStore
+    return PostgresRecipeStore(settings.database_url)
+
+
 def default_context() -> AppContext:
     """Compatibility for direct Python calls; registered tools never use this."""
     import sabor.config as config
@@ -93,6 +98,7 @@ def assemble_context(settings: Settings, *, store_factory=None) -> AppContext:
         settings,
         store_factory=store_factory if store_factory is not None else (
             sqlite_store_factory if settings.store == 'sqlite' else
+            postgres_store_factory if settings.store == 'postgres' else
             mealie_store_factory if settings.mealie_configured else None),
         pricing_factories=((lambda s: MercadonaPricing(
             warehouse=MERCADONA_WAREHOUSE,

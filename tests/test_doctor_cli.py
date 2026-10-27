@@ -1,5 +1,6 @@
 import contextlib
 import io
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -109,6 +110,27 @@ class DoctorTests(unittest.TestCase):
                 self.assertEqual(result.exception.code, 0)
                 self.assertTrue(output.getvalue())
                 self.assertEqual(dict(os.environ), before)
+
+    @unittest.skipUnless(importlib.util.find_spec('psycopg'), 'requires psycopg')
+    def test_postgres_failure_and_redaction(self):
+        from sabor.store import StoreError
+        self.path.write_text('[store]\nbackend = "postgres"\n')
+        with patch.dict(os.environ, {'SABOR_DATABASE_URL': 'postgresql://u:PRIVATE_SENTINEL@localhost/db'}):
+            with patch('sabor.store.postgres.PostgresRecipeStore.probe_schema_version',
+                       side_effect=StoreError('upstream_error', 'postgres')) as probe:
+                code, result = self.run_cli('doctor', '--json')
+            probe.assert_called_once_with()
+            self.assertEqual(code, 3, result)
+            self.assertFalse(result['store']['reachable'])
+            self.assertEqual(result['capabilities_summary']['recipe_store'], ['postgres'])
+            self.assertIn('sabor-mcp setup secret database_url', result['next_steps'][-1])
+            code, result = self.run_cli('config', 'show', '--json')
+            self.assertEqual(code, 0)
+            row = next(r for r in result['keys'] if r['key'] == 'secrets.database_url')
+            self.assertEqual(row['value'], '***')
+        code, result = self.run_cli('doctor', '--json')
+        self.assertIn('database_url', result['missing_secrets'])
+        self.assertEqual(code, 3)
 
     def test_failures(self):
         with patch('sabor.doctor_cli.os.access', return_value=False):

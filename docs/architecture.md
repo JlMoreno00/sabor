@@ -33,7 +33,7 @@ on either side, not fuzzy matching or inventory quantity depletion.
 
 ## Recipe store selection
 
-`load_settings` selects explicit `SABOR_STORE=sqlite|mealie`, otherwise Mealie
+`load_settings` selects explicit `SABOR_STORE=sqlite|mealie|postgres`, otherwise Mealie
 when `MEALIE_BASE_URL` is non-empty, SQLite otherwise. `SABOR_STORE_DB` defaults
 to `/data/sabor.db`. Assembly constructs an instance-owned SQLite store from
 Settings, never a global path or connection. SQLite uses versioned forward-only
@@ -49,6 +49,17 @@ Core recipes, meal plans and shopping lists work without Mealie. Native URL/imag
 import and Spanish catalog remain Mealie-only; `legacy_nutrition` is unavailable
 with SQLite. Discovery lists the active `recipe_store` adapter and operations;
 `data.mealie.configured` still reflects Mealie credentials, not the selected store.
+
+Postgres is an optional `psycopg` 3 adapter (`sabor-mcp[postgres]`), selected with
+`SABOR_STORE=postgres` and secret `SABOR_DATABASE_URL`. It ports SQLite semantics
+with jsonb payloads, sequence-backed IDs/insertion order, ISO UTC text timestamps
+and normalized phrase search without extensions. One instance-owned connection
+and lock serialize transactional operations; only reads retry a connection failure
+once. Forward-only migrations acquire a stable schema-scoped advisory lock before
+checking version markers. All tables enable RLS without policies; the owner is
+not forced through RLS and public/anonymous schema access is revoked. Default
+schema is `sabor`; validated, quoted constructor schema names isolate DB tests.
+See [Postgres operations](operations.md#postgres--supabase-store).
 
 ## System Boundaries
 
@@ -135,14 +146,14 @@ Discovery intentionally omits model IDs as well as credentials/private URLs.
 
 RecipeStore preserves structured ingredients, source IDs, checked state and
 recipe occurrences rather than flattening upstream data. SQLite (the built-in
-default) and Mealie are the production implementations; the in-memory fake
+default), Mealie and optional Postgres are the production implementations; the in-memory fake
 store only exercises the port contract in tests. Tandoor and KitchenOwl
 backends are not implemented (#15). Registered core tools keep existing public
 signatures and use instance stores. `AppContext` binds immutable settings,
 registry, store and pricing services without startup I/O. Discovery exposes
 `recipe_store`/`pricing` operations; the old Mealie summary is deprecated.
 
-Core readiness uses a configured recipe store (SQLite, Mealie or an injected
+Core readiness uses a configured recipe store (SQLite, Mealie, Postgres or an injected
 `store_factory`), not Mealie credentials alone. Per-tool requirements run inside
 the existing AppContext binding; `store_ready` reads that instance's store and
 retains the Settings-based Mealie fallback for compatibility. The backend is
@@ -206,7 +217,7 @@ Prices remains deferred. No pantry accounting, checkout or recipe mutation occur
 ## Store contract tests
 
 `tests/test_store_contract.py::StoreContractMixin` runs the same behavior
-assertions against Fake, SQLite and the real Mealie adapter. Each test declares
+assertions against Fake, SQLite, Postgres and the real Mealie adapter. Each test declares
 required capability groups: `recipes_read`, `recipes_write`, `search_sort`,
 `mealplan`, `shopping`, `activity` and `suggestions`. Missing groups produce
 explicit adapter-specific skips; a vocabulary guard also checks optional branch
@@ -227,7 +238,10 @@ not a Mealie reimplementation or a substitute for HTTP characterization tests.
 It supplies the recipe, search, activity, suggestion, mealplan and shopping
 response shapes exercised by the adapter; unknown requests fail loudly.
 Native imports and non-tag taxonomy endpoints remain outside this double.
-No external service is needed for these contract runs.
+No external service is needed for the Mealie/Fake/SQLite contract runs.
+`tests/test_store_contract_postgres.py` runs the same contract against isolated
+random schemas when `SABOR_TEST_DATABASE_URL` and psycopg are available; otherwise
+it skips explicitly. CI uses a Postgres 16 service, not a real Supabase instance.
 
 ## Sync approval boundary
 

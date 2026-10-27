@@ -45,7 +45,7 @@ def main(argv=None):
     if secret:
         arguments = arguments[1:]
         parser.add_argument('name', help='mealie_api_token, llm_api_key, gemini_api_key, bring_email, '
-                                         'bring_password or spoonacular_api_key')
+                                         'bring_password, spoonacular_api_key or database_url')
         parser.add_argument('--backend', choices=('auto', 'keyring', 'file'), default='auto',
                             help='Where to store it; auto uses the keychain and falls back to secrets.toml')
     else:
@@ -53,7 +53,7 @@ def main(argv=None):
                             help='Use only the flags (no prompts); required without a terminal')
         for flag, choices, text in [
                 ('lang', ('es', 'en'), 'Conversation language stored as [general] language'),
-                ('store', ('sqlite', 'mealie'), 'Recipe store (default sqlite)'),
+                ('store', ('sqlite', 'mealie', 'postgres'), 'Recipe store (default sqlite)'),
                 ('llm', ('none', 'openai', 'gemini', 'ollama'), 'Model for text/video recipe import')]:
             parser.add_argument('--' + flag, choices=choices, help=text)
         parser.add_argument('--pricing', choices=('none', 'mercadona', 'open_prices'), action='append',
@@ -194,7 +194,7 @@ def main(argv=None):
                     env[envkey] = ','.join(value) if isinstance(value, list) else str(value)
             for name in set(required) | set(refs):
                 if not env.get(SECRET_NAMES[name], '').strip():
-                    env[SECRET_NAMES[name]] = 'placeholder'
+                    env[SECRET_NAMES[name]] = 'postgres:///placeholder' if name == 'database_url' else 'placeholder'
             settings = load_settings(env)
             if settings.store == 'sqlite':
                 from sabor.store.sqlite import SqliteRecipeStore

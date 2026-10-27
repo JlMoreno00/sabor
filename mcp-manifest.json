@@ -61,9 +61,15 @@
     },
     {
       "name": "SABOR_STORE",
-      "description": "Recipe backend: sqlite or mealie. Unset selects mealie when MEALIE_BASE_URL is non-empty, otherwise sqlite.",
+      "description": "Recipe backend: sqlite, mealie or postgres. Unset selects mealie when MEALIE_BASE_URL is non-empty, otherwise sqlite.",
       "required": false,
       "secret": false
+    },
+    {
+      "name": "SABOR_DATABASE_URL",
+      "description": "Postgres connection URL; required only with SABOR_STORE=postgres. Keep it in the environment or a secret store.",
+      "required": false,
+      "secret": true
     },
     {
       "name": "SABOR_DATA_DIR",

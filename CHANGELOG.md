@@ -25,6 +25,10 @@
   Runtime behavior with Mealie configured is unchanged (#36).
 
 ### Added
+- Optional generic Postgres recipe store (`sabor-mcp[postgres]`) with secret
+  `SABOR_DATABASE_URL`, private schema migrations, RLS on every table and
+  extension-free phrase search. Setup, doctor and discovery support `postgres`;
+  the shared capability contract runs against Postgres 16 in CI (#68).
 - `sabor-mcp setup` enables the `preferences` toolset when config.toml does not
   choose toolsets yet, so onboarding can save the cooking profile; existing
   toolsets and the runtime default without config.toml are unchanged (#67).

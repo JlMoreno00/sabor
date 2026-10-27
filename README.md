@@ -2,7 +2,7 @@
 
 <!-- mcp-name: io.github.JlMoreno00/sabor -->
 
-A kitchen-intelligence layer with built-in SQLite or optional Mealie. Find or import recipes, plan the
+A kitchen-intelligence layer with built-in SQLite or optional Mealie/Postgres. Find or import recipes, plan the
 week, build a scaled shopping list, estimate its cost, then sync to Bring! with
 an explicit preview and digest-bound confirmation. The selected recipe
 store is the source of truth for cooking data; core workflows work without Mealie.
@@ -111,7 +111,7 @@ LLM-only setups can preview text/video; committing requires a recipe store (SQLi
 shopping lists/items, tags and history. Without `MEALIE_BASE_URL`, SQLite is
 selected automatically at `<data dir>/sabor.db`; set `SABOR_STORE_DB` to change the
 path. With a non-empty Mealie URL, Mealie remains selected (and requires its token).
-Explicit `SABOR_STORE=sqlite` or `SABOR_STORE=mealie` overrides that selection;
+Explicit `SABOR_STORE=sqlite`, `SABOR_STORE=mealie` or `SABOR_STORE=postgres` overrides that selection;
 invalid values fail startup. SQLite construction and registration perform no
 filesystem I/O. Runtime startup initializes the database before serving requests;
 direct store use initializes on first operation. Missing parent directories are
@@ -123,6 +123,15 @@ URL/image services still require Mealie; SQLite does not advertise native import
 Tandoor and KitchenOwl are not implemented integrations. Existing slug/list arguments remain unchanged,
 including the historical `mealie_list_id` sync argument. There is no public
 per-call backend URL or tenant selector.
+
+For generic Postgres (including Supabase and Neon), install the optional extra
+with `pip install 'sabor-mcp[postgres]'` or run
+`uvx --from 'sabor-mcp[postgres]' sabor-mcp`. Select `SABOR_STORE=postgres` and
+store the secret `SABOR_DATABASE_URL` through the environment or
+`sabor-mcp setup secret database_url`. The adapter uses the private `sabor` schema,
+requires no extensions and enables RLS without public policies. SQLite and Mealie
+do not require the extra. See [Postgres / Supabase operations](docs/operations.md#postgres--supabase-store)
+for role permissions, Supabase session-pooler settings and backups.
 
 An `AppContext` binds settings, store, registry and pricing providers to registered
 tools. Mealie sessions, Mercadona catalog caches and Bring authentication/cache

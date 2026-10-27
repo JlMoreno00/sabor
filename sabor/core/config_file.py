@@ -28,7 +28,7 @@ FILE_KEYS = {
         'min_publish_confidence', 'publish_estimates', 'profile_ttl_days',
         'not_found_ttl_days', 'source_language', 'default_cup_ml', 'auto_on_import', 'auto_publish')},
 }
-SECRET_ENV = frozenset({'MEALIE_API_TOKEN', 'SABOR_LLM_API_KEY', 'GEMINI_API_KEY',
+SECRET_ENV = frozenset({'SABOR_DATABASE_URL', 'MEALIE_API_TOKEN', 'SABOR_LLM_API_KEY', 'GEMINI_API_KEY',
                         'BRING_EMAIL', 'BRING_PASSWORD', 'SPOONACULAR_API_KEY'})
 # Effective value type per key; every other key is a string.
 _TYPES = {
@@ -40,7 +40,7 @@ _TYPES = {
                                 ('nutrition', 'min_publish_coverage'), ('nutrition', 'min_publish_confidence'),
                                 ('nutrition', 'default_cup_ml'))},
 }
-_SECRET_KEYS = {('mealie', 'api_token'), ('llm', 'api_key'), ('import', 'gemini_api_key'),
+_SECRET_KEYS = {('store', 'database_url'), ('mealie', 'api_token'), ('llm', 'api_key'), ('import', 'gemini_api_key'),
                 ('bring', 'email'), ('bring', 'password'), ('nutrition', 'spoonacular_api_key')}
 
 

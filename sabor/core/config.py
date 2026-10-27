@@ -40,6 +40,7 @@ class Settings:
     open_prices_enabled: bool = False
     config_source: str = 'defaults'
     language: str | None = None
+    database_url: str = field(default='', repr=False)
 
     @property
     def mealie_configured(self):
@@ -88,8 +89,19 @@ def load_settings(env: Mapping[str, str]) -> Settings:
     if provider not in ('', 'gemini_native', 'openai_compatible'):
         raise ConfigError('Invalid SABOR_VIDEO_PROVIDER')
     store = get('SABOR_STORE') or ('mealie' if mealie else 'sqlite')
-    if store not in ('sqlite', 'mealie'):
+    if store not in ('sqlite', 'mealie', 'postgres'):
         raise ConfigError('Invalid SABOR_STORE')
+    database_url = get('SABOR_DATABASE_URL')
+    if store == 'postgres' and not database_url:
+        raise ConfigError('Postgres store requires SABOR_DATABASE_URL')
+    if store == 'postgres':
+        try:
+            parsed = urlsplit(database_url)
+            if parsed.scheme not in ('postgresql', 'postgres'):
+                raise ValueError
+            parsed.port
+        except ValueError:
+            raise ConfigError('SABOR_DATABASE_URL requires a Postgres URL') from None
     legacy = load_legacy_config(env)
     return Settings(requested, mealie, get('MEALIE_API_TOKEN'), llm,
                     get('SABOR_LLM_MODEL'), get('SABOR_LLM_API_KEY'),
@@ -105,4 +117,4 @@ def load_settings(env: Mapping[str, str]) -> Settings:
                     legacy.SABOR_NORMALIZE_CONFIDENCE,
                     get('SABOR_OPEN_PRICES_ENABLED').lower() == 'true',
                     'env' if any(env.get(key) for key in (*FILE_KEYS.values(), *SECRET_ENV)) else 'defaults',
-                    language or None)
+                    language or None, database_url)

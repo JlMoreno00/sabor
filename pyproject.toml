@@ -19,6 +19,9 @@ dependencies = [
     "keyring>=25",
 ]
 
+[project.optional-dependencies]
+postgres = ["psycopg[binary]>=3.2"]
+
 [project.scripts]
 sabor-mcp = "sabor.server:cli"
 
