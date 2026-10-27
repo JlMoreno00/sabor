@@ -29,8 +29,11 @@ The stable JSON key order and nesting are:
 `schema_version` is null for Mealie or failed probes. Invalid configuration adds
 an `error` string and sets `config.valid` false. Missing secret names get a
 `sabor-mcp setup secret <name>` next step. Warnings are deterministic and advisory:
-keyring declared but unavailable, presence of an owner-only `secrets.toml`, a SQLite
+keyring declared but unavailable, presence of `secrets.toml`, a SQLite
 database not created yet, and a SQLite schema that will be migrated on next start.
+The `secrets.toml` warning means the file exists, not that its permissions were
+verified. On POSIX, owner-only permissions (normally 0600) are validated when
+reading it; group/other access raises `ConfigError` and exits 2.
 A temporary SQLite directory alone is not a warning.
 
 | Exit | Meaning |
@@ -63,10 +66,12 @@ A missing default file is harmless. Invalid TOML, unknown sections/keys, invalid
 types, unreadable files and secret keys fail startup without echoing values.
 Keep secrets in environment variables or setup-managed keyring/file references: `MEALIE_API_TOKEN`, `SABOR_LLM_API_KEY`,
 `GEMINI_API_KEY`, `BRING_EMAIL`, `BRING_PASSWORD`, `SPOONACULAR_API_KEY`.
+A non-empty environment value takes precedence over a stored secret.
 Transport variables remain env-only.
 
 | TOML key | Environment variable |
 |---|---|
+| `[general] language` | `SABOR_LANGUAGE` |
 | `[general] toolsets` | `SABOR_TOOLSETS` |
 | `[general] data_dir` | `SABOR_DATA_DIR` |
 | `[general] memory_file` | `MEMORY_FILE` |
@@ -633,15 +638,25 @@ These paths need accounts, paid API keys or a local Mealie and remain
 unverified. Use throwaway targets only and record the result here.
 
 1. **`search_recipes` sort orders against Mealie 3.22.0** (#16). Start a
-   disposable instance on loopback with a temporary volume, for example
-   `docker run -d --name sabor-verify-mealie -p 127.0.0.1:19925:9000 -v sabor-verify-mealie:/app/data -e ALLOW_SIGNUP=false ghcr.io/mealie-recipes/mealie:v3.22.0`,
-   sign in with the instance's initial administrator, create an API token and
+   disposable instance on loopback with a temporary volume whose names are unique
+   to this run:
+
+   ```sh
+   verify_name="sabor-verify-mealie-$(date +%s)-$(openssl rand -hex 6)"
+   verify_volume="${verify_name}-data"
+   docker volume create "$verify_volume" &&
+     docker run -d --name "$verify_name" -p 127.0.0.1:19925:9000 -v "$verify_volume:/app/data" -e ALLOW_SIGNUP=false ghcr.io/mealie-recipes/mealie:v3.22.0
+   ```
+
+   Then sign in with the instance's initial administrator, create an API token and
    four test recipes with different creation times, ratings (per-user rating
    endpoint) and `lastMade`, then call `search_recipes(query=..., sort=...,
    direction=...)` for `name`, `created_at`, `updated_at`, `rating`, `last_made`
    and `random`. Expect unrated and never-made recipes last, and identical
    `random` order across pages on the same UTC day. Remove the container and
-   volume afterwards (`docker rm -f sabor-verify-mealie && docker volume rm sabor-verify-mealie`).
+   volume created by this run afterwards, in the same shell:
+   `docker rm -f "$verify_name"; docker volume rm "$verify_volume"` (independent
+   commands, so the volume is removed even if the container was never created).
    Not run on 2026-10-24: Docker Desktop was waiting for an administrator
    password on the host.
 2. **Bring! apply**: on a dedicated throwaway Bring list, run

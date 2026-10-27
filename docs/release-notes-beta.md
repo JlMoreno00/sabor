@@ -24,7 +24,7 @@ under the chosen version only when the release is created.
 
 | You have | Do | Result |
 |---|---|---|
-| Mealie already configured (`MEALIE_BASE_URL` + token) | Nothing | Sabor keeps using Mealie; responses are unchanged |
+| Mealie already configured (`MEALIE_BASE_URL` + token) and `SABOR_STORE` unset | Nothing | Sabor keeps using Mealie; `sabor_capabilities` adds `data.mealie_only: []` (additive) |
 | No Mealie | Nothing | Built-in SQLite at `<data dir>/sabor.db` |
 | Mealie, but want the built-in store | `SABOR_STORE=sqlite` | SQLite is used; Mealie data is **not** copied |
 | A Mealie URL without token | Add the token, or unset the URL | With a URL, Sabor selects Mealie; without a token core stays disabled, by design, so data is never silently written elsewhere |
@@ -39,8 +39,10 @@ under the chosen version only when the release is created.
 
 ## Still Mealie-only
 
-- `legacy_nutrition` (nutrition stays indexed by Mealie IDs until #12).
-- `legacy_catalog` (`spanish_catalog_status`, `apply_spanish_catalog`).
+- `legacy_nutrition` requires the Mealie recipe store (nutrition stays indexed
+  by Mealie IDs until #12); configuring Mealie alongside SQLite/Postgres is not enough.
+- `legacy_catalog` (`spanish_catalog_status`, `apply_spanish_catalog`) requires
+  configured Mealie credentials, independently of the selected recipe store.
 - Cookbooks.
 - A web UI to browse and edit recipes.
 

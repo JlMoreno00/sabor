@@ -211,8 +211,8 @@ converts compatible dimensions, matches candidates and aggregates Decimal costs.
 Consumption uses proportional unit prices; procurement rounds package counts up
 only after grouping product/location/currency demand. JSON decimals are strings.
 Coverage, excluded rows and uncertainty accompany partial subtotals; unknowns
-never become free ingredients. Mercadona is the only shipped provider; Open
-Prices remains deferred. No pantry accounting, checkout or recipe mutation occurs.
+never become free ingredients. Mercadona and opt-in Open Prices are shipped providers; Open Prices uses
+crowd-sourced observations from Open Food Facts. No pantry accounting, checkout or recipe mutation occurs.
 
 ## Store contract tests
 
