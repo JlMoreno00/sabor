@@ -125,6 +125,9 @@
   compatibility context (#4).
 
 ### Fixed
+- URL recipe extraction skips booleans in yield lists (`[true, "4"]` becomes
+  `"4"`) and removes blank steps inside nested instruction sections while keeping
+  section metadata. The default macOS configuration path is normalized too (#49).
 - Polish from #49: SQLite `sort=last_made` breaks equal timestamps by the latest
   cooking event; preferences reject text UTF-8 cannot encode; a partial
   `add_to_shopping_list` failure keeps the operation data; `SABOR_CONFIG`,

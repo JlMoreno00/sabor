@@ -101,6 +101,11 @@ class ConfigPathTests(unittest.TestCase):
                 self.assertEqual(config_path(dict(env, XDG_CONFIG_HOME='~/custom'), 'linux'),
                                  home / 'custom/sabor/config.toml')
 
+    def test_darwin_default_normalizes_home(self):
+        from sabor.core.config_file import config_path
+        self.assertEqual(config_path({'HOME': '/test/home/../user'}, 'darwin'),
+                         Path('/test/user/Library/Application Support/sabor/config.toml'))
+
     def test_without_any_home_the_path_is_never_a_literal_tilde(self):
         from sabor.core.config import ConfigError
         from sabor.core.config_file import config_path
@@ -209,6 +214,31 @@ class UrlExtractionTests(unittest.TestCase):
                 self.assertEqual(result['recipeIngredient'], ['arroz'])
                 self.assertEqual(result['recipeInstructions'], [{'@type': 'HowToStep', 'text': 'Cocer'}])
                 self.assertEqual(result['recipeYield'], expected)
+
+    def test_yield_list_skips_booleans(self):
+        for value, expected in (([True, '4'], '4'), ([False, 2], '2'),
+                                ([True, False], None), (['', True, '4'], '4')):
+            with self.subTest(value=value):
+                result = self.extract({'@type': 'Recipe', 'name': 'Sopa',
+                                       'recipeIngredient': ['arroz'], 'recipeInstructions': ['Cocer'],
+                                       'recipeYield': value})
+                assert result is not None
+                self.assertEqual(result['recipeYield'], expected)
+
+    def test_nested_sections_drop_blank_steps_without_mutating_input(self):
+        from copy import deepcopy
+        from sabor.importing.tools import plain_steps
+        instructions = [{'@type': 'HowToSection', 'name': 'Preparación', 'itemListElement': [
+            ' ', {'@type': 'HowToStep', 'text': ''},
+            {'@type': 'HowToSection', 'itemListElement': ['Cocer', '\n',
+                {'@type': 'HowToStep', 'text': 'Servir'}]}]}]
+        original = deepcopy(instructions)
+        result = self.extract({'@type': 'Recipe', 'name': 'Sopa', 'recipeIngredient': ['arroz'],
+                               'recipeInstructions': instructions})
+        assert result is not None
+        self.assertEqual(plain_steps(result['recipeInstructions']), ['Cocer', 'Servir'])
+        self.assertEqual(result['recipeInstructions'][0]['name'], 'Preparación')
+        self.assertEqual(instructions, original)
 
     def test_non_text_ingredient_skips_to_the_next_recipe(self):
         from sabor.importing.scrape import recipe_from_html

@@ -49,6 +49,18 @@ def valid(data):
         return False
 
 
+def clean_steps(value):
+    """Remove blank strings and step text recursively, preserving section metadata."""
+    if isinstance(value, list):
+        return [clean_steps(item) for item in value
+                if not (isinstance(item, str) and not item.strip())
+                and not (isinstance(item, dict) and item.get('@type') != 'HowToSection'
+                         and isinstance(item.get('text'), str) and not item['text'].strip())]
+    if isinstance(value, dict) and value.get('@type') == 'HowToSection':
+        return {**value, 'itemListElement': clean_steps(value.get('itemListElement', []))}
+    return value
+
+
 def clean(data):
     """Drop blank ingredient/step lines and keep a textual recipeYield (or None)."""
     data = dict(data)
@@ -57,11 +69,11 @@ def clean(data):
         data['recipeIngredient'] = [x.strip() if isinstance(x, str) else x for x in data['recipeIngredient']
                                     if not isinstance(x, str) or x.strip()]
     if isinstance(data.get('recipeInstructions'), list):
-        data['recipeInstructions'] = [x for x in data['recipeInstructions']
-                                      if not isinstance(x, str) or x.strip()]
+        data['recipeInstructions'] = clean_steps(data['recipeInstructions'])
     value = data.get('recipeYield')
     if isinstance(value, list):
-        value = next((x for x in value if isinstance(x, (str, int, float)) and str(x).strip()), None)
+        value = next((x for x in value if isinstance(x, (str, int, float))
+                      and not isinstance(x, bool) and str(x).strip()), None)
     if isinstance(value, (int, float)) and not isinstance(value, bool):
         value = f'{value:g}'
     data['recipeYield'] = value.strip() if isinstance(value, str) and value.strip() else None
