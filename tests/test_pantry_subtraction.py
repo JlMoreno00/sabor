@@ -71,6 +71,21 @@ class PantryTests(unittest.TestCase):
         self.assertIsNone(data['consumption_subtotal'])
         self.assertIsNone(data['procurement_subtotal'])
 
+    def test_structured_ingredient_without_food_uses_its_text_name(self):
+        # #49 (CodeRabbit on #57): quantity and unit structured, but no food/display/note.
+        self.store.create_recipe(Recipe(slug='rice', recipeIngredient=(
+            Ingredient(quantity=300, unit=NamedRef(name='g'), originalText='300 g de arroz'),
+            Ingredient(quantity=2, unit=NamedRef(name='g'), food=NamedRef(name='sal'),
+                       originalText='2 g de sal fina'))))
+        self.pantry(['arroz'])
+        data = self.call('estimate_cost', source={'kind': 'recipe', 'slug': 'rice',
+                                                  'exclude_pantry': True})['data']
+        self.assertEqual(data['pantry'], {'applied': True, 'matched': 1})
+        excluded = [r['name'] for r in data['excluded_rows'] if 'in_pantry' in r['uncertainty']['reasons']]
+        self.assertEqual(excluded, ['arroz'])
+        # A structured food name still wins over its text.
+        self.assertIn('sal', [line['name'] for line in data['lines']])
+
     def test_all_source_kinds_and_invalid_type(self):
         self.store.create_recipe(Recipe(slug='rice', recipeIngredient=(
             Ingredient(quantity=300, unit=NamedRef(name='g'), food=NamedRef(name='rice')),)))
