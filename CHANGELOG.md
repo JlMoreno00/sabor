@@ -125,6 +125,9 @@
   compatibility context (#4).
 
 ### Fixed
+- Legacy Mealie values (`MEALIE_BASE_URL`, `MEALIE_API_TOKEN`) are stripped like
+  the startup settings, so the Spanish catalog reconciler and legacy Mealie calls
+  never send a padded URL or `Authorization` header; clean values are unchanged (#49).
 - URL recipe extraction skips booleans in yield lists (`[true, "4"]` becomes
   `"4"`) and removes blank steps inside nested instruction sections while keeping
   section metadata. The default macOS configuration path is normalized too (#49).
