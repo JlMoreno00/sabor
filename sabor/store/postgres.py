@@ -28,7 +28,7 @@ def _normal(text):
 def _search_text(text):
     text = "".join(c for c in unicodedata.normalize("NFKD", text.casefold())
                    if not unicodedata.combining(c))
-    tokens = re.findall(r"[^\\W_]+", text)
+    tokens = re.findall(r"[^\W_]+", text)
     return " " + " ".join(tokens) + " "
 
 
@@ -253,7 +253,8 @@ class PostgresRecipeStore:
         with self._connect() as db:
             if f.query.strip():
                 normalized = _search_text(f.query).strip()
-                pattern = '% ' + normalized.replace('\\\\', '\\\\\\\\').replace('%', '\\\\%').replace('_', '\\\\_') + ' %'
+                # Tokens are letters and digits only, so no LIKE escaping is needed.
+                pattern = '% ' + normalized + ' %'
                 rows = db.execute("SELECT payload FROM recipes WHERE search_text LIKE %s ORDER BY seq",
                                   (pattern,)).fetchall() if normalized else []
                 names = db.execute("SELECT payload FROM recipes ORDER BY seq").fetchall()

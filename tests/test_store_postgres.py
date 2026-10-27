@@ -20,6 +20,12 @@ class PostgresUnitTests(unittest.TestCase):
             with self.assertRaises(ConfigError) as error:
                 load_settings({'SABOR_STORE': 'postgres', 'SABOR_DATABASE_URL': value})
             self.assertNotIn('PRIVATE_SENTINEL', str(error.exception))
+        # A stale or unrelated URL must not break the stores that never read it.
+        for store in ('sqlite', 'mealie'):
+            env = {'SABOR_STORE': store, 'SABOR_DATABASE_URL': 'http://PRIVATE_SENTINEL'}
+            if store == 'mealie':
+                env.update(MEALIE_BASE_URL='http://mealie:9000', MEALIE_API_TOKEN='t')
+            self.assertEqual(load_settings(env).store, store)
 
     def test_missing_extra(self):
         module = importlib.import_module('sabor.store.postgres')

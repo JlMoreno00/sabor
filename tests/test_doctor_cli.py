@@ -116,9 +116,10 @@ class DoctorTests(unittest.TestCase):
         from sabor.store import StoreError
         self.path.write_text('[store]\nbackend = "postgres"\n')
         with patch.dict(os.environ, {'SABOR_DATABASE_URL': 'postgresql://u:PRIVATE_SENTINEL@localhost/db'}):
-            with patch('sabor.store.postgres.PostgresRecipeStore.ensure_ready',
-                       side_effect=StoreError('upstream_error', 'postgres')):
+            with patch('sabor.store.postgres.PostgresRecipeStore.probe_schema_version',
+                       side_effect=StoreError('upstream_error', 'postgres')) as probe:
                 code, result = self.run_cli('doctor', '--json')
+            probe.assert_called_once_with()
             self.assertEqual(code, 3, result)
             self.assertFalse(result['store']['reachable'])
             self.assertEqual(result['capabilities_summary']['recipe_store'], ['postgres'])
