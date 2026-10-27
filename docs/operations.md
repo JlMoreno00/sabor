@@ -655,7 +655,8 @@ unverified. Use throwaway targets only and record the result here.
    and `random`. Expect unrated and never-made recipes last, and identical
    `random` order across pages on the same UTC day. Remove the container and
    volume created by this run afterwards, in the same shell:
-   `docker rm -f "$verify_name" && docker volume rm "$verify_volume"`.
+   `docker rm -f "$verify_name"; docker volume rm "$verify_volume"` (independent
+   commands, so the volume is removed even if the container was never created).
    Not run on 2026-10-24: Docker Desktop was waiting for an administrator
    password on the host.
 2. **Bring! apply**: on a dedicated throwaway Bring list, run

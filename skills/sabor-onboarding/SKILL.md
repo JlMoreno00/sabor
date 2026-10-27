@@ -49,10 +49,10 @@ Summarize the profile and ask for confirmation. Map it to the preference fields:
 | Field | Type | Content |
 |---|---|---|
 | `household_size` | integer 1–20 or null | number of diners |
-| `diet` | list of strings, each up to 200 characters | restrictions; write allergies and intolerances explicitly, e.g. "allergy: peanuts" |
-| `dislikes` | list of strings, each up to 200 characters | rejected ingredients or dishes |
-| `pantry` | list of strings, each up to 200 characters | staples they usually have |
-| `notes` | list of strings, each up to 200 characters | budget, shops, schedule, time, equipment, tastes and goals, as short phrases |
+| `diet` | list of up to 200 strings, each up to 200 characters | restrictions; write allergies and intolerances explicitly, e.g. "allergy: peanuts" |
+| `dislikes` | list of up to 200 strings, each up to 200 characters | rejected ingredients or dishes |
+| `pantry` | list of up to 200 strings, each up to 200 characters | staples they usually have |
+| `notes` | list of up to 200 strings, each up to 200 characters | budget, shops, schedule, time, equipment, tastes and goals, as short phrases |
 
 Save only if `update_preferences` is registered. Otherwise summarize the confirmed
 profile without claiming it was saved in Sabor.
