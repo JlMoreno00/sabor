@@ -41,6 +41,19 @@ class SqliteLastMadeTests(unittest.TestCase):
             self.assertEqual(len(page.items), 3)
 
 
+    def test_never_made_recipes_keep_insertion_order(self):
+        from sabor.store.sqlite import SqliteRecipeStore
+        with tempfile.TemporaryDirectory() as directory:
+            store = SqliteRecipeStore(Path(directory) / 'sabor.db')
+            store.ensure_ready()
+            for slug in ('b', 'a', 'c'):
+                store.create_recipe(Recipe(slug=slug, name=slug))
+            # Stable across pages: never-made recipes tie-break by recipe insertion order.
+            pages = [store.search_recipes(RecipeSearch(sort='last_made', page=n, per_page=1)).items[0].slug
+                     for n in (1, 2, 3)]
+            self.assertEqual(pages, ['b', 'a', 'c'])
+
+
 class PreferencesEncodingTests(unittest.TestCase):
     def test_text_utf8_cannot_encode_is_rejected_without_writing(self):
         from sabor.preferences import FilePreferences, _preferences_call
