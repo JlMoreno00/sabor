@@ -240,6 +240,20 @@ class UrlExtractionTests(unittest.TestCase):
         self.assertEqual(result['recipeInstructions'][0]['name'], 'Preparación')
         self.assertEqual(instructions, original)
 
+    def test_section_with_single_blank_step_is_not_a_recipe(self):
+        for step in ({'@type': 'HowToStep', 'text': ' '}, '\n'):
+            with self.subTest(step=step):
+                self.assertIsNone(self.extract({'@type': 'Recipe', 'name': 'Sopa',
+                    'recipeIngredient': ['arroz'], 'recipeInstructions': [
+                        {'@type': 'HowToSection', 'itemListElement': step}]}))
+
+    def test_section_with_single_nonblank_step_is_preserved(self):
+        step = {'@type': 'HowToStep', 'text': 'Cocer'}
+        result = self.extract({'@type': 'Recipe', 'name': 'Sopa', 'recipeIngredient': ['arroz'],
+            'recipeInstructions': [{'@type': 'HowToSection', 'itemListElement': step}]})
+        assert result is not None
+        self.assertEqual(result['recipeInstructions'][0]['itemListElement'], step)
+
     def test_non_text_ingredient_skips_to_the_next_recipe(self):
         from sabor.importing.scrape import recipe_from_html
         bad = {'@type': 'Recipe', 'name': 'Mala', 'recipeIngredient': ['arroz', None],

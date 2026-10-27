@@ -56,8 +56,13 @@ def clean_steps(value):
                 if not (isinstance(item, str) and not item.strip())
                 and not (isinstance(item, dict) and item.get('@type') != 'HowToSection'
                          and isinstance(item.get('text'), str) and not item['text'].strip())]
-    if isinstance(value, dict) and value.get('@type') == 'HowToSection':
-        return {**value, 'itemListElement': clean_steps(value.get('itemListElement', []))}
+    if isinstance(value, str) and not value.strip():
+        return []
+    if isinstance(value, dict):
+        if value.get('@type') == 'HowToSection':
+            return {**value, 'itemListElement': clean_steps(value.get('itemListElement', []))}
+        if isinstance(value.get('text'), str) and not value['text'].strip():
+            return []
     return value
 
 
