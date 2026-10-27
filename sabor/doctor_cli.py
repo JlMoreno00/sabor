@@ -84,6 +84,8 @@ def main(argv=None):
             result = dict(config_path=str(path), source=source, keys=rows)
         else:
             settings = load_settings(validation)
+            if settings.store == 'mealie' and not settings.mealie_base_url:
+                raise ConfigError('Mealie store requires a base URL')
             # Do not advertise adapters enabled only by validation placeholders.
             from dataclasses import replace
             settings = replace(settings, **{name: '' for name in missing})

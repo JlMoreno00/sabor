@@ -42,6 +42,14 @@ class MercadonaTests(unittest.TestCase):
         self.assertEqual([p.id for p in self.provider.search_products(ProductQuery('leche condensada'), self.store)],
                          ['condensed'])
 
+    def test_plural_and_punctuated_derivatives(self):
+        # Plural and punctuated derivative names are penalized too (#49).
+        self.products = [item('cookies', 'Galletas leche Hacendado'), item('yogurt', 'Yogur, leche Hacendado'),
+                         item('ice', 'Helados leche Hacendado'), item('whole', 'Leche entera Hacendado')]
+        self.provider._refresh()
+        self.assertEqual([p.id for p in self.provider.search_products(ProductQuery('leche'), self.store)][0],
+                         'whole')
+
     def fetch(self, url, **kwargs):
         response = Mock()
         response.json.return_value = ({'categories': [{'id': 1, 'categories': [{'id': 2}]}]}

@@ -140,10 +140,12 @@ def _add_to_shopping_list(ctx, list_id: str, items: list[str] | None = None,
             return ok(result_data)
         if items is not None:
             written = ctx.store.add_shopping_items(list_id, [ItemDraft(note=x, quantity=1) for x in items])
-            if len(written.changed_ids) != len(items):
-                return errors.partial(list(written.changed_ids),
-                    [{"source": "items", "unconfirmed_count": len(items) - len(written.changed_ids)}], "mealie")
             result_data["added"]["items"] = len(written.changed_ids)
+            if len(written.changed_ids) != len(items):
+                result = errors.partial(list(written.changed_ids),
+                    [{"source": "items", "unconfirmed_count": len(items) - len(written.changed_ids)}], "mealie")
+                result["data"] = {**result_data, **result["data"]}
+                return result
         else:
             ctx.store.add_recipe_occurrences(list_id, [
                 _ResolvedOccurrence(x["slug"], servings_multiplier, x["id"]) for x in occurrences])

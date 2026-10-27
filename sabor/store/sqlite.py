@@ -231,9 +231,16 @@ class SqliteRecipeStore:
             if f.sort in ("created_at", "updated_at", "last_made"):
                 metadata = {r[0]: r[1:] for r in db.execute(
                     "SELECT slug, rowid, created_at, updated_at, "
-                    "(SELECT max(created_at) FROM cooking_events WHERE recipe_slug=recipes.slug) FROM recipes")}
+                    "(SELECT max(created_at) FROM cooking_events WHERE recipe_slug=recipes.slug), "
+                    "(SELECT rowid FROM cooking_events WHERE recipe_slug=recipes.slug "
+                    "ORDER BY created_at DESC, rowid DESC LIMIT 1) FROM recipes")}
                 index = {"created_at": 1, "updated_at": 2, "last_made": 3}[f.sort]
-                recipes.sort(key=lambda r: (metadata[r.slug][index] or "", metadata[r.slug][0]),
+                # Migration v3 stamped old events with one time: the latest event breaks ties.
+                tie = 4 if f.sort == "last_made" else 0
+                # Recipes without events fall back to recipe insertion order (stable paging).
+                recipes.sort(key=lambda r: (metadata[r.slug][index] or "",
+                                            metadata[r.slug][tie] if metadata[r.slug][tie] is not None
+                                            else metadata[r.slug][0]),
                              reverse=f.direction == "desc")
                 recipes.sort(key=lambda r: metadata[r.slug][index] is None)
             elif f.sort == "random":

@@ -7,6 +7,7 @@ import json
 import math
 from contextvars import copy_context
 import os
+import re
 from pathlib import Path
 import time
 import warnings
@@ -26,7 +27,8 @@ from sabor.pricing.quantities import package_from_mercadona
 
 # Small explicit derivative vocabulary: prefer staples on equally close matches,
 # but never penalize requested modifiers. Milk fat variants remain neutral.
-_DERIVATIVE_TOKENS = frozenset('condensada condensado chocolate cacao batido sabor aroma polvo crema salsa caldo bebida postre galleta helado zumo mermelada yogur'.split())
+_DERIVATIVE_TOKENS = frozenset('condensada condensado chocolate cacao batido sabor aroma polvo crema salsa caldo bebida postre galleta helado zumo mermelada yogur'.split()
+                               + 'condensadas condensados chocolates batidos sabores aromas cremas salsas caldos bebidas postres galletas helados zumos mermeladas yogures'.split())
 
 
 class CatalogWarming(RuntimeError):
@@ -299,7 +301,8 @@ class MercadonaPricing:
             if score >= 0 and self._food(product) is not False:
                 quote = self._quote(pid, product, observed, stale)
                 extra = len(set(_mercadona_normalize(name).split()) - set(text.split()))
-                derivative = len((set(_mercadona_normalize(name).split()) - set(text.split())) & _DERIVATIVE_TOKENS)
+                derivative = len((set(re.findall(r'\w+', _mercadona_normalize(name)))
+                                  - set(re.findall(r'\w+', text))) & _DERIVATIVE_TOKENS)
                 scored.append((extra, derivative, Product(pid, name, self._provenance, observed,
                                                quote.uncertainty_reasons, quote.food)))
         # Food-only browsing; closest name, derivative penalty, food, name and id.

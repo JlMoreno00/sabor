@@ -49,6 +49,25 @@ def valid(data):
         return False
 
 
+def clean(data):
+    """Drop blank ingredient/step lines and keep a textual recipeYield (or None)."""
+    data = dict(data)
+    if isinstance(data.get('recipeIngredient'), list):
+        # Non-text values are kept so valid() rejects the recipe and the next one is tried.
+        data['recipeIngredient'] = [x.strip() if isinstance(x, str) else x for x in data['recipeIngredient']
+                                    if not isinstance(x, str) or x.strip()]
+    if isinstance(data.get('recipeInstructions'), list):
+        data['recipeInstructions'] = [x for x in data['recipeInstructions']
+                                      if not isinstance(x, str) or x.strip()]
+    value = data.get('recipeYield')
+    if isinstance(value, list):
+        value = next((x for x in value if isinstance(x, (str, int, float)) and str(x).strip()), None)
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        value = f'{value:g}'
+    data['recipeYield'] = value.strip() if isinstance(value, str) and value.strip() else None
+    return data
+
+
 def recipe_from_html(html, url):
     """Try recipe-scrapers without network access, then schema.org JSON-LD."""
     text = html.decode('utf-8', errors='replace')
@@ -63,6 +82,7 @@ def recipe_from_html(html, url):
                 data[field] = getattr(scraper, method)()
             except Exception:
                 data[field] = None
+        data = clean(data)
         if valid(data):
             return data
     except Exception:
@@ -72,6 +92,7 @@ def recipe_from_html(html, url):
     for document in parser.documents:
         try:
             for data in recipes(json.loads(document)):
+                data = clean(data)
                 if valid(data):
                     return data
         except (ValueError, TypeError):

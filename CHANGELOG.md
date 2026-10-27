@@ -125,6 +125,15 @@
   compatibility context (#4).
 
 ### Fixed
+- Polish from #49: SQLite `sort=last_made` breaks equal timestamps by the latest
+  cooking event; preferences reject text UTF-8 cannot encode; a partial
+  `add_to_shopping_list` failure keeps the operation data; `SABOR_CONFIG`,
+  `XDG_CONFIG_HOME` and `APPDATA` expand `~` and are normalized, and without any home
+  directory the default path fails with a clear error instead of a literal `~` path; `doctor` with the Mealie store and no base URL
+  exits 2; `catalog` ignores unrelated invalid settings; URL import drops blank
+  ingredient/step lines and keeps `recipeYield` as text; Mercadona ranking also
+  penalizes plural/punctuated derivatives; the Postgres `doctor` probe reconnects
+  once after a lost connection, without migrating.
 - Mealie port operations translate legacy HTTP 404 failures to `not_found`
   rather than `upstream_error`; legacy tool response dictionaries are unchanged (#5).
 - `mcp-manifest.json` no longer advertises Spoonacular and now lists every
