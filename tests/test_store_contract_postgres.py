@@ -70,9 +70,10 @@ class PostgresStoreContract(StoreContractMixin, unittest.TestCase):
 
     def test_search_phrase_and_diacritics(self):
         from sabor.store import Recipe, RecipeSearch, RecipePatch, Ingredient
-        self.store.create_recipe(Recipe(slug='arroz', name='Paella', description='Comida fácil',
+        self.store.create_recipe(Recipe(slug='arroz', name='Paella', description='Comida fácil,\n  sabrosa',
                                        recipeIngredient=(Ingredient(originalText='azúcar moreno'),)))
-        for query in ('azucar moreno', 'comida facil', 'PAEL'):
+        for query in ('azucar moreno', 'comida facil', 'PAEL', 'sabrosa', 'facil sabrosa',
+                      'comida   facil', 'fácil, sabrosa'):
             self.assertEqual([r.slug for r in self.store.search_recipes(RecipeSearch(query=query)).items], ['arroz'])
         for query in ('moreno azucar', '%', '_', 'azucar inexistente'):
             self.assertEqual(self.store.search_recipes(RecipeSearch(query=query)).total, 0)

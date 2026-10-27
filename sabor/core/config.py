@@ -94,7 +94,7 @@ def load_settings(env: Mapping[str, str]) -> Settings:
     database_url = get('SABOR_DATABASE_URL')
     if store == 'postgres' and not database_url:
         raise ConfigError('Postgres store requires SABOR_DATABASE_URL')
-    if database_url:
+    if store == 'postgres':
         try:
             parsed = urlsplit(database_url)
             if parsed.scheme not in ('postgresql', 'postgres'):
