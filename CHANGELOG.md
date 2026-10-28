@@ -3,8 +3,8 @@
 ## [Unreleased]
 
 ### Changed
-- Dependencies: `urllib3>=2` is now declared directly. Recipe image downloads read
-  one socket read at a time (`HTTPResponse.read1`, new in urllib3 2) to keep their
+- Dependencies: `urllib3>=2.2` is now declared directly. Recipe image downloads read
+  one socket read at a time (`HTTPResponse.read1`, added in urllib3 2.2.0) to keep their
   30 s limit, and `requests` alone still allowed urllib3 1.26, where every image
   download would have been skipped (#49).
 - Free-text ingredient names also drop English unit words (`300 grams of rice` gives
