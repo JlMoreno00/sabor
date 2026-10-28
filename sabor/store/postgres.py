@@ -17,6 +17,10 @@ from . import (NamedRef, Ingredient, Instruction, Recipe, RecipeOccurrence,
                Page, Suggestion, MealEntry, ListSummary, ListRef, ShoppingSnapshot,
                WriteResult, Tag, RecipeImage, validate_recipe_image)
 from .postgres_schema import migrate
+from .slugs import next_slug
+
+# Concurrent creators of the same name each retry with the next free suffix.
+_SLUG_ATTEMPTS = 10
 from sabor.pricing.quantities import from_structured, ingredient_name, to_base
 
 
@@ -184,6 +188,11 @@ class PostgresRecipeStore:
     def _id(self, db):
         return str(db.execute("INSERT INTO serial DEFAULT VALUES RETURNING id").fetchone()[0])
 
+    def _name_slug(self, db, name):
+        """New recipes get a name slug, suffixed -2, -3... on collision, as in SQLite (#49)."""
+        return next_slug(name, lambda slug: db.execute("SELECT 1 FROM recipes WHERE slug=%s", (slug,)).fetchone(),
+                         lambda: self._id(db))
+
     def _get_recipe(self, db, slug):
         row = db.execute("SELECT payload FROM recipes WHERE slug=%s", (slug,)).fetchone()
         if row is None:
@@ -234,12 +243,26 @@ class PostgresRecipeStore:
 
     def create_recipe(self, draft):
         with self._connect() as db:
-            slug = draft.slug or self._id(db)
-            if db.execute("SELECT 1 FROM recipes WHERE slug=%s", (slug,)).fetchone():
+            recipe_id = None
+            for _ in range(_SLUG_ATTEMPTS):
+                slug = draft.slug or self._name_slug(db, draft.name)
+                if draft.slug and db.execute("SELECT 1 FROM recipes WHERE slug=%s", (slug,)).fetchone():
+                    raise StoreError("conflict", self.id)
+                recipe_id = recipe_id or draft.id or self._id(db)
+                recipe = Recipe(**{f.name: getattr(draft, f.name) for f in fields(Recipe)})
+                recipe = replace(recipe, slug=slug, id=recipe_id)
+                try:
+                    # Savepoint: another process may commit the same slug first; the
+                    # primary key rejects it and a derived slug retries with the next suffix.
+                    with db.transaction():
+                        db.execute("INSERT INTO recipes (slug, id, payload) VALUES (%s, %s, %s)",
+                                   (slug, recipe.id, _json(recipe)))
+                    break
+                except self._driver.errors.UniqueViolation:
+                    if draft.slug:
+                        raise StoreError("conflict", self.id) from None
+            else:
                 raise StoreError("conflict", self.id)
-            recipe = Recipe(**{f.name: getattr(draft, f.name) for f in fields(Recipe)})
-            recipe = replace(recipe, slug=slug, id=draft.id or self._id(db))
-            db.execute("INSERT INTO recipes (slug, id, payload) VALUES (%s, %s, %s)", (slug, recipe.id, _json(recipe)))
             self._save_recipe(db, recipe)
             db.execute("UPDATE recipes SET created_at=updated_at WHERE slug=%s AND created_at IS NULL", (slug,))
             return RecipeRef(recipe.id, recipe.name, slug)

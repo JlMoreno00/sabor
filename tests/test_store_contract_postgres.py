@@ -4,7 +4,9 @@ from importlib import import_module
 import unittest
 from uuid import uuid4
 
-from sabor.store import Ingredient, Recipe
+from unittest.mock import patch
+
+from sabor.store import Ingredient, Recipe, RecipePatch, RecipeSearch, StoreError
 from tests.test_store_contract import CAPABILITIES, StoreContractMixin
 from sabor.store.postgres_schema import MIGRATIONS as POSTGRES_MIGRATIONS
 
@@ -58,6 +60,63 @@ class PostgresStoreContract(StoreContractMixin, unittest.TestCase):
                 connection.execute(sql.SQL('SELECT * FROM {}.recipes').format(sql.Identifier(self.schema)))
             connection.rollback()
 
+    def test_new_recipes_get_name_slugs(self):
+        # #49 decision: Postgres matches SQLite (same sabor.store.slugs functions).
+        for name, slug in (('Tortilla de patatas', 'tortilla-de-patatas'), ('Ñoquis con salsa', 'noquis-con-salsa'),
+                           ('  Pollo al curry (fácil)! ', 'pollo-al-curry-facil')):
+            self.assertEqual(self.store.create_recipe(Recipe(name=name)).slug, slug)
+        slugs = [self.store.create_recipe(Recipe(name='Tortilla de patatas')).slug for _ in range(2)]
+        self.assertEqual(slugs, ['tortilla-de-patatas-2', 'tortilla-de-patatas-3'])
+        self.assertEqual(self.store.create_recipe(Recipe(name='Sopa', slug='mi-sopa')).slug, 'mi-sopa')
+        with self.assertRaises(StoreError) as caught:
+            self.store.create_recipe(Recipe(name='Otra', slug='mi-sopa'))
+        self.assertEqual(caught.exception.code, 'conflict')
+        nameless = self.store.create_recipe(Recipe(name='¡!')).slug
+        assert nameless is not None
+        self.assertTrue(nameless.isdigit())
+
+    def test_existing_numeric_recipes_are_untouched(self):
+        PostgresRecipeStore = import_module('sabor.store.postgres').PostgresRecipeStore
+        # Simulate a pre-#49 creation, which always used the numeric serial.
+        with patch.object(PostgresRecipeStore, '_name_slug', lambda self, db, name: self._id(db)):
+            legacy = self.store.create_recipe(Recipe(name='Tortilla de patatas')).slug
+        assert legacy is not None and legacy.isdigit()
+        before = self.store.get_recipe(legacy)
+        self.assertEqual(self.store.create_recipe(Recipe(name='Tortilla de patatas')).slug, 'tortilla-de-patatas')
+        self.assertEqual(self.store.get_recipe(legacy), before)
+        self.store.update_recipe(legacy, RecipePatch({'description': 'Con cebolla'}))
+        self.assertEqual(self.store.get_recipe(legacy).description, 'Con cebolla')
+        self.assertEqual({r.slug for r in self.store.search_recipes(RecipeSearch()).items} - {'soup'},
+                         {legacy, 'tortilla-de-patatas'})
+
+    def test_slug_collision_race_retries(self):
+        # Another process takes the computed slug between the check and the insert: the
+        # unique key rejects it and the store retries with the next suffix (#49).
+        PostgresRecipeStore = import_module('sabor.store.postgres').PostgresRecipeStore
+        other = PostgresRecipeStore(DSN, schema=self.schema)
+        self.addCleanup(other.close)
+        self.assertEqual(self.store.create_recipe(Recipe(name='Pan')).slug, 'pan')
+        real = PostgresRecipeStore._name_slug
+        calls = []
+
+        def stale(store, db, name):
+            calls.append(name)
+            return 'pan' if len(calls) == 1 else real(store, db, name)
+        with patch.object(PostgresRecipeStore, '_name_slug', stale):
+            self.assertEqual(other.create_recipe(Recipe(name='Pan')).slug, 'pan-2')
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(self.store.get_recipe('pan-2').name, 'Pan')
+
+    def test_concurrent_slug_creation_is_unique(self):
+        from concurrent.futures import ThreadPoolExecutor
+        PostgresRecipeStore = import_module('sabor.store.postgres').PostgresRecipeStore
+        stores = [PostgresRecipeStore(DSN, schema=self.schema) for _ in range(4)]
+        for store in stores:
+            self.addCleanup(store.close)
+            store.ensure_ready()
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            slugs = list(pool.map(lambda store: store.create_recipe(Recipe(name='Gazpacho')).slug, stores))
+        self.assertEqual(sorted(slugs), ['gazpacho', 'gazpacho-2', 'gazpacho-3', 'gazpacho-4'])
     def test_normalize_splits_enumerations(self):
         # #49 decision, shared with SQLite through ingredients_es.normalize_row.
         ref = self.store.create_recipe(Recipe(name='Bizcocho', recipeIngredient=(
