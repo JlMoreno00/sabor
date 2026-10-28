@@ -25,8 +25,9 @@ def load_legacy_config(env: Mapping[str, str]) -> LegacyConfig:
     HOST = env.get("SABOR_HOST", "0.0.0.0")
     PORT = int(env.get("SABOR_PORT", "8080"))
 
-    MEALIE_BASE_URL = env.get("MEALIE_BASE_URL", "http://localhost:9925").rstrip("/")
-    MEALIE_API_TOKEN = env.get("MEALIE_API_TOKEN", "")
+    # Strip like load_settings so the catalog reconciler never sends padded values.
+    MEALIE_BASE_URL = env.get("MEALIE_BASE_URL", "http://localhost:9925").strip().rstrip("/")
+    MEALIE_API_TOKEN = env.get("MEALIE_API_TOKEN", "").strip()
 
     SABOR_STORE = env.get("SABOR_STORE", "").strip() or (
         "mealie" if env.get("MEALIE_BASE_URL", "").strip() else "sqlite")
