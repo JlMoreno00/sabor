@@ -259,3 +259,28 @@ def test_existing_numeric_recipes_are_untouched(tmp_path):
     store.update_recipe(legacy, RecipePatch({"name": "Tortilla de patatas con cebolla"}))
     assert store.get_recipe(legacy).name == "Tortilla de patatas con cebolla"
     assert {r.slug for r in store.search_recipes(RecipeSearch()).items} == {legacy, "tortilla-de-patatas"}
+
+
+def test_normalize_splits_enumerations_and_keeps_metadata(tmp_path):
+    # #49 decision: one import row naming several foods becomes several rows.
+    store = SqliteRecipeStore(tmp_path / "split.db")
+    original = (
+        Ingredient(originalText="2 g de harina y azúcar", note="tamizada", referenceId="ref-1"),
+        Ingredient(originalText="1 cebolla, picada"),
+        Ingredient(originalText="2 huevos"),
+    )
+    ref = store.create_recipe(Recipe(name="Bizcocho", recipeIngredient=original))
+    assert store.normalize_imported(ref.slug) == {
+        "ok": True, "slug": ref.slug, "status": "normalized", "accepted": 2}
+    rows = store.get_recipe(ref.slug).recipeIngredient
+    assert rows is not None
+    assert [(r.quantity, r.unit.name if r.unit else None, r.food.name if r.food else None) for r in rows] == [
+        (2, "gramo", "harina"), (2, "gramo", "azúcar"), (None, None, None), (2, None, "huevos")]
+    dubious = "cantidad dudosa: línea con varios ingredientes"
+    # Source metadata (here a note for the whole line) is kept on every split row.
+    assert [r.note for r in rows] == [f"tamizada; {dubious}"] * 2 + [None, None]
+    assert [r.originalText for r in rows] == ["2 g de harina y azúcar"] * 2 + ["1 cebolla, picada", "2 huevos"]
+    assert [r.referenceId for r in rows] == ["ref-1", None, None, None]
+    # Idempotent: structured rows are never split again.
+    assert store.normalize_imported(ref.slug)["status"] == "retained_originals"
+    assert store.get_recipe(ref.slug).recipeIngredient == rows

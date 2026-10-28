@@ -38,3 +38,49 @@ def test_parse_ingredient(line, quantity, unit, food):
     assert result.originalText == line
     if quantity is None:
         assert result.note == line
+
+
+DUBIOUS = "cantidad dudosa: línea con varios ingredientes"
+
+
+def _rows(line):
+    from sabor.importing.ingredients_es import parse_ingredients
+    return [(r.quantity, r.unit.name if r.unit else None, r.food.name if r.food else None, r.note)
+            for r in parse_ingredients(line)]
+
+
+@pytest.mark.parametrize("line,rows", [
+    # #49 decision: enumerations split; a shared amount is flagged as dubious.
+    ("2 g de harina y azúcar", [(2, "gramo", "harina", DUBIOUS), (2, "gramo", "azúcar", DUBIOUS)]),
+    ("1 pizca de sal y pimienta", [(1, "pizca", "sal", DUBIOUS), (1, "pizca", "pimienta", DUBIOUS)]),
+    ("200 g de harina, azúcar y mantequilla", [(200, "gramo", f, DUBIOUS)
+                                               for f in ("harina", "azúcar", "mantequilla")]),
+    ("2 cda de aceite de oliva o girasol", [(2, "cucharada", "aceite de oliva", DUBIOUS),
+                                            (2, "cucharada", "girasol", DUBIOUS)]),
+    ("1 cdta de comino e hinojo", [(1, "cucharadita", "comino", DUBIOUS),
+                                   (1, "cucharadita", "hinojo", DUBIOUS)]),
+    # Each part with its own amount keeps it and is not dubious.
+    ("2 huevos y 200 g de harina", [(2, None, "huevos", None), (200, "gramo", "harina", None)]),
+    # Mixed lines: a part without its own amount gets the food only, flagged.
+    ("2 huevos, 1 litro de leche y sal", [(2, None, "huevos", None), (1, "litro", "leche", None),
+                                         (None, None, "sal", DUBIOUS)]),
+])
+def test_enumerations_split(line, rows):
+    from sabor.importing.ingredients_es import parse_ingredients
+    assert _rows(line) == rows
+    assert all(r.originalText == line for r in parse_ingredients(line))
+
+
+@pytest.mark.parametrize("line", [
+    # Compound names and preparations are not enumerations.
+    "200 g de macarrones con queso", "2 cda de salsa agridulce", "1 cebolla, picada",
+    "2 tomates, pelados y picados", "1 litro de leche entera o desnatada",
+    "1 pizca de pimienta blanca o negra", "2 latas de tomate triturado", "1 cebolla en dados",
+    "1 kg y medio de patatas", "2 huevos y 200 g",
+    # Unchanged conservative cases.
+    "sal y pimienta al gusto", "2 g de sal y pimienta al gusto", "sal y pimienta", "2-3 huevos", "",
+])
+def test_non_enumerations_match_single_parse(line):
+    from sabor.importing.ingredients_es import parse_ingredients
+    single = parse_ingredient(line)
+    assert parse_ingredients(line) == (single,)
