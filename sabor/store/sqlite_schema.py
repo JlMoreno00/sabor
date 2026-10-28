@@ -28,7 +28,15 @@ def _sort_schema(connection):
         connection.execute(f"UPDATE {table} SET {column}=?", (now,))
 
 
-MIGRATIONS = ((1, _base_schema), (2, _search_schema), (3, _sort_schema))
+def _image_schema(connection):
+    # Downloaded recipe images (#49), kept apart from the recipe payload. `data` is NULL
+    # when only the original URL could be kept.
+    connection.execute("CREATE TABLE IF NOT EXISTS recipe_images (recipe_slug TEXT PRIMARY KEY "
+                       "REFERENCES recipes(slug) ON DELETE CASCADE, source_url TEXT NOT NULL, "
+                       "content_type TEXT, data BLOB, updated_at TEXT NOT NULL)")
+
+
+MIGRATIONS = ((1, _base_schema), (2, _search_schema), (3, _sort_schema), (4, _image_schema))
 
 
 def migrate(connection):

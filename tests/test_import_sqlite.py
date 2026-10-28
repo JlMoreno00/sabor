@@ -24,7 +24,10 @@ def importer(tmp_path):
 def test_url_preview_commit(importer, page):
     html = (Path(__file__).parent / 'fixtures/import' / (page + '.html')).read_bytes()
     fallback = patch('recipe_scrapers.scrape_html', side_effect=ValueError('unsupported')) if page == 'graph' else nullcontext()
+    png = b'\x89PNG\r\n\x1a\n' + b'\x00' * 8
+    # The graph page names an image: the download is simulated, never a live request (#49).
     with fallback, patch.object(t, 'html_bytes', return_value=(html, 'text/html')), patch(
+            'sabor.importing.images.fetch_recipe_image', return_value=(png, 'image/png')) as image, patch(
             'sabor.tools.nutrition._nutrition_after_import') as nutrition:
         preview = importer['import_recipe']('https://example.org/recipe', kind='url')
         assert preview['ok'], preview
@@ -34,6 +37,9 @@ def test_url_preview_commit(importer, page):
         assert result['data']['created']
         stored = importer['get_recipe'](result['data']['created'][0])
         assert 'Source: https://example.org/recipe' in str(stored)
+        if page == 'graph':
+            image.assert_called_once_with('https://example.org/soup.png')
+            assert result['data']['images'][result['data']['created'][0]]['stored'] is True
         nutrition.assert_not_called()
         duplicate = importer['import_recipe']('https://example.org/recipe', kind='url', dry_run=False)
         assert duplicate['data']['skips'][0]['reason'] == 'duplicate'

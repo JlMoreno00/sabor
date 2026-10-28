@@ -189,7 +189,7 @@ def test_v2_sort_migration(tmp_path):
         assert created == updated
         assert created.endswith("+00:00")
         assert db.execute("SELECT created_at FROM cooking_events").fetchone()[0] == created
-        assert db.execute("SELECT max(version) FROM schema_version").fetchone()[0] == 3
+        assert db.execute("SELECT max(version) FROM schema_version").fetchone()[0] == MIGRATIONS[-1][0]
 
 
 def _slug(ref):

@@ -197,12 +197,40 @@ def html_bytes(url):
     return safe_bytes(url, 5, ('text/html', 'application/xhtml+xml'), 'HTML')
 
 
-def safe_bytes(url, megabytes, content_types, label):
-    """Fetch bounded typed content through pinned public IPs at every hop."""
+_NAT64 = ipaddress.ip_network('64:ff9b::/96')
+
+
+def public_address(text):
+    """True only for a global unicast address, unwrapping IPv4 embedded in IPv6.
+
+    Python reports multicast and NAT64/6to4/Teredo addresses that carry a private or
+    loopback IPv4 as global, so those are checked on the embedded IPv4 (#49).
+    """
+    address = ipaddress.ip_address(text)
+    if isinstance(address, ipaddress.IPv6Address):
+        if address.ipv4_mapped:
+            address = address.ipv4_mapped
+        elif address in _NAT64:
+            address = ipaddress.IPv4Address(int(address) & 0xFFFFFFFF)
+        elif address.sixtofour:
+            address = address.sixtofour
+        elif address.teredo:
+            address = address.teredo[1]
+    return address.is_global and not address.is_multicast
+
+
+def safe_bytes(url, megabytes, content_types, label, expired=None):
+    """Fetch bounded typed content through pinned public IPs at every hop.
+
+    `expired`, when given, is checked before each hop and after each chunk so a
+    slow trickle under the read timeout still stops at a total deadline.
+    """
     for _ in range(4):
+        if expired is not None and expired():
+            reject('timeout', f'{label} download exceeded its time limit.')
         p = http_url(url)
         addresses = socket.getaddrinfo(p.hostname, p.port or (443 if p.scheme == 'https' else 80), type=socket.SOCK_STREAM)
-        if not addresses or any(not ipaddress.ip_address(a[4][0]).is_global for a in addresses):
+        if not addresses or any(not public_address(a[4][0]) for a in addresses):
             reject('invalid_argument', f'{label} URL must resolve to public addresses.')
         response = image_response(p, addresses[0][4][0])
         try:
@@ -218,6 +246,8 @@ def safe_bytes(url, megabytes, content_types, label):
                 content.extend(chunk)
                 if len(content) > megabytes * 1024 * 1024:
                     reject('invalid_argument', f'{label} exceeds the {megabytes} MB limit.')
+                if expired is not None and expired():
+                    reject('timeout', f'{label} download exceeded its time limit.')
             mime = response.headers.get('Content-Type', '').split(';')[0]
             if mime not in content_types or not content:
                 reject('invalid_argument', 'A supported image is required.' if label == 'Image' else 'An HTML page is required.')
@@ -241,6 +271,7 @@ def import_recipe(source: str, kind: str = 'auto', dry_run: bool = True,
 def _import_recipe(ctx, source, kind, dry_run, language, max_recipes, min_confidence):
     provider = 'sabor'
     created = []
+    images = {}
     try:
         if (not isinstance(source, str) or not source.strip() or len(source) > 20000
             or kind not in ('auto', 'url', 'text', 'image', 'video') or type(dry_run) is not bool
@@ -341,12 +372,23 @@ def _import_recipe(ctx, source, kind, dry_run, language, max_recipes, min_confid
                 if not isinstance(slug, str) or not slug.strip():
                     raise ValueError('Invalid created slug')
                 created.append(slug)
+                if kind == 'url' and not native:
+                    # Built-in stores keep the scraped image; Mealie's native import does its own.
+                    from .images import keep_recipe_image
+                    report = keep_recipe_image(ctx.store, slug, c.get('image'), source)
+                    if report:
+                        images[slug] = report
                 if not native and kind in ('url', 'image'):
                     provider = extraction_provider
                 if kind == 'video':
                     tag_video(slug)
                     provider = extraction_provider
         hooks = {} if dry_run else run_hooks(ctx, created)
+        if images:
+            hooks['images'] = images
+            hooks.setdefault('warnings', []).extend(
+                {'slug': slug, 'code': 'image_warning', 'warning': report['warning']}
+                for slug, report in images.items() if 'warning' in report)
         return ok(dict(preview=dry_run, kind=kind, provider=provider, candidates=candidates,
                        dropped=dropped, created=created, skips=skips, limitations=limitations) | hooks)
     except ImportErrorResult as exc:
