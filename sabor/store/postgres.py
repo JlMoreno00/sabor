@@ -256,7 +256,7 @@ class PostgresRecipeStore:
 
     def normalize_imported(self, slug):
         """Fill unstructured import rows atomically, retaining all source metadata."""
-        from sabor.importing.ingredients_es import parse_ingredient
+        from sabor.importing.ingredients_es import normalize_row
 
         with self._connect() as db:
             recipe = self._get_recipe(db, slug)
@@ -270,12 +270,12 @@ class PostgresRecipeStore:
                         or not isinstance(row.originalText, str)):
                     merged.append(row)
                     continue
-                parsed = parse_ingredient(row.originalText)
-                if parsed.food is None:
+                rows = normalize_row(row)
+                if rows is None:
                     merged.append(row)
                     continue
-                merged.append(replace(row, quantity=parsed.quantity,
-                                      food=parsed.food, unit=parsed.unit))
+                # An enumeration ('2 g de harina y azúcar') yields one row per food.
+                merged.extend(rows)
                 accepted += 1
             if accepted:
                 self._save_recipe(db, replace(recipe, recipeIngredient=tuple(merged)))
