@@ -32,6 +32,9 @@ class InstallTests(unittest.TestCase):
         self.assertEqual(metadata['project']['name'], 'sabor-mcp')
         self.assertEqual(set(metadata['project']['dependencies']),
                          set((ROOT / 'requirements.txt').read_text().splitlines()))
+        # Deadline-bounded image downloads read with HTTPResponse.read1, added in urllib3
+        # 2.2.0; requests alone still allows urllib3 1.26 (#49).
+        self.assertIn('urllib3>=2.2', metadata['project']['dependencies'])
 
     def test_catalog(self):
         from sabor.core.paths import catalog_dir
