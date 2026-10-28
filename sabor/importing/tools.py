@@ -167,12 +167,13 @@ def plain_steps(value):
     raise ValueError('Invalid instructions')
 
 
-def image_response(parsed, address):
+def image_response(parsed, address, timeout=None):
     """Connect only to a validated literal IP; preserve Host, TLS SNI and verification.
 
     No proxy environment or hostname re-resolution is used. Each redirect creates
     a fresh validated connection; connections are not reused across downloads.
     """
+    timeout = timeout or urllib3.Timeout(connect=10, read=20)
     port = parsed.port or (443 if parsed.scheme == 'https' else 80)
     if parsed.scheme == 'https':
         pool = urllib3.HTTPSConnectionPool(address, assert_hostname=parsed.hostname,
@@ -183,7 +184,7 @@ def image_response(parsed, address):
     target = (parsed.path or '/') + ('?' + parsed.query if parsed.query else '')
     try:
         return pool.urlopen('GET', target, headers={'Host': host}, redirect=False,
-            retries=False, preload_content=False, timeout=urllib3.Timeout(connect=10, read=20))
+            retries=False, preload_content=False, timeout=timeout)
     finally:
         # With preload_content=False the checked-out response owns its socket.
         pool.close()
@@ -231,9 +232,12 @@ def _body_chunks(response, remaining):
     server trickling bytes cannot hold a 64 KB `stream` block past the deadline.
     """
     read1 = getattr(response, 'read1', None)
-    if remaining is None or read1 is None:
+    if remaining is None:
         yield from response.stream(65536)
         return
+    if read1 is None:
+        # urllib3 1.26 has no read1: refuse rather than stream past the deadline.
+        raise ValueError('Deadline-bounded reads require urllib3 read1')
     while True:
         left = remaining()
         if left <= 0:
@@ -263,7 +267,12 @@ def safe_bytes(url, megabytes, content_types, label, remaining=None, final=None)
         addresses = socket.getaddrinfo(p.hostname, p.port or (443 if p.scheme == 'https' else 80), type=socket.SOCK_STREAM)
         if not addresses or any(not public_address(a[4][0]) for a in addresses):
             reject('invalid_argument', f'{label} URL must resolve to public addresses.')
-        response = image_response(p, addresses[0][4][0])
+        if remaining is None:
+            response = image_response(p, addresses[0][4][0])
+        else:
+            # Connection and header wait count against the deadline too.
+            response = image_response(p, addresses[0][4][0], timeout=urllib3.Timeout(
+                connect=10, read=_READ_TIMEOUT, total=max(remaining(), 0.001)))
         try:
             if response.status in (301, 302, 303, 307, 308):
                 url = urljoin(url, response.headers['Location'])

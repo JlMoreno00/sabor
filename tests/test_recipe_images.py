@@ -99,6 +99,34 @@ class FetchTests(unittest.TestCase):
         self.assertLess(timeouts[-1], timeouts[0])
         response.close.assert_called()
 
+    def test_every_hop_connects_within_the_time_left(self, fetch, dns):
+        # Connection and header wait count against the deadline too: each hop gets a
+        # urllib3 total timeout no larger than the time left (CodeRabbit on #94).
+        fetch.side_effect = [served(b'', status=302, headers={'Location': 'https://e.org/b'}), served(PNG)]
+        now = [0.0]
+
+        def clock():
+            now[0] += 2.0
+            return now[0]
+        with patch.object(images.time, 'monotonic', side_effect=clock):
+            self.assertEqual(images.fetch_recipe_image('https://e.org/a'), (PNG, 'image/png'))
+        totals = [call.kwargs['timeout'].total for call in fetch.call_args_list]
+        self.assertEqual(len(totals), 2)
+        self.assertTrue(all(0 < total <= images.DEADLINE_SECONDS for total in totals), totals)
+        self.assertLess(totals[1], totals[0])
+
+    def test_without_read1_the_deadline_fails_closed(self, fetch, dns):
+        # urllib3 1.26 has no read1: a deadline-bound download refuses rather than
+        # streaming unbounded 64 KB blocks.
+        response = Mock(spec=['status', 'headers', 'stream', 'close'], status=200,
+                        headers={'Content-Type': 'image/png'})
+        response.stream.return_value = [PNG]
+        fetch.return_value = response
+        with self.assertRaises(images.ImageError):
+            images.fetch_recipe_image('https://e.org/a')
+        response.stream.assert_not_called()
+        response.close.assert_called()
+
     def test_http_errors_and_bad_urls(self, fetch, dns):
         fetch.return_value = served(PNG, status=404)
         with self.assertRaises(images.ImageError):
