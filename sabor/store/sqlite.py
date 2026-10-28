@@ -7,6 +7,7 @@ from hashlib import sha256
 import json
 from math import isfinite
 from pathlib import Path
+import re
 import sqlite3
 import threading
 import unicodedata
@@ -26,6 +27,14 @@ def _normal(text):
 
 def _json(value):
     return json.dumps(asdict(value), ensure_ascii=False)
+
+
+def _slugify(name):
+    """Lowercase ASCII words joined by hyphens ('Tortilla de patatas' -> 'tortilla-de-patatas')."""
+    if not isinstance(name, str):
+        return ""
+    text = unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode()
+    return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
 
 
 def _decode(payload):
@@ -118,6 +127,26 @@ class SqliteRecipeStore:
     def _id(self, db):
         return str(db.execute("INSERT INTO serial DEFAULT VALUES").lastrowid)
 
+    def _name_slug(self, db, name):
+        """New recipes get a name slug, suffixed -2, -3... on collision (#49).
+
+        Without a usable name the numeric identifier is kept. Existing recipes and
+        their slugs are never rewritten.
+        """
+        def taken(slug):
+            return db.execute("SELECT 1 FROM recipes WHERE slug=?", (slug,)).fetchone()
+
+        base = _slugify(name)
+        if not base:
+            slug = self._id(db)
+            while taken(slug):
+                slug = self._id(db)
+            return slug
+        slug, suffix = base, 2
+        while taken(slug):
+            slug, suffix = f"{base}-{suffix}", suffix + 1
+        return slug
+
     def _get_recipe(self, db, slug):
         row = db.execute("SELECT payload FROM recipes WHERE slug=?", (slug,)).fetchone()
         if row is None:
@@ -152,7 +181,7 @@ class SqliteRecipeStore:
     def create_recipe(self, draft):
         with self._connect() as db:
             db.execute("BEGIN IMMEDIATE")
-            slug = draft.slug or self._id(db)
+            slug = draft.slug or self._name_slug(db, draft.name)
             if db.execute("SELECT 1 FROM recipes WHERE slug=?", (slug,)).fetchone():
                 raise StoreError("conflict", self.id)
             recipe = Recipe(**{f.name: getattr(draft, f.name) for f in fields(Recipe)})
