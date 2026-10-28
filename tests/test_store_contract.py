@@ -8,13 +8,13 @@ ContractAssertions = unittest.TestCase if TYPE_CHECKING else object
 
 from sabor.store import (Recipe, RecipeSearch, RecipePatch, Ingredient, Instruction,
                          ItemDraft, MealEntryDraft, DateRange, RecipeOccurrence,
-                         StoreError, store_error_envelope)
+                         RecipeImage, StoreError, store_error_envelope)
 from sabor.store.fake import FakeRecipeStore
 
 
 CAPABILITIES = frozenset((
     "recipes_read", "recipes_write", "search_sort", "mealplan", "shopping",
-    "activity", "suggestions", "rating_sort", "occurrence_ids",
+    "activity", "suggestions", "rating_sort", "occurrence_ids", "recipe_images",
 ))
 
 
@@ -72,6 +72,26 @@ class StoreContractMixin(ContractAssertions):
         with self.assertRaises(StoreError) as caught:
             call()
         self.assertEqual(caught.exception.code, code)
+
+    @requires("recipes_write", "recipe_images")
+    def test_recipe_images(self):
+        # #49: the downloaded image and its original URL, kept apart from the recipe payload.
+        before = self.store.get_recipe(self.ref.slug)
+        self.assertIsNone(self.store.get_recipe_image(self.ref.slug))
+        png = b"\x89PNG\r\n\x1a\n" + bytes(range(256))
+        self.store.set_recipe_image(self.ref.slug, RecipeImage("https://example.org/soup.png", "image/png", png))
+        image = self.store.get_recipe_image(self.ref.slug)
+        self.assertEqual(image, RecipeImage("https://example.org/soup.png", "image/png", png))
+        # A failed download keeps the URL only; a later write replaces the previous image.
+        self.store.set_recipe_image(self.ref.slug, RecipeImage("https://example.org/other.jpg"))
+        self.assertEqual(self.store.get_recipe_image(self.ref.slug), RecipeImage("https://example.org/other.jpg"))
+        self.assertEqual(self.store.get_recipe(self.ref.slug), before)
+        absent = self.absent_id("recipe")
+        self.assert_code("not_found", lambda: self.store.get_recipe_image(absent))
+        self.assert_code("not_found", lambda: self.store.set_recipe_image(absent, RecipeImage("https://e.org/a.png")))
+        for bad in (RecipeImage(""), RecipeImage("https://e.org/a.png", None, b"x"),
+                    RecipeImage("https://e.org/a.png", "image/png", b"")):
+            self.assert_code("invalid_argument", lambda bad=bad: self.store.set_recipe_image(self.ref.slug, bad))
 
     @requires("recipes_read")
     def test_pagination(self):

@@ -14,6 +14,7 @@ class FakeRecipeStore:
         self._serial = 0
         self._created, self._updated, self._last_made = {}, {}, {}
         self.comments, self.cooking_events = {}, {}
+        self.images = {}
 
     def _id(self):
         self._serial += 1
@@ -51,6 +52,15 @@ class FakeRecipeStore:
 
     def get_recipe(self, slug):
         return self._get(self.recipes, slug)
+
+    def set_recipe_image(self, slug, image):
+        validate_recipe_image(image, self.id)
+        self._get(self.recipes, slug)
+        self.images[slug] = image
+
+    def get_recipe_image(self, slug):
+        self._get(self.recipes, slug)
+        return self.images.get(slug)
 
     def create_recipe(self, draft):
         slug = draft.slug or self._id()

@@ -3,7 +3,7 @@
 Frozen DTOs use tuples for collections. Adapters retain private transport/update
 fields themselves; no raw provider response belongs in this port.
 """
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import Generic, Mapping, Protocol, TypeVar
 from sabor.core.envelope import ErrorCode, fail
@@ -63,6 +63,18 @@ class Recipe(RecipeSummary):
 
 
 RecipeDraft = Recipe
+
+
+@dataclass(frozen=True)
+class RecipeImage:
+    """A recipe image kept by the built-in stores (#49).
+
+    `source_url` is always kept as the reference. `data` holds the downloaded bytes,
+    or None when the download failed; `content_type` is set exactly when data is.
+    """
+    source_url: str
+    content_type: str | None = None
+    data: bytes | None = field(default=None, repr=False)
 
 
 @dataclass(frozen=True)
@@ -185,6 +197,22 @@ class StoreError(Exception):
 def store_error_envelope(error: StoreError) -> dict:
     return fail(error.code, errors._MESSAGES.get(error.code,
                 "Recipe store operation failed."), error.provider)
+
+
+RECIPE_IMAGE_TYPES = frozenset(("image/jpeg", "image/png", "image/webp", "image/gif"))
+
+
+def validate_recipe_image(image: RecipeImage, provider: str) -> None:
+    """A non-empty URL; bytes and a known image type together, or neither."""
+    if (not isinstance(image, RecipeImage) or not isinstance(image.source_url, str)
+            or not image.source_url.strip() or len(image.source_url) > 2048):
+        raise StoreError("invalid_argument", provider)
+    if image.data is None:
+        if image.content_type is not None:
+            raise StoreError("invalid_argument", provider)
+    elif (not isinstance(image.data, bytes) or not image.data
+          or image.content_type not in RECIPE_IMAGE_TYPES):
+        raise StoreError("invalid_argument", provider)
 
 
 class RecipeStore(Protocol):

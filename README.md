@@ -589,7 +589,10 @@ adds `pantry: {"applied": true, "matched": N}`. Subtotals exclude those lines;
 if nothing is costed, subtotals remain null, not zero.
 
 Matching uses structured food names or `ingredient_name` on free text, then
-casefolding, accent removal and collapsed whitespace. Whole names must equal,
+casefolding, accent removal and collapsed whitespace. `ingredient_name` strips a
+leading amount, a Spanish or English unit word (`300 g de arroz` and `300 grams of
+rice` give `arroz` and `rice`) and the connector `de`/`of`. English unit words apply
+with every store, Mealie included; Spanish lines are unchanged. Whole names must equal,
 or equal after stripping one trailing `s` or `es` on either side. No fuzzy or
 substring matching: `huevo` matches `huevos`, but `sal` never matches `salsa`.
 This is lexical matching, not quantity-aware stock accounting.

@@ -15,7 +15,7 @@ import unicodedata
 from . import (NamedRef, Ingredient, Instruction, Recipe, RecipeOccurrence,
                ShoppingItem, RecipeStore, StoreError, RecipeRef, RecipeSummary,
                Page, Suggestion, MealEntry, ListSummary, ListRef, ShoppingSnapshot,
-               WriteResult, Tag)
+               WriteResult, Tag, RecipeImage, validate_recipe_image)
 from .postgres_schema import migrate
 from .slugs import next_slug
 
@@ -202,6 +202,27 @@ class PostgresRecipeStore:
     def get_recipe(self, slug):
         with self._connect() as db:
             return self._get_recipe(db, slug)
+
+    def set_recipe_image(self, slug, image):
+        """Keep the image and its original URL, replacing any previous one (#49)."""
+        validate_recipe_image(image, self.id)
+        with self._connect() as db:
+            self._get_recipe(db, slug)
+            db.execute("INSERT INTO recipe_images (recipe_slug, source_url, content_type, data, updated_at) "
+                       "VALUES (%s, %s, %s, %s, %s) ON CONFLICT (recipe_slug) DO UPDATE SET "
+                       "source_url=excluded.source_url, content_type=excluded.content_type, "
+                       "data=excluded.data, updated_at=excluded.updated_at",
+                       (slug, image.source_url, image.content_type, image.data,
+                        datetime.now(timezone.utc).isoformat()))
+
+    def get_recipe_image(self, slug):
+        with self._connect() as db:
+            self._get_recipe(db, slug)
+            row = db.execute("SELECT source_url, content_type, data FROM recipe_images WHERE recipe_slug=%s",
+                             (slug,)).fetchone()
+            if row is None:
+                return None
+            return RecipeImage(row[0], row[1], bytes(row[2]) if row[2] is not None else None)
 
     def _save_recipe(self, db, recipe):
         db.execute("UPDATE recipes SET updated_at=%s WHERE slug=%s",
@@ -538,6 +559,7 @@ class PostgresRecipeStore:
 _READ_ONLY = frozenset({
     'get_recipe', 'search_recipes', 'suggest_recipes', 'get_mealplan',
     'get_shopping_lists', 'get_shopping_items', 'shopping_list_preview', 'schema_version',
+    'get_recipe_image',
 })
 
 
@@ -566,6 +588,7 @@ def _operation(method):
 
 
 # All public persistence operations have one transaction and one error boundary.
-for _name in (*PostgresRecipeStore.operations, 'normalize_imported', 'schema_version', '_preferences_call'):
+for _name in (*PostgresRecipeStore.operations, 'normalize_imported', 'schema_version', '_preferences_call',
+              'set_recipe_image', 'get_recipe_image'):
     if hasattr(PostgresRecipeStore, _name):
         setattr(PostgresRecipeStore, _name, _operation(getattr(PostgresRecipeStore, _name)))

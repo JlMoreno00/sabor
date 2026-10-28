@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 from sabor.store import Ingredient, Recipe, RecipePatch, RecipeSearch, StoreError
 from tests.test_store_contract import CAPABILITIES, StoreContractMixin
+from sabor.store.postgres_schema import MIGRATIONS as POSTGRES_MIGRATIONS
 
 try:
     import psycopg
@@ -44,7 +45,7 @@ class PostgresStoreContract(StoreContractMixin, unittest.TestCase):
         with psycopg.connect(DSN) as connection:
             versions = connection.execute(sql.SQL('SELECT version FROM {}.schema_version').format(
                 sql.Identifier(self.schema))).fetchall()
-            self.assertEqual(versions, [(1,), (2,)])
+            self.assertEqual(versions, [(v,) for v, _ in POSTGRES_MIGRATIONS])
             tables = connection.execute('SELECT relrowsecurity FROM pg_class c JOIN pg_namespace n '
                                         'ON c.relnamespace=n.oid WHERE n.nspname=%s AND c.relkind=%s',
                                         (self.schema, 'r')).fetchall()
@@ -139,7 +140,7 @@ class PostgresStoreContract(StoreContractMixin, unittest.TestCase):
             self.addCleanup(store.close)
         with ThreadPoolExecutor(max_workers=3) as pool:
             list(pool.map(lambda store: store.ensure_ready(), stores))
-        self.assertEqual(fresh.schema_version(), 2)
+        self.assertEqual(fresh.schema_version(), POSTGRES_MIGRATIONS[-1][0])
         self.assertEqual(stores[0].get_shopping_lists(), [])
 
     def test_search_phrase_and_diacritics(self):
@@ -195,7 +196,7 @@ class PostgresStoreContract(StoreContractMixin, unittest.TestCase):
             exists = connection.execute('SELECT 1 FROM pg_namespace WHERE nspname=%s', (self.schema,)).fetchone()
             self.assertIsNone(exists, 'failed migration committed partial schema state')
         fresh.ensure_ready()
-        self.assertEqual(fresh.schema_version(), 2)
+        self.assertEqual(fresh.schema_version(), POSTGRES_MIGRATIONS[-1][0])
 
 
     def test_doctor_reports_schema_version(self):
@@ -233,4 +234,5 @@ class PostgresStoreContract(StoreContractMixin, unittest.TestCase):
         migrated.ensure_ready()
         code, result = doctor(migrated)
         self.assertEqual(code, 0, result)
-        self.assertEqual(result['store'], {'backend': 'postgres', 'reachable': True, 'schema_version': 2})
+        self.assertEqual(result['store'], {'backend': 'postgres', 'reachable': True,
+                                            'schema_version': POSTGRES_MIGRATIONS[-1][0]})

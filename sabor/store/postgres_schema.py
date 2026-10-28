@@ -52,7 +52,22 @@ def _preferences_schema(connection, schema):
                 sql.Identifier(schema, 'preferences'), sql.Identifier(role)))
 
 
-MIGRATIONS = ((1, _base_schema), (2, _preferences_schema))
+def _image_schema(connection, schema):
+    # Downloaded recipe images (#49), kept apart from the recipe payload; `data` is NULL
+    # when only the original URL could be kept. Same RLS and grants as every table.
+    from psycopg import sql
+    connection.execute('CREATE TABLE recipe_images (recipe_slug text PRIMARY KEY REFERENCES recipes(slug) '
+                       'ON DELETE CASCADE, source_url text NOT NULL, content_type text, data bytea, '
+                       'updated_at text NOT NULL)')
+    connection.execute('ALTER TABLE recipe_images ENABLE ROW LEVEL SECURITY')
+    connection.execute('REVOKE ALL ON recipe_images FROM PUBLIC')
+    for role in ('anon', 'authenticated'):
+        if connection.execute('SELECT 1 FROM pg_roles WHERE rolname=%s', (role,)).fetchone():
+            connection.execute(sql.SQL('REVOKE ALL ON {} FROM {}').format(
+                sql.Identifier(schema, 'recipe_images'), sql.Identifier(role)))
+
+
+MIGRATIONS = ((1, _base_schema), (2, _preferences_schema), (3, _image_schema))
 
 
 def migrate(connection, schema):
