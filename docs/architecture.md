@@ -64,7 +64,8 @@ and the usual revokes), together with the original URL. The download reuses the
 import SSRF guard: every hop is pinned to public addresses (private, loopback,
 link-local, unspecified and multicast addresses are refused, also when embedded in
 IPv6 as mapped, NAT64, 6to4 or Teredo), at most 4 redirects, 10 s connect
-and 20 s read timeouts, plus a 30 s total deadline. Only JPEG, PNG, WebP or GIF up
+and 20 s read timeouts, plus a 30 s total deadline that also bounds each DNS lookup
+(a hung resolver is abandoned in a background thread). Only JPEG, PNG, WebP or GIF up
 to 5 MB is kept, and the type comes from the file signature, not the header. If
 the download fails the recipe is imported anyway, the URL alone is kept and the
 response carries `images.<slug>.warning: image_download_failed` and an

@@ -5,6 +5,7 @@ import json
 import math
 import os
 import socket
+import threading
 from urllib.parse import urljoin, urlsplit
 from typing import NoReturn
 
@@ -251,11 +252,36 @@ def _body_chunks(response, remaining):
         yield chunk
 
 
+def _resolve(host, port, remaining):
+    """getaddrinfo bounded by the time left; it has no timeout of its own.
+
+    With a deadline the lookup runs in a daemon thread that is abandoned, not joined,
+    when time runs out; the resolver finishes it in the background.
+    """
+    if remaining is None:
+        return socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
+    outcome = {}
+
+    def lookup():
+        try:
+            outcome['addresses'] = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
+        except Exception as exc:
+            outcome['error'] = exc
+    thread = threading.Thread(target=lookup, name='sabor-dns', daemon=True)
+    thread.start()
+    thread.join(max(remaining(), 0))
+    if thread.is_alive():
+        raise TimeoutError('DNS lookup exceeded the time limit')
+    if 'error' in outcome:
+        raise outcome['error']
+    return outcome['addresses']
+
+
 def safe_bytes(url, megabytes, content_types, label, remaining=None, final=None):
     """Fetch bounded typed content through pinned public IPs at every hop.
 
     `remaining`, when given, returns the seconds left of a total deadline; it bounds
-    every hop and every read. `final`, when given, receives the URL after redirects.
+    every DNS lookup, hop and read. `final`, when given, receives the URL after redirects.
     """
     def expired():
         return remaining is not None and remaining() <= 0
@@ -264,7 +290,7 @@ def safe_bytes(url, megabytes, content_types, label, remaining=None, final=None)
         if expired():
             reject('timeout', f'{label} download exceeded its time limit.')
         p = http_url(url)
-        addresses = socket.getaddrinfo(p.hostname, p.port or (443 if p.scheme == 'https' else 80), type=socket.SOCK_STREAM)
+        addresses = _resolve(p.hostname, p.port or (443 if p.scheme == 'https' else 80), remaining)
         if not addresses or any(not public_address(a[4][0]) for a in addresses):
             reject('invalid_argument', f'{label} URL must resolve to public addresses.')
         if remaining is None:

@@ -1,4 +1,6 @@
 """Recipe image download for the built-in stores (#49): offline, no live network."""
+import threading
+import time
 import unittest
 from unittest.mock import Mock, patch
 
@@ -114,6 +116,26 @@ class FetchTests(unittest.TestCase):
         self.assertEqual(len(totals), 2)
         self.assertTrue(all(0 < total <= images.DEADLINE_SECONDS for total in totals), totals)
         self.assertLess(totals[1], totals[0])
+
+    def test_dns_lookup_counts_against_the_deadline(self, fetch, dns):
+        # getaddrinfo has no timeout of its own: a resolver that hangs must not hold the
+        # download past the total deadline, and nothing is fetched (#49).
+        release = threading.Event()
+        dns.side_effect = lambda *args, **kwargs: (release.wait(5), PUBLIC)[1]
+        start = time.monotonic()
+        try:
+            with patch.object(images, 'DEADLINE_SECONDS', 0.3), self.assertRaises(images.ImageError):
+                images.fetch_recipe_image('https://e.org/a')
+            self.assertLess(time.monotonic() - start, 2)
+            fetch.assert_not_called()
+        finally:
+            release.set()
+
+    def test_dns_errors_still_fail_the_image(self, fetch, dns):
+        dns.side_effect = OSError('no such host')
+        with self.assertRaises(images.ImageError):
+            images.fetch_recipe_image('https://e.org/a')
+        fetch.assert_not_called()
 
     def test_without_read1_the_deadline_fails_closed(self, fetch, dns):
         # urllib3 1.26 has no read1: a deadline-bound download refuses rather than
