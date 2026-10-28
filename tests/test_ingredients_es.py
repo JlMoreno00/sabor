@@ -64,6 +64,9 @@ def _rows(line):
     # Mixed lines: a part without its own amount gets the food only, flagged.
     ("2 huevos, 1 litro de leche y sal", [(2, None, "huevos", None), (1, "litro", "leche", None),
                                          (None, None, "sal", DUBIOUS)]),
+    # A decimal comma is part of the amount, not a separator.
+    ("0,5 kg de azúcar y harina", [(.5, "kilogramo", "azúcar", DUBIOUS), (.5, "kilogramo", "harina", DUBIOUS)]),
+    ("1,5 kg de harina, azúcar", [(1.5, "kilogramo", "harina", DUBIOUS), (1.5, "kilogramo", "azúcar", DUBIOUS)]),
 ])
 def test_enumerations_split(line, rows):
     from sabor.importing.ingredients_es import parse_ingredients
@@ -75,6 +78,8 @@ def test_enumerations_split(line, rows):
     # Compound names and preparations are not enumerations.
     "200 g de macarrones con queso", "2 cda de salsa agridulce", "1 cebolla, picada",
     "2 tomates, pelados y picados", "1 litro de leche entera o desnatada",
+    "1 cebolla, picada en dados", "2 tomates, cortados en cubos", "1 cebolla, picada fina",
+    "1 pizca de pimienta, blanca molida",
     "1 pizca de pimienta blanca o negra", "2 latas de tomate triturado", "1 cebolla en dados",
     "1 kg y medio de patatas", "2 huevos y 200 g",
     # Unchanged conservative cases.

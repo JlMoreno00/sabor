@@ -74,9 +74,10 @@ def parse_ingredient(line: str) -> Ingredient:
 
 DUBIOUS_NOTE = "cantidad dudosa: línea con varios ingredientes"
 _FOOD = re.compile(r"[a-záéíóúüñ]+(?:[ '\-][a-záéíóúüñ]+)*", re.I)
-# Separators between foods: commas and whole-word conjunctions (so 'agridulce' never splits).
-_SEPARATOR = re.compile(r"\s*,\s*|\s+(?:y|e|o|u|and|or)\s+", re.I)
-# A lone word after a separator that describes the previous food, not a new one.
+# Separators between foods: commas (never a decimal comma such as '0,5') and whole-word
+# conjunctions (so 'agridulce' never splits).
+_SEPARATOR = re.compile(r"\s*(?:,(?!\d)|(?<!\d),)\s*|\s+(?:y|e|o|u|and|or)\s+", re.I)
+# A first word after a separator that describes the previous food, not a new one.
 _DESCRIPTORS = frozenset(
     "blanco blanca blancos blancas negro negra negros negras rojo roja rojos rojas verde verdes "
     "amarillo amarilla amarillos amarillas grande grandes pequeño pequeña pequeños pequeñas "
@@ -96,12 +97,13 @@ def _bare_food(text):
     words = text.split()
     if not words or not _FOOD.fullmatch(text) or words[0].casefold() in _LEADING_WORDS:
         return False
-    if len(words) == 1:
-        word = words[0].casefold()
-        if word in _DESCRIPTORS:
-            return False
-        if re.search(r"(?:ado|ada|ados|adas|ido|ida|idos|idas)$", word) and word not in _PARTICIPLE_FOODS:
-            return False
+    # A part opening with a descriptor or a participle is a preparation of the previous
+    # food ('picada', 'picada en dados', 'cortados en cubos'), whatever its length.
+    word = words[0].casefold()
+    if word in _DESCRIPTORS:
+        return False
+    if re.search(r"(?:ado|ada|ados|adas|ido|ida|idos|idas)$", word) and word not in _PARTICIPLE_FOODS:
+        return False
     return True
 
 
