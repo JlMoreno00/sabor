@@ -216,7 +216,11 @@ class IngredientNameTests(unittest.TestCase):
                                ('1 liter of milk', 'milk'), ('2 litres of water', 'water'),
                                ('500 milliliters of stock', 'stock'), ('500 millilitres of stock', 'stock'),
                                ('2 units of pepper', 'pepper'), ('3 pieces of bread', 'bread'),
-                               ('1 piece of cake', 'cake'), ('1 dozen eggs', 'eggs')]:
+                               ('1 piece of cake', 'cake'), ('1 dozen eggs', 'eggs'),
+                               # Remaining singular and plural forms of the same unit words.
+                               ('3 liters of juice', 'juice'), ('1 litre of oil', 'oil'),
+                               ('250 milliliter cream', 'cream'), ('1 unit of lemon', 'lemon'),
+                               ('2 dozens eggs', 'eggs')]:
             with self.subTest(text=text):
                 self.assertEqual(ingredient_name(text), expected)
 
