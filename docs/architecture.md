@@ -52,7 +52,10 @@ New SQLite recipes without an explicit slug get one derived from the name
 `tortilla-de-patatas`); a taken slug gets `-2`, `-3`... Names with nothing usable
 keep the numeric identifier. Existing recipes are never rewritten: numeric slugs
 from before this change, and their links, keep working. An explicit slug is used
-as given and still returns `conflict` when taken. Postgres keeps numeric slugs (#49).
+as given and still returns `conflict` when taken. Postgres uses the same rules
+(shared `sabor/store/slugs.py`); concurrent creators of one name are made unique by
+the primary key: the insert runs in a savepoint and a taken derived slug retries with
+the next suffix. SQLite serializes writers with `BEGIN IMMEDIATE` (#49).
 
 Core recipes, meal plans and shopping lists work without Mealie. Native URL/image
 import and Spanish catalog remain Mealie-only; `legacy_nutrition` is unavailable
