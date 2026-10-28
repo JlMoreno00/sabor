@@ -125,9 +125,10 @@
   compatibility context (#4).
 
 ### Fixed
-- Cost estimates name a structured ingredient that has no food, display or note
-  from its text (`300 g de arroz` becomes `arroz`), as free-text rows already do, so
-  `exclude_pantry` matches it; rows with a food name are unchanged (#49).
+- With the built-in stores (SQLite, Postgres, Fake), cost estimates name a structured
+  ingredient that has no food, display or note from its text (`300 g de arroz` becomes
+  `arroz`), as free-text rows already do, so `exclude_pantry` matches it. Rows with a
+  food name, and every Mealie row, are unchanged (#49).
 - Direct Mealie store searches with random ordering now supply the same daily UTC
   `paginationSeed` as the search tool when no seed is provided. Explicit seeds
   and non-random ordering are unchanged (#49).
