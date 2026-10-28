@@ -125,6 +125,9 @@
   compatibility context (#4).
 
 ### Fixed
+- Legacy Mealie values (`MEALIE_BASE_URL`, `MEALIE_API_TOKEN`) are stripped like
+  the startup settings, so the Spanish catalog reconciler and legacy Mealie calls
+  never send a padded URL or `Authorization` header; clean values are unchanged (#49).
 - Direct Mealie store searches with random ordering now supply the same daily UTC
   `paginationSeed` as the search tool when no seed is provided. Explicit seeds
   and non-random ordering are unchanged (#49).

@@ -163,6 +163,38 @@ class CatalogSettingsTests(unittest.TestCase):
         self.assertNotIn('TOKEN_SENTINEL', out)
 
 
+class LegacyMealieValuesTests(unittest.TestCase):
+    def test_surrounding_whitespace_is_stripped_like_settings(self):
+        from sabor.core.legacy_config import load_legacy_config
+        legacy = load_legacy_config({'MEALIE_BASE_URL': '  https://mealie.example/ \n',
+                                     'MEALIE_API_TOKEN': ' TOKEN_SENTINEL\t'})
+        self.assertEqual(legacy.MEALIE_BASE_URL, 'https://mealie.example')
+        self.assertEqual(legacy.MEALIE_API_TOKEN, 'TOKEN_SENTINEL')
+
+    def test_unset_and_clean_values_are_unchanged(self):
+        from sabor.core.legacy_config import load_legacy_config
+        self.assertEqual(load_legacy_config({}).MEALIE_BASE_URL, 'http://localhost:9925')
+        self.assertEqual(load_legacy_config({}).MEALIE_API_TOKEN, '')
+        legacy = load_legacy_config({'MEALIE_BASE_URL': 'https://mealie.example/',
+                                     'MEALIE_API_TOKEN': 'TOKEN_SENTINEL'})
+        self.assertEqual((legacy.MEALIE_BASE_URL, legacy.MEALIE_API_TOKEN),
+                         ('https://mealie.example', 'TOKEN_SENTINEL'))
+
+    def test_catalog_requests_use_the_stripped_values(self):
+        from sabor import catalog_cli
+        env = {'MEALIE_BASE_URL': ' https://mealie.example/ ', 'MEALIE_API_TOKEN': ' TOKEN_SENTINEL '}
+        response = MagicMock(status_code=200)
+        response.json.return_value = {'items': [], 'total_pages': 1}
+        with patch.dict(os.environ, env, clear=True), \
+                patch('requests.get', return_value=response) as get, \
+                contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            catalog_cli.run_catalog('status')
+        self.assertTrue(get.call_args_list)
+        for call in get.call_args_list:
+            self.assertTrue(call.args[0].startswith('https://mealie.example/api/'), call.args[0])
+            self.assertEqual(call.kwargs['headers']['Authorization'], 'Bearer TOKEN_SENTINEL')
+
+
 class PostgresProbeRetryTests(unittest.TestCase):
     def test_probe_retries_once_on_connection_loss_and_never_migrates(self):
         try:
