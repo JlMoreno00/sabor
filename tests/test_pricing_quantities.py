@@ -207,3 +207,36 @@ class IngredientNameTests(unittest.TestCase):
                                ('sal al gusto', 'sal'), ('leche', 'leche'), (None, '')]:
             with self.subTest(text=text):
                 self.assertEqual(ingredient_name(text), expected)
+
+    def test_english_unit_words(self):
+        # #49 decision: English unit words are stripped too, with every store (Mealie included).
+        from sabor.pricing.quantities import ingredient_name
+        for text, expected in [('300 grams of rice', 'rice'), ('1 gram salt', 'salt'),
+                               ('2 kilograms of potatoes', 'potatoes'), ('1 kilogram of flour', 'flour'),
+                               ('1 liter of milk', 'milk'), ('2 litres of water', 'water'),
+                               ('500 milliliters of stock', 'stock'), ('500 millilitres of stock', 'stock'),
+                               ('2 units of pepper', 'pepper'), ('3 pieces of bread', 'bread'),
+                               ('1 piece of cake', 'cake'), ('1 dozen eggs', 'eggs')]:
+            with self.subTest(text=text):
+                self.assertEqual(ingredient_name(text), expected)
+
+    def test_spanish_names_are_unchanged(self):
+        # Frozen before the English units were added: Spanish lines must keep these names.
+        from sabor.pricing.quantities import ingredient_name
+        frozen = {
+            '1 l leche': 'leche', '300 g de arroz': 'arroz', '1,5 kg de patatas': 'patatas',
+            '2 huevos': 'huevos', 'una cebolla': 'cebolla', '1 cucharada de aceite': 'aceite',
+            'sal al gusto': 'sal', 'leche': 'leche', '200 gr de harina': 'harina',
+            '2 gramos de sal': 'sal', '1 kilo de naranjas': 'naranjas', '500 ml de caldo': 'caldo',
+            '1 litro de agua': 'agua', '2 unidades de pimiento': 'pimiento', '3 piezas de pan': 'pan',
+            '1 docena de huevos': 'huevos', '1 lata de tomate': 'tomate', '2 cdas de azúcar': 'azúcar',
+            '1 taza de leche': 'leche', '50 cl de vino': 'vino', '1 ud de calabacín': 'calabacín',
+            '2 dientes de ajo': 'dientes de ajo', '1 pizca de sal': 'pizca de sal',
+            'medio limón': 'medio limón', 'aceite de oliva': 'aceite de oliva',
+            'unas hojas de laurel': 'unas hojas de laurel', '100 g queso rallado': 'queso rallado',
+            '2 tazas de harina de trigo': 'harina de trigo', '1 bote de garbanzos': 'garbanzos',
+            '1 paquete de pasta': 'pasta',
+        }
+        for text, expected in frozen.items():
+            with self.subTest(text=text):
+                self.assertEqual(ingredient_name(text), expected)

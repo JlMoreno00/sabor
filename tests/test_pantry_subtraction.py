@@ -101,6 +101,21 @@ class PantryTests(unittest.TestCase):
         self.assertEqual(data['pantry'], {'applied': True, 'matched': 0})
         self.assertEqual([line['name'] for line in data['lines']], [''])
 
+    def test_mealie_free_text_english_units_match_the_pantry(self):
+        # #49 decision: the English unit fix applies with Mealie too. A note-only Mealie
+        # ingredient is free text, so its name comes from ingredient_name.
+        session = Mock()
+        session.get.return_value = Mock(status_code=200)
+        session.get.return_value.json.return_value = dict(slug='rice', recipeIngredient=[dict(
+            quantity=None, unit=None, food=None, note='300 grams of rice', display=None,
+            originalText='300 grams of rice')])
+        self.bind(MealieRecipeStore('https://mealie.invalid', 'token', session))
+        self.pantry(['rice'])
+        data = self.call('estimate_cost', source={'kind': 'recipe', 'slug': 'rice',
+                                                  'exclude_pantry': True})['data']
+        self.assertEqual(data['pantry'], {'applied': True, 'matched': 1})
+        self.assertEqual([line['name'] for line in data['lines']], ['rice'])
+
     def test_all_source_kinds_and_invalid_type(self):
         self.store.create_recipe(Recipe(slug='rice', recipeIngredient=(
             Ingredient(quantity=300, unit=NamedRef(name='g'), food=NamedRef(name='rice')),)))

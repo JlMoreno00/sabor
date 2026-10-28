@@ -3,6 +3,12 @@
 ## [Unreleased]
 
 ### Changed
+- Free-text ingredient names also drop English unit words (`300 grams of rice` gives
+  `rice` instead of `grams of rice`: gram(s), kilogram(s), liter(s)/litre(s),
+  milliliter(s)/millilitre(s), unit(s), piece(s), dozen(s)). This changes the names
+  used for pricing searches, pantry matching and shopping hints with every store,
+  **Mealie included**, for lines written with those English words; Spanish lines keep
+  their previous names (#49).
 - SQLite/Postgres import normalization splits Spanish ingredient enumerations into
   one row per food (`2 g de harina y azúcar` becomes `harina` and `azúcar`). A
   shared amount is assigned to each food and flagged with the note `cantidad dudosa:
