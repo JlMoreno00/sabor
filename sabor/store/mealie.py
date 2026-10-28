@@ -5,6 +5,7 @@ import requests
 from typing import Any, cast
 from dataclasses import dataclass
 from copy import deepcopy
+from datetime import datetime, timezone
 
 from sabor.core import errors
 from sabor.store import (
@@ -426,7 +427,7 @@ class MealieRecipeStore(MealieShoppingItemsMixin, MealieShoppingListsMixin):
         if f.sort in ("rating", "last_made"):
             params["orderByNullPosition"] = "last"
         if f.sort == "random":
-            params["paginationSeed"] = f.seed
+            params["paginationSeed"] = f.seed if f.seed is not None else datetime.now(timezone.utc).date().isoformat()
         for name, value in (("tags", f.tag_ids), ("categories", f.category_ids),
                             ("foods", f.food_ids), ("tools", f.tool_ids),
                             ("cookbook", f.cookbook_id)):

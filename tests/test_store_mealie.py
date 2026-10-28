@@ -1,6 +1,7 @@
 """Offline tests for the bounded Mealie read-adapter slice."""
 import unittest
-from unittest.mock import Mock, patch
+from datetime import datetime, timezone
+from unittest.mock import Mock, call as mock_call, patch
 import asyncio
 import inspect
 import json
@@ -34,6 +35,31 @@ class MealieReads(unittest.TestCase):
         self.assertEqual(params["tools"], ["pot"])
         self.assertEqual(params["cookbook"], "book")
         self.assertTrue(params["requireAllTools"])
+
+    def test_random_without_seed_uses_daily_utc_seed_across_pages(self):
+        self.response.json.return_value = dict(items=[], total=0, page=1, per_page=25, total_pages=0)
+        with patch('sabor.store.mealie.datetime', create=True) as clock:
+            clock.now.return_value = datetime(2026, 1, 2, 0, 1, tzinfo=timezone.utc)
+            for number in (1, 2):
+                self.store.search_recipes(RecipeSearch(sort='random', page=number))
+            for call in self.session.get.call_args_list:
+                params = call.kwargs['params']
+                self.assertEqual(params['paginationSeed'], '2026-01-02')
+                self.assertEqual((params['orderBy'], params['orderDirection']), ('random', 'asc'))
+            self.assertEqual([call.kwargs['params']['page'] for call in self.session.get.call_args_list], [1, 2])
+            self.assertEqual(clock.now.call_args_list, [mock_call(timezone.utc)] * 2)
+
+    def test_explicit_seed_is_preserved_and_other_sorts_do_not_send_it(self):
+        self.response.json.return_value = dict(items=[], total=0, page=1, per_page=25, total_pages=0)
+        for seed in ('', '0', 'explicit-seed'):
+            with self.subTest(seed=seed), patch('sabor.store.mealie.datetime') as clock:
+                self.store.search_recipes(RecipeSearch(sort='random', seed=seed))
+                self.assertEqual(self.session.get.call_args.kwargs['params']['paginationSeed'], seed)
+                clock.now.assert_not_called()
+        self.store.search_recipes(RecipeSearch(sort='name', seed='unused'))
+        params = self.session.get.call_args.kwargs['params']
+        self.assertNotIn('paginationSeed', params)
+        self.assertEqual((params['orderBy'], params['orderDirection']), ('name', 'asc'))
 
     def test_invalid_pagination_no_io(self):
         for page, size in ((0, 1), (1, 0), (1, 101), (True, 1)):
@@ -254,7 +280,7 @@ class LegacyErrorCodes(unittest.TestCase):
             with self.assertRaises(StoreError) as caught:
                 call()
             self.assertEqual(caught.exception.code, "not_found")
-            self.assertEqual(caught.exception.result["status"], 404)
+            self.assertEqual(getattr(caught.exception, "result")["status"], 404)
         self.session.post.assert_not_called()
 
     def test_other_failures_stay_upstream_error(self):
