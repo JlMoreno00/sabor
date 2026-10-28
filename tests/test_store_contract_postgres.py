@@ -6,7 +6,7 @@ from uuid import uuid4
 
 from unittest.mock import patch
 
-from sabor.store import Recipe, RecipePatch, RecipeSearch, StoreError
+from sabor.store import Ingredient, Recipe, RecipePatch, RecipeSearch, StoreError
 from tests.test_store_contract import CAPABILITIES, StoreContractMixin
 
 try:
@@ -116,6 +116,19 @@ class PostgresStoreContract(StoreContractMixin, unittest.TestCase):
         with ThreadPoolExecutor(max_workers=4) as pool:
             slugs = list(pool.map(lambda store: store.create_recipe(Recipe(name='Gazpacho')).slug, stores))
         self.assertEqual(sorted(slugs), ['gazpacho', 'gazpacho-2', 'gazpacho-3', 'gazpacho-4'])
+    def test_normalize_splits_enumerations(self):
+        # #49 decision, shared with SQLite through ingredients_es.normalize_row.
+        ref = self.store.create_recipe(Recipe(name='Bizcocho', recipeIngredient=(
+            Ingredient(originalText='2 g de harina y azúcar', referenceId='ref-1'),
+            Ingredient(originalText='1 cebolla, picada'))))
+        assert ref.slug is not None
+        self.assertEqual(self.store.normalize_imported(ref.slug)['accepted'], 1)
+        rows = self.store.get_recipe(ref.slug).recipeIngredient
+        assert rows is not None
+        self.assertEqual([(r.quantity, r.unit.name if r.unit else None, r.food.name if r.food else None)
+                          for r in rows], [(2, 'gramo', 'harina'), (2, 'gramo', 'azúcar'), (None, None, None)])
+        self.assertEqual([r.referenceId for r in rows], ['ref-1', None, None])
+        self.assertEqual(rows[1].note, 'cantidad dudosa: línea con varios ingredientes')
 
     def test_concurrent_migration(self):
         from concurrent.futures import ThreadPoolExecutor

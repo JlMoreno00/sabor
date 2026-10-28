@@ -57,6 +57,17 @@ as given and still returns `conflict` when taken. Postgres uses the same rules
 the primary key: the insert runs in a savepoint and a taken derived slug retries with
 the next suffix. SQLite serializes writers with `BEGIN IMMEDIATE` (#49).
 
+SQLite and Postgres import normalization share the conservative Spanish parser
+(`sabor/importing/ingredients_es.py`). A line that lists several foods (commas,
+`y`/`e`, `o`/`u`, `and`/`or`) becomes one row per food: `2 g de harina y azúcar`
+yields `harina` and `azúcar`, each with 2 g and the note `cantidad dudosa: línea con
+varios ingredientes`. Parts with their own amount keep it unflagged; in a line with
+several amounts, a part without one gets the food only, flagged. Compound names and
+preparations are not split (`macarrones con queso`, `salsa agridulce`, `1 cebolla,
+picada`, `leche entera o desnatada`), nor are lines without an amount or with `al
+gusto`. Every row keeps the original line in `originalText`; only the first keeps
+the `referenceId`. Mealie uses its own parser and is unchanged (#49).
+
 Core recipes, meal plans and shopping lists work without Mealie. Native URL/image
 import and Spanish catalog remain Mealie-only; `legacy_nutrition` is unavailable
 with SQLite. Discovery lists the active `recipe_store` adapter and operations;
