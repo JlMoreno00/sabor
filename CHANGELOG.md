@@ -128,6 +128,9 @@
 - Cost estimates name a structured ingredient that has no food, display or note
   from its text (`300 g de arroz` becomes `arroz`), as free-text rows already do, so
   `exclude_pantry` matches it; rows with a food name are unchanged (#49).
+- Direct Mealie store searches with random ordering now supply the same daily UTC
+  `paginationSeed` as the search tool when no seed is provided. Explicit seeds
+  and non-random ordering are unchanged (#49).
 - URL recipe extraction skips booleans in yield lists (`[true, "4"]` becomes
   `"4"`) and removes blank steps inside nested instruction sections while keeping
   section metadata. The default macOS configuration path is normalized too (#49).

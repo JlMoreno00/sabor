@@ -575,8 +575,10 @@ sync_shopping_list(mealie_list_id: str, target: dict, mode: str='append', confir
 
 The [instance preferences](#preferences) default-profile `pantry` list is read
 under the preferences lock, even when the `preferences` toolset is disabled.
-Missing files mean an empty pantry; corrupt files return a sanitized
-`invalid_response` before any list write. No pantry data is changed here.
+Missing files mean an empty pantry. A corrupt file makes `exclude_pantry: true`
+estimates fail with a sanitized `invalid_response`; estimates without it never
+read preferences. Shopping additions are not blocked by a corrupt file (see
+`pantry_warning` below). No pantry data is changed here.
 
 Every `estimate_cost` source kind accepts optional `exclude_pantry: bool`:
 `estimate_cost(source={"kind":"recipe","slug":"rice","exclude_pantry":True})`.
