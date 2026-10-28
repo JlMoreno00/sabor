@@ -67,6 +67,9 @@ def _rows(line):
     # A decimal comma is part of the amount, not a separator.
     ("0,5 kg de azúcar y harina", [(.5, "kilogramo", "azúcar", DUBIOUS), (.5, "kilogramo", "harina", DUBIOUS)]),
     ("1,5 kg de harina, azúcar", [(1.5, "kilogramo", "harina", DUBIOUS), (1.5, "kilogramo", "azúcar", DUBIOUS)]),
+    # Foods whose first word looks like a participle or a descriptor.
+    ("1 litro de leche y bebida vegetal", [(1, "litro", "leche", DUBIOUS), (1, "litro", "bebida vegetal", DUBIOUS)]),
+    ("1 litro de leche y dulce de leche", [(1, "litro", "leche", DUBIOUS), (1, "litro", "dulce de leche", DUBIOUS)]),
 ])
 def test_enumerations_split(line, rows):
     from sabor.importing.ingredients_es import parse_ingredients

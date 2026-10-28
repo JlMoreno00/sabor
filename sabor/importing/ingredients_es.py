@@ -88,7 +88,9 @@ _DESCRIPTORS = frozenset(
 # Foods ending like participles ('-ado', '-ida'...) that are still foods.
 _PARTICIPLE_FOODS = frozenset(
     "pescado pescados helado helados granada granadas ensalada mermelada limonada empanada "
-    "empanadas cuajada tostada tostadas paté bizcochada".split())
+    "empanadas cuajada tostada tostadas paté bizcochada bebida bebidas".split())
+# Foods of several words whose first word is also a descriptor.
+_FOOD_PHRASES = frozenset({"dulce de leche"})
 _LEADING_WORDS = frozenset("en a al para sin con de del muy bien".split())
 
 
@@ -97,6 +99,8 @@ def _bare_food(text):
     words = text.split()
     if not words or not _FOOD.fullmatch(text) or words[0].casefold() in _LEADING_WORDS:
         return False
+    if text.casefold() in _FOOD_PHRASES:
+        return True
     # A part opening with a descriptor or a participle is a preparation of the previous
     # food ('picada', 'picada en dados', 'cortados en cubos'), whatever its length.
     word = words[0].casefold()
