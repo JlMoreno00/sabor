@@ -54,6 +54,21 @@ keep the numeric identifier. Existing recipes are never rewritten: numeric slugs
 from before this change, and their links, keep working. An explicit slug is used
 as given and still returns `conflict` when taken. Postgres keeps numeric slugs (#49).
 
+URL imports into SQLite or Postgres also download the recipe image named by the
+page (schema.org `image`, relative URLs resolved against the page) and keep it in
+a separate `recipe_images` table (SQLite migration 4, Postgres migration 3 with RLS
+and the usual revokes), together with the original URL. The download reuses the
+import SSRF guard: every hop is pinned to public addresses (private, loopback,
+link-local, unspecified and multicast addresses are refused, also when embedded in
+IPv6 as mapped, NAT64, 6to4 or Teredo), at most 4 redirects, 10 s connect
+and 20 s read timeouts, plus a 30 s total deadline. Only JPEG, PNG, WebP or GIF up
+to 5 MB is kept, and the type comes from the file signature, not the header. If
+the download fails the recipe is imported anyway, the URL alone is kept and the
+response carries `images.<slug>.warning: image_download_failed` and an
+`image_warning`. Recipe payloads and `get_recipe` are unchanged. Mealie's native URL
+import already downloads and stores the image itself, so the Mealie path is
+unchanged (#49).
+
 SQLite and Postgres import normalization share the conservative Spanish parser
 (`sabor/importing/ingredients_es.py`). A line that lists several foods (commas,
 `y`/`e`, `o`/`u`, `and`/`or`) becomes one row per food: `2 g de harina y azúcar`

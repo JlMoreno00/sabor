@@ -11,6 +11,7 @@ from unittest.mock import patch
 from test_setup_cli import FakeKeyring
 
 from sabor.core.config import ConfigError
+from sabor.store.postgres_schema import MIGRATIONS as POSTGRES_MIGRATIONS
 
 DSN = os.environ.get('SABOR_TEST_DATABASE_URL', '')
 SENTINEL = 'PRIVATE_SENTINEL'
@@ -261,7 +262,7 @@ class CreateRoleTests(CommandTests):
             self.assertEqual(connection.execute('SELECT current_user').fetchone(), ('sabor_app',))
             owner = connection.execute("SELECT pg_get_userbyid(nspowner) FROM pg_namespace WHERE nspname='sabor'").fetchone()
             self.assertEqual(owner, ('sabor_app',))
-            self.assertEqual(connection.execute('SELECT MAX(version) FROM sabor.schema_version').fetchone(), (2,))
+            self.assertEqual(connection.execute('SELECT MAX(version) FROM sabor.schema_version').fetchone(), (POSTGRES_MIGRATIONS[-1][0],))
             with self.assertRaises(psycopg.errors.InsufficientPrivilege):
                 connection.execute('CREATE SCHEMA other_schema')
         code, result, _ = self.run_setup('--create-role', secret=self.admin_with_sentinel_password())
@@ -276,7 +277,7 @@ class CreateRoleTests(CommandTests):
         store = PostgresRecipeStore(self.backend.values['sabor', 'database_url'])
         self.addCleanup(store.close)
         store.ensure_ready()
-        self.assertEqual(store.schema_version(), 2)
+        self.assertEqual(store.schema_version(), POSTGRES_MIGRATIONS[-1][0])
 
     def test_failure_after_rotation_tells_how_to_recover(self):
         from sabor.supabase_setup import _Unreachable

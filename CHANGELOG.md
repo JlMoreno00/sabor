@@ -34,6 +34,17 @@
   Runtime behavior with Mealie configured is unchanged (#36).
 
 ### Added
+- URL imports into SQLite or Postgres download the recipe image and keep it with
+  its original URL (new `recipe_images` table; SQLite migration 4, Postgres
+  migration 3). Public addresses only at every redirect, 5 MB, real JPEG/PNG/WebP/GIF
+  by file signature, 30 s total deadline. A failed download still imports the recipe,
+  keeps the URL and adds an `image_warning`; `import_recipe` reports `images`. Mealie
+  keeps using its native image import (#49).
+
+### Security
+- The import download guard (URL/image import and the new recipe images) now also
+  refuses multicast addresses and IPv4 embedded in IPv6 (mapped, NAT64, 6to4, Teredo)
+  that point to private or loopback space; Python reports several of these as global (#49).
 - Setup CLI: terminal onboarding, JSON automation, language configuration and secret
   references; system keyring preferred with an owner-only local fallback; no MCP
   configuration tools (#64).

@@ -69,11 +69,12 @@ class DoctorTests(unittest.TestCase):
         self.assertEqual(result['warnings'], [])
         self.assertEqual(result['missing_secrets'], [])
         from sabor.server import VERSION
+        from sabor.store.sqlite_schema import MIGRATIONS
         normalized = dict(result, config_path='<config>', version='<version>')
         self.assertEqual(result['version'], VERSION)
         self.assertEqual(normalized, dict(ok=True, version='<version>', config_path='<config>',
                          config={'found': True, 'source': 'file', 'valid': True},
-                         store={'backend': 'sqlite', 'reachable': True, 'schema_version': 3},
+                         store={'backend': 'sqlite', 'reachable': True, 'schema_version': MIGRATIONS[-1][0]},
                          toolsets=['core', 'import'],
                          capabilities_summary={'recipe_store': ['sqlite'], 'pricing': [], 'import': [], 'shopping_sync': []},
                          missing_secrets=[], warnings=[], next_steps=[]))
