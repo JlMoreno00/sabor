@@ -71,6 +71,36 @@ class PantryTests(unittest.TestCase):
         self.assertIsNone(data['consumption_subtotal'])
         self.assertIsNone(data['procurement_subtotal'])
 
+    def test_structured_ingredient_without_food_uses_its_text_name(self):
+        # #49 (CodeRabbit on #57): quantity and unit structured, but no food/display/note.
+        self.store.create_recipe(Recipe(slug='rice', recipeIngredient=(
+            Ingredient(quantity=300, unit=NamedRef(name='g'), originalText='300 g de arroz'),
+            Ingredient(quantity=2, unit=NamedRef(name='g'), food=NamedRef(name='sal'),
+                       originalText='2 g de sal fina'))))
+        self.pantry(['arroz'])
+        data = self.call('estimate_cost', source={'kind': 'recipe', 'slug': 'rice',
+                                                  'exclude_pantry': True})['data']
+        self.assertEqual(data['pantry'], {'applied': True, 'matched': 1})
+        excluded = [r['name'] for r in data['excluded_rows'] if 'in_pantry' in r['uncertainty']['reasons']]
+        self.assertEqual(excluded, ['arroz'])
+        # A structured food name still wins over its text.
+        self.assertIn('sal', [line['name'] for line in data['lines']])
+
+    def test_mealie_foodless_ingredient_keeps_its_empty_name(self):
+        # Beta A (#41): with Mealie configured the behavior stays identical; the text
+        # fallback above applies to the built-in stores only.
+        session = Mock()
+        session.get.return_value = Mock(status_code=200)
+        session.get.return_value.json.return_value = dict(slug='rice', recipeIngredient=[dict(
+            quantity=300, unit=dict(name='g'), food=None, note=None, display=None,
+            originalText='300 g de arroz')])
+        self.bind(MealieRecipeStore('https://mealie.invalid', 'token', session))
+        self.pantry(['arroz'])
+        data = self.call('estimate_cost', source={'kind': 'recipe', 'slug': 'rice',
+                                                  'exclude_pantry': True})['data']
+        self.assertEqual(data['pantry'], {'applied': True, 'matched': 0})
+        self.assertEqual([line['name'] for line in data['lines']], [''])
+
     def test_all_source_kinds_and_invalid_type(self):
         self.store.create_recipe(Recipe(slug='rice', recipeIngredient=(
             Ingredient(quantity=300, unit=NamedRef(name='g'), food=NamedRef(name='rice')),)))

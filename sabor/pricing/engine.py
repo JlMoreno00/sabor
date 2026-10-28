@@ -87,9 +87,13 @@ def _resolve(source, store):
             text = getattr(item, 'originalText', None) or item.note or item.display or ''
             row = dict(name=ingredient_name(text) or text, quantity=None, unit=None, text=text)
         else:
-            row = dict(name=(item.food.name if item.food else None) or item.display or item.note or '',
-                       quantity=item.quantity, unit=item.unit.name if item.unit else None,
-                       text=getattr(item, 'originalText', None) or item.display or item.note)
+            text = getattr(item, 'originalText', None) or item.display or item.note
+            # Without a structured food, built-in stores derive the name from the text like
+            # free-text rows; Mealie keeps its previous empty name (Beta A, #41).
+            fallback = ingredient_name(text) if getattr(store, 'id', None) != 'mealie' else ''
+            row = dict(name=(item.food.name if item.food else None) or item.display or item.note
+                       or fallback or '',
+                       quantity=item.quantity, unit=item.unit.name if item.unit else None, text=text)
         amount = row.get('quantity')
         # Store DTOs carry API floats; decode once at this boundary only.
         if amount is not None:

@@ -125,6 +125,10 @@
   compatibility context (#4).
 
 ### Fixed
+- With the built-in stores (SQLite, Postgres, Fake), cost estimates name a structured
+  ingredient that has no food, display or note from its text (`300 g de arroz` becomes
+  `arroz`), as free-text rows already do, so `exclude_pantry` matches it. Rows with a
+  food name, and every Mealie row, are unchanged (#49).
 - Legacy Mealie values (`MEALIE_BASE_URL`, `MEALIE_API_TOKEN`) are stripped like
   the startup settings, so the Spanish catalog reconciler and legacy Mealie calls
   never send a padded URL or `Authorization` header; clean values are unchanged (#49).
