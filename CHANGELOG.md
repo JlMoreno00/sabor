@@ -9,6 +9,11 @@
   used for pricing searches, pantry matching and shopping hints with every store,
   **Mealie included**, for lines written with those English words; Spanish lines keep
   their previous names (#49).
+- SQLite/Postgres import normalization splits Spanish ingredient enumerations into
+  one row per food (`2 g de harina y azúcar` becomes `harina` and `azúcar`). A
+  shared amount is assigned to each food and flagged with the note `cantidad dudosa:
+  línea con varios ingredientes`; compound names, preparations and lines without an
+  amount are not split, and Mealie is unchanged (#49).
 - SQLite: new recipes without an explicit slug get one derived from their name
   (`tortilla-de-patatas`), with `-2`, `-3`... on collision, instead of a numeric
   identifier. Existing recipes keep their numeric slug and links; nameless recipes
