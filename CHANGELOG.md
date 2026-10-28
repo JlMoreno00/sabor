@@ -3,6 +3,12 @@
 ## [Unreleased]
 
 ### Changed
+- Free-text ingredient names also drop English unit words (`300 grams of rice` gives
+  `rice` instead of `grams of rice`: gram(s), kilogram(s), liter(s)/litre(s),
+  milliliter(s)/millilitre(s), unit(s), piece(s), dozen(s)). This changes the names
+  used for pricing searches, pantry matching and shopping hints with every store,
+  **Mealie included**, for lines written with those English words; Spanish lines keep
+  their previous names (#49).
 - SQLite: new recipes without an explicit slug get one derived from their name
   (`tortilla-de-patatas`), with `-2`, `-3`... on collision, instead of a numeric
   identifier. Existing recipes keep their numeric slug and links; nameless recipes
