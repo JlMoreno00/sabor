@@ -19,12 +19,23 @@ class ImageError(Exception):
 
 
 def image_url(value):
-    """First usable URL from a scraped schema.org image (string, list or ImageObject)."""
+    """First usable URL from a scraped schema.org image (string, list or ImageObject).
+
+    Only relative or http(s) candidates are usable; other schemes and malformed
+    URLs are skipped so the next candidate (or an ImageObject's contentUrl) is tried.
+    """
     if isinstance(value, str):
         value = value.strip()
-        return value if value and len(value) <= MAX_URL_LENGTH else None
+        if not value or len(value) > MAX_URL_LENGTH:
+            return None
+        try:
+            parsed = urlsplit(value)
+            parsed.port
+        except ValueError:
+            return None
+        return value if parsed.scheme in ('', 'http', 'https') else None
     if isinstance(value, dict):
-        return image_url(value.get('url') or value.get('contentUrl'))
+        value = [value.get('url'), value.get('contentUrl')]
     if isinstance(value, list):
         for item in value:
             url = image_url(item)
@@ -52,7 +63,7 @@ def fetch_recipe_image(url):
     start = time.monotonic()
     try:
         content, _declared = safe_bytes(url, MAX_MEGABYTES, _DECLARED, 'Image',
-                                        expired=lambda: time.monotonic() - start > DEADLINE_SECONDS)
+                                        remaining=lambda: DEADLINE_SECONDS - (time.monotonic() - start))
     except Exception:
         raise ImageError('image_download_failed') from None
     kind = sniff(content)

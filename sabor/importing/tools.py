@@ -193,8 +193,9 @@ def image_bytes(url):
     return safe_bytes(url, 10, ('image/jpeg', 'image/png', 'image/webp', 'image/gif'), 'Image')
 
 
-def html_bytes(url):
-    return safe_bytes(url, 5, ('text/html', 'application/xhtml+xml'), 'HTML')
+def html_bytes(url, final=None):
+    """HTML page bytes; `final`, when given, receives the URL after redirects."""
+    return safe_bytes(url, 5, ('text/html', 'application/xhtml+xml'), 'HTML', final=final)
 
 
 _NAT64 = ipaddress.ip_network('64:ff9b::/96')
@@ -219,14 +220,44 @@ def public_address(text):
     return address.is_global and not address.is_multicast
 
 
-def safe_bytes(url, megabytes, content_types, label, expired=None):
+_READ_TIMEOUT = 20
+
+
+def _body_chunks(response, remaining):
+    """Response body chunks; with a deadline, one socket read at a time.
+
+    Without `remaining` the body streams as before. With it each read is a single
+    `read1` whose socket timeout is the time left (at most the read timeout), so a
+    server trickling bytes cannot hold a 64 KB `stream` block past the deadline.
+    """
+    read1 = getattr(response, 'read1', None)
+    if remaining is None or read1 is None:
+        yield from response.stream(65536)
+        return
+    while True:
+        left = remaining()
+        if left <= 0:
+            return
+        sock = getattr(getattr(response, 'connection', None), 'sock', None)
+        if sock is not None:
+            sock.settimeout(min(_READ_TIMEOUT, left))
+        chunk = read1(65536)
+        if not chunk:
+            return
+        yield chunk
+
+
+def safe_bytes(url, megabytes, content_types, label, remaining=None, final=None):
     """Fetch bounded typed content through pinned public IPs at every hop.
 
-    `expired`, when given, is checked before each hop and after each chunk so a
-    slow trickle under the read timeout still stops at a total deadline.
+    `remaining`, when given, returns the seconds left of a total deadline; it bounds
+    every hop and every read. `final`, when given, receives the URL after redirects.
     """
+    def expired():
+        return remaining is not None and remaining() <= 0
+
     for _ in range(4):
-        if expired is not None and expired():
+        if expired():
             reject('timeout', f'{label} download exceeded its time limit.')
         p = http_url(url)
         addresses = socket.getaddrinfo(p.hostname, p.port or (443 if p.scheme == 'https' else 80), type=socket.SOCK_STREAM)
@@ -242,15 +273,19 @@ def safe_bytes(url, megabytes, content_types, label, expired=None):
             if int(response.headers.get('Content-Length', 0)) > megabytes * 1024 * 1024:
                 reject('invalid_argument', f'{label} exceeds the {megabytes} MB limit.')
             content = bytearray()
-            for chunk in response.stream(65536):
+            for chunk in _body_chunks(response, remaining):
                 content.extend(chunk)
                 if len(content) > megabytes * 1024 * 1024:
                     reject('invalid_argument', f'{label} exceeds the {megabytes} MB limit.')
-                if expired is not None and expired():
+                if expired():
                     reject('timeout', f'{label} download exceeded its time limit.')
+            if expired():
+                reject('timeout', f'{label} download exceeded its time limit.')
             mime = response.headers.get('Content-Type', '').split(';')[0]
             if mime not in content_types or not content:
                 reject('invalid_argument', 'A supported image is required.' if label == 'Image' else 'An HTML page is required.')
+            if final is not None:
+                final.append(url)
             return bytes(content), mime
         finally:
             response.close()
@@ -304,13 +339,17 @@ def _import_recipe(ctx, source, kind, dry_run, language, max_recipes, min_confid
                 raise ValueError('Invalid image result')
             return ok({'preview': False, 'kind': kind, 'provider': provider, 'created': result}
                       | run_hooks(ctx, result))
+        page_url = source
         if kind == 'url':
             http_url(source)
             data = ctx.store.preview_url(source) if native else None
             if not native:
                 from .scrape import recipe_from_html
-                html, _ = html_bytes(source)
-                data = recipe_from_html(html, source)
+                final = []
+                html, _ = html_bytes(source, final)
+                # Relative recipe links and images resolve against the page after redirects.
+                page_url = final[0] if final else source
+                data = recipe_from_html(html, page_url)
                 if data is None:
                     reject('not_found', 'Could not extract a recipe at this URL.', provider)
             if data == 'recipe_scrapers was unable to scrape this URL':
@@ -375,7 +414,7 @@ def _import_recipe(ctx, source, kind, dry_run, language, max_recipes, min_confid
                 if kind == 'url' and not native:
                     # Built-in stores keep the scraped image; Mealie's native import does its own.
                     from .images import keep_recipe_image
-                    report = keep_recipe_image(ctx.store, slug, c.get('image'), source)
+                    report = keep_recipe_image(ctx.store, slug, c.get('image'), page_url)
                     if report:
                         images[slug] = report
                 if not native and kind in ('url', 'image'):

@@ -20,6 +20,8 @@ WEBP = b'RIFF\x24\x00\x00\x00WEBPVP8 ' + b'\x00' * 32
 def served(body, content_type='image/png', status=200, headers=None):
     response = Mock(status=status, headers={'Content-Type': content_type, **(headers or {})})
     response.stream.return_value = [body]
+    # Deadline-bounded reads use read1 (one socket read at a time).
+    response.read1.side_effect = [body, b'']
     return response
 
 
@@ -30,7 +32,16 @@ class ImageUrlTests(unittest.TestCase):
                                 ({'@type': 'ImageObject', 'url': 'https://e.org/c.webp'}, 'https://e.org/c.webp'),
                                 ([{'contentUrl': 'https://e.org/d.gif'}], 'https://e.org/d.gif'),
                                 (None, None), ('  ', None), (3, None), ({'url': 5}, None),
-                                ('https://e.org/' + 'a' * 4096, None)):
+                                ('https://e.org/' + 'a' * 4096, None),
+                                # Relative URLs are candidates; other schemes and malformed URLs are
+                                # skipped so the next candidate is tried.
+                                ('/img/a.png', '/img/a.png'),
+                                (['data:image/png;base64,AAAA', 'https://e.org/e.png'], 'https://e.org/e.png'),
+                                (['ftp://e.org/f.png', 'http://[', '/g.png'], '/g.png'),
+                                ({'url': 'data:image/png;base64,AAAA', 'contentUrl': 'https://e.org/h.png'},
+                                 'https://e.org/h.png'),
+                                ([{'url': 'ftp://e.org/i.png'}, {'url': 'https://e.org/j.png'}], 'https://e.org/j.png'),
+                                ('javascript:alert(1)', None), ('file:///etc/passwd', None)):
             with self.subTest(value=value):
                 self.assertEqual(images.image_url(value), expected)
 
@@ -67,14 +78,25 @@ class FetchTests(unittest.TestCase):
         fetch.return_value.close.assert_called()
 
     def test_total_deadline(self, fetch, dns):
-        # S4: a slow trickle that stays under the read timeout still stops at the deadline.
+        # S4: a server trickling one byte per read (each under the read timeout) still
+        # stops at the total deadline; every read waits at most the time left.
         response = served(PNG)
-        response.stream.return_value = iter([PNG[:8], PNG[8:]])
+        response.read1.side_effect = lambda amount: b'\x89'
         fetch.return_value = response
-        clock = iter([0.0, 0.0, images.DEADLINE_SECONDS + 1, images.DEADLINE_SECONDS + 2])
-        with patch.object(images.time, 'monotonic', side_effect=lambda: next(clock)):
+        now = [0.0]
+
+        def clock():
+            now[0] += 1.5
+            return now[0]
+        with patch.object(images.time, 'monotonic', side_effect=clock):
             with self.assertRaises(images.ImageError):
                 images.fetch_recipe_image('https://e.org/a')
+        response.stream.assert_not_called()
+        self.assertLess(response.read1.call_count, images.DEADLINE_SECONDS)
+        timeouts = [call.args[0] for call in response.connection.sock.settimeout.call_args_list]
+        self.assertTrue(timeouts)
+        self.assertTrue(all(0 < value <= 20 for value in timeouts), timeouts)
+        self.assertLess(timeouts[-1], timeouts[0])
         response.close.assert_called()
 
     def test_http_errors_and_bad_urls(self, fetch, dns):
@@ -189,6 +211,25 @@ def test_non_http_image_urls_are_ignored(importer):
     assert result['ok'] and 'images' not in result['data']
     fetch.assert_not_called()
     assert importer['store']().get_recipe_image(result['data']['created'][0]) is None
+
+
+
+def test_relative_image_resolves_against_the_final_page_url(importer):
+    # A redirected page resolves its relative image against where it ended up, not the
+    # URL the user gave (CodeRabbit on #94).
+    page = PAGE.replace(b'/img/sopa.png', b'img/sopa.png')
+    redirect = served(b'', status=302, headers={'Location': 'https://cdn.example/recetas/sopa'})
+    html = served(page, 'text/html')
+    with patch('recipe_scrapers.scrape_html', side_effect=ValueError('unsupported')), \
+            patch.object(t.socket, 'getaddrinfo', return_value=PUBLIC), \
+            patch.object(t, 'image_response', create=True, side_effect=[redirect, html, served(PNG)]) as fetch:
+        result = importer['import_recipe']('https://recetas.example/sopa', kind='url', dry_run=False)
+    assert result['ok'], result
+    slug = result['data']['created'][0]
+    assert result['data']['images'][slug]['source_url'] == 'https://cdn.example/recetas/img/sopa.png'
+    assert [call.args[0].hostname for call in fetch.call_args_list] == [
+        'recetas.example', 'cdn.example', 'cdn.example']
+    assert fetch.call_args_list[2].args[0].path == '/recetas/img/sopa.png'
 
 
 if __name__ == '__main__':
