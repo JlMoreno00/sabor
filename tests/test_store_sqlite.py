@@ -147,6 +147,7 @@ def test_normalize_imported(tmp_path):
     result = store.normalize_imported(ref.slug)
     assert result == {"ok": True, "slug": ref.slug, "status": "normalized", "accepted": 2}
     rows = store.get_recipe(ref.slug).recipeIngredient
+    assert rows is not None
     assert [row.originalText for row in rows] == [row.originalText for row in original]
     assert rows[0].quantity == 2
     assert rows[0].unit == NamedRef(name="diente")
@@ -189,3 +190,72 @@ def test_v2_sort_migration(tmp_path):
         assert created.endswith("+00:00")
         assert db.execute("SELECT created_at FROM cooking_events").fetchone()[0] == created
         assert db.execute("SELECT max(version) FROM schema_version").fetchone()[0] == 3
+
+
+def _slug(ref):
+    assert ref.slug is not None
+    return ref.slug
+
+
+def test_new_recipes_get_name_slugs(tmp_path):
+    # #49 decision: new recipes use a slug derived from their name.
+    store = SqliteRecipeStore(tmp_path / "store.db")
+    cases = [("Tortilla de patatas", "tortilla-de-patatas"), ("Ñoquis con salsa", "noquis-con-salsa"),
+             ("  Pollo al curry (fácil)! ", "pollo-al-curry-facil"), ("Crème brûlée", "creme-brulee")]
+    for name, slug in cases:
+        ref = store.create_recipe(Recipe(name=name))
+        assert ref.slug == slug
+        assert ref.name == name
+        assert store.get_recipe(slug).name == name
+    # An explicit slug is kept as given and still conflicts when taken.
+    assert store.create_recipe(Recipe(name="Sopa", slug="mi-sopa")).slug == "mi-sopa"
+    with pytest.raises(StoreError) as caught:
+        store.create_recipe(Recipe(name="Otra sopa", slug="mi-sopa"))
+    assert caught.value.code == "conflict"
+
+
+def test_name_slug_collisions_get_numeric_suffixes(tmp_path):
+    store = SqliteRecipeStore(tmp_path / "store.db")
+    slugs = [store.create_recipe(Recipe(name=name)).slug
+             for name in ("Tortilla de patatas", "Tortilla de patatas", "tortilla DE patatas")]
+    assert slugs == ["tortilla-de-patatas", "tortilla-de-patatas-2", "tortilla-de-patatas-3"]
+    # A name that already looks like a suffixed slug does not steal the next suffix.
+    assert store.create_recipe(Recipe(name="Tortilla de patatas 4")).slug == "tortilla-de-patatas-4"
+    assert store.create_recipe(Recipe(name="Tortilla de patatas")).slug == "tortilla-de-patatas-5"
+    assert {r.slug for r in store.search_recipes(RecipeSearch(per_page=100)).items} == {
+        "tortilla-de-patatas", "tortilla-de-patatas-2", "tortilla-de-patatas-3",
+        "tortilla-de-patatas-4", "tortilla-de-patatas-5"}
+
+
+def test_nameless_recipes_keep_numeric_slugs_without_collisions(tmp_path):
+    store = SqliteRecipeStore(tmp_path / "store.db")
+    # Nothing usable in the name: the previous numeric identifier is kept.
+    numeric = [_slug(store.create_recipe(Recipe(name=name))) for name in (None, "", "  ", "¡!")]
+    assert all(slug.isdigit() for slug in numeric)
+    # A purely numeric name never blocks a later nameless recipe.
+    taken = str(max(int(slug) for slug in numeric) + 2)
+    assert store.create_recipe(Recipe(name=taken)).slug == taken
+    later = [_slug(store.create_recipe(Recipe())) for _ in range(4)]
+    assert taken not in later
+    assert len(set(numeric + later + [taken])) == len(numeric) + len(later) + 1
+
+
+def test_existing_numeric_recipes_are_untouched(tmp_path):
+    # Recipes created before #49 keep their numeric slug and payload; their links keep working.
+    path = tmp_path / "store.db"
+    old = SqliteRecipeStore(path)
+    # Simulate a pre-#49 creation, which always used the numeric serial.
+    with patch.object(SqliteRecipeStore, "_name_slug", lambda self, db, name: self._id(db)):
+        legacy = _slug(old.create_recipe(Recipe(name="Tortilla de patatas")))
+    assert legacy.isdigit()
+    with sqlite3.connect(path) as db:
+        before = db.execute("SELECT slug, id, payload FROM recipes").fetchall()
+    store = SqliteRecipeStore(path)
+    new = store.create_recipe(Recipe(name="Tortilla de patatas"))
+    assert new.slug == "tortilla-de-patatas"
+    assert store.get_recipe(legacy).name == "Tortilla de patatas"
+    with sqlite3.connect(path) as db:
+        assert db.execute("SELECT slug, id, payload FROM recipes WHERE slug=?", (legacy,)).fetchall() == before
+    store.update_recipe(legacy, RecipePatch({"name": "Tortilla de patatas con cebolla"}))
+    assert store.get_recipe(legacy).name == "Tortilla de patatas con cebolla"
+    assert {r.slug for r in store.search_recipes(RecipeSearch()).items} == {legacy, "tortilla-de-patatas"}

@@ -3,6 +3,10 @@
 ## [Unreleased]
 
 ### Changed
+- SQLite: new recipes without an explicit slug get one derived from their name
+  (`tortilla-de-patatas`), with `-2`, `-3`... on collision, instead of a numeric
+  identifier. Existing recipes keep their numeric slug and links; nameless recipes
+  and the Postgres store keep numeric slugs; explicit slugs are unchanged (#49).
 - `server.json`: the OCI package advertises only the essential environment
   variables (store, Mealie, LLM, Bring, Mercadona, Open Prices, toolsets) and the `pypi`
   package (`uvx sabor-mcp`, stdio) none; `mcp-manifest.json` still lists all.

@@ -47,6 +47,13 @@ Direct store operations initialize on first use and sanitize I/O failures.
 Distinct database paths isolate registrations; shared paths intentionally
 share persistence. Startup open errors are sanitized and never trigger fallback.
 
+New SQLite recipes without an explicit slug get one derived from the name
+(lowercase ASCII words joined by hyphens: `Tortilla de patatas` becomes
+`tortilla-de-patatas`); a taken slug gets `-2`, `-3`... Names with nothing usable
+keep the numeric identifier. Existing recipes are never rewritten: numeric slugs
+from before this change, and their links, keep working. An explicit slug is used
+as given and still returns `conflict` when taken. Postgres keeps numeric slugs (#49).
+
 Core recipes, meal plans and shopping lists work without Mealie. Native URL/image
 import and Spanish catalog remain Mealie-only; `legacy_nutrition` is unavailable
 with SQLite. Discovery lists the active `recipe_store` adapter and operations;
