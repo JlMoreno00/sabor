@@ -7,6 +7,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 import urllib3
+from urllib3.connection import HTTPSConnection
 
 from sabor.importing import images
 from sabor.importing import tools as t
@@ -202,6 +203,18 @@ class HeaderDeadlineTests(unittest.TestCase):
                     self.assertEqual((response.status, response.read()), (200, PNG))
                 finally:
                     response.close()
+
+    def test_https_hops_get_the_header_deadline(self):
+        # Most images are HTTPS: its pool must use the deadline-aware connection too.
+        parsed = t.http_url('https://example.org/a.png')
+        with patch.object(urllib3, 'HTTPSConnectionPool') as pool:
+            t.image_response(parsed, '93.184.216.34', timeout=urllib3.Timeout(connect=10, read=20, total=5))
+        self.assertIsNotNone(pool.call_args.kwargs['header_deadline'])
+        self.assertIs(pool.return_value.ConnectionCls, t._HTTPSConnection)
+        self.assertTrue(issubclass(t._HTTPSConnection, HTTPSConnection))
+        with patch.object(urllib3, 'HTTPSConnectionPool') as pool:
+            t.image_response(parsed, '93.184.216.34')
+        self.assertIsNone(pool.call_args.kwargs['header_deadline'])
 
 
 class SsrfTests(unittest.TestCase):
