@@ -48,7 +48,8 @@
 - URL imports into SQLite or Postgres download the recipe image and keep it with
   its original URL (new `recipe_images` table; SQLite migration 4, Postgres
   migration 3). Public addresses only at every redirect, 5 MB, real JPEG/PNG/WebP/GIF
-  by file signature, 30 s total deadline (DNS lookups included). A failed download still imports the recipe,
+  by file signature, 30 s total deadline (DNS lookups and trickled response headers
+  included). A failed download still imports the recipe,
   keeps the URL and adds an `image_warning`; `import_recipe` reports `images`. Mealie
   keeps using its native image import (#49).
 

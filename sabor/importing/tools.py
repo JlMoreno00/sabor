@@ -6,11 +6,13 @@ import math
 import os
 import socket
 import threading
+import time
 from urllib.parse import urljoin, urlsplit
 from typing import NoReturn
 
 import requests
 import urllib3
+from urllib3.connection import HTTPConnection, HTTPSConnection
 from sabor.core import errors
 from sabor.core.config import load_settings
 from sabor.core.envelope import fail, ok
@@ -168,19 +170,60 @@ def plain_steps(value):
     raise ValueError('Invalid instructions')
 
 
+def _shutdown(sock):
+    try:
+        # The plain socket method also works for TLS sockets and leaves the SSL object alone.
+        socket.socket.shutdown(sock, socket.SHUT_RDWR)
+    except OSError:
+        pass
+
+
+class _HTTPConnection(HTTPConnection):
+    """Stop waiting for response headers at a monotonic deadline.
+
+    urllib3 timeouts apply between socket reads, so a server trickling its headers
+    one byte at a time could otherwise hold the hop past a total deadline. A timer
+    shuts the socket down at the deadline, which fails the blocked read.
+    """
+    def __init__(self, *args, header_deadline=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.header_deadline = header_deadline
+
+    def getresponse(self):
+        if self.header_deadline is None or self.sock is None:
+            return super().getresponse()
+        timer = threading.Timer(max(self.header_deadline - time.monotonic(), 0), _shutdown, (self.sock,))
+        timer.daemon = True
+        timer.start()
+        try:
+            return super().getresponse()
+        finally:
+            timer.cancel()
+
+
+class _HTTPSConnection(_HTTPConnection, HTTPSConnection):
+    pass
+
+
 def image_response(parsed, address, timeout=None):
     """Connect only to a validated literal IP; preserve Host, TLS SNI and verification.
 
     No proxy environment or hostname re-resolution is used. Each redirect creates
     a fresh validated connection; connections are not reused across downloads.
+    A timeout with `total` also bounds the wait for the response headers.
     """
     timeout = timeout or urllib3.Timeout(connect=10, read=20)
+    total = timeout.total
+    deadline = time.monotonic() + total if isinstance(total, (int, float)) else None
     port = parsed.port or (443 if parsed.scheme == 'https' else 80)
     if parsed.scheme == 'https':
         pool = urllib3.HTTPSConnectionPool(address, assert_hostname=parsed.hostname,
-            server_hostname=parsed.hostname, cert_reqs='CERT_REQUIRED', port=port, maxsize=1)
+            server_hostname=parsed.hostname, cert_reqs='CERT_REQUIRED', port=port, maxsize=1,
+            header_deadline=deadline)
     else:
-        pool = urllib3.HTTPConnectionPool(address, port=port, maxsize=1)
+        pool = urllib3.HTTPConnectionPool(address, port=port, maxsize=1, header_deadline=deadline)
+    # urllib3's connection Protocol types reject its own concrete classes, hence setattr.
+    setattr(pool, 'ConnectionCls', _HTTPSConnection if parsed.scheme == 'https' else _HTTPConnection)
     host = parsed.netloc
     target = (parsed.path or '/') + ('?' + parsed.query if parsed.query else '')
     try:
