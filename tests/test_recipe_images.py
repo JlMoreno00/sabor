@@ -1,10 +1,13 @@
 """Recipe image download for the built-in stores (#49): offline, no live network."""
+import socket
 import threading
 import time
 import unittest
 from unittest.mock import Mock, patch
 
 import pytest
+import urllib3
+from urllib3.connection import HTTPSConnection
 
 from sabor.importing import images
 from sabor.importing import tools as t
@@ -156,6 +159,62 @@ class FetchTests(unittest.TestCase):
         for url in ('ftp://e.org/a.png', 'file:///etc/passwd', 'https://user:pw@e.org/a.png', 'not a url'):
             with self.subTest(url=url), self.assertRaises(images.ImageError):
                 images.fetch_recipe_image(url)
+
+
+class HeaderDeadlineTests(unittest.TestCase):
+    """image_response against a real loopback server (no DNS, no outside network)."""
+    HEAD = b'HTTP/1.1 200 OK\r\nContent-Type: image/png\r\nContent-Length: 40\r\n\r\n'
+
+    def serve(self, delay):
+        server = socket.socket()
+        server.bind(('127.0.0.1', 0))
+        server.listen(1)
+        self.addCleanup(server.close)
+
+        def run():
+            conn, _ = server.accept()
+            with conn:
+                conn.recv(4096)
+                try:
+                    for byte in self.HEAD + PNG:
+                        conn.sendall(bytes([byte]))
+                        time.sleep(delay)
+                except OSError:
+                    pass
+        threading.Thread(target=run, daemon=True).start()
+        return t.http_url(f'http://127.0.0.1:{server.getsockname()[1]}/a.png')
+
+    def test_trickled_headers_stop_at_the_deadline(self):
+        # Each header byte arrives well under the read timeout, so only the total
+        # deadline can stop the hop: ~3.5 s of headers against 0.5 s (CodeRabbit on #94).
+        parsed = self.serve(0.05)
+        start = time.monotonic()
+        with self.assertRaises(urllib3.exceptions.HTTPError):
+            t.image_response(parsed, '127.0.0.1', timeout=urllib3.Timeout(connect=10, read=20, total=0.5))
+        # Stopped by the deadline itself, not by an earlier connection failure.
+        self.assertGreater(time.monotonic() - start, 0.4)
+        self.assertLess(time.monotonic() - start, 2)
+
+    def test_prompt_servers_are_unchanged(self):
+        for timeout in (None, urllib3.Timeout(connect=10, read=20, total=5)):
+            with self.subTest(timeout=timeout):
+                response = t.image_response(self.serve(0), '127.0.0.1', timeout=timeout)
+                try:
+                    self.assertEqual((response.status, response.read()), (200, PNG))
+                finally:
+                    response.close()
+
+    def test_https_hops_get_the_header_deadline(self):
+        # Most images are HTTPS: its pool must use the deadline-aware connection too.
+        parsed = t.http_url('https://example.org/a.png')
+        with patch.object(urllib3, 'HTTPSConnectionPool') as pool:
+            t.image_response(parsed, '93.184.216.34', timeout=urllib3.Timeout(connect=10, read=20, total=5))
+        self.assertIsNotNone(pool.call_args.kwargs['header_deadline'])
+        self.assertIs(pool.return_value.ConnectionCls, t._HTTPSConnection)
+        self.assertTrue(issubclass(t._HTTPSConnection, HTTPSConnection))
+        with patch.object(urllib3, 'HTTPSConnectionPool') as pool:
+            t.image_response(parsed, '93.184.216.34')
+        self.assertIsNone(pool.call_args.kwargs['header_deadline'])
 
 
 class SsrfTests(unittest.TestCase):
