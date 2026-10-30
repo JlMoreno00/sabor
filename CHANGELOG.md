@@ -3,6 +3,11 @@
 ## [Unreleased]
 
 ### Fixed
+- `estimate_cost` passes its leading-number decision to the provider: `ProductQuery`
+  gains an optional `lead_is_amount` (default `None`, the provider decides as before).
+  The engine, which strips amounts itself, sends `False`, so Mercadona no longer
+  re-reads `4 tomates` (kept as a name for 300 g) as four tomatoes and ranks
+  `Pack 4 tomates` first. `search_pricing_products` and Open Prices are unchanged.
 - `estimate_cost` on free-text shopping items (built-in stores): the stored name has
   its amount stripped (`quesos`), so `4 quesos` could never prefer `Pizza 4 quesos`.
   Rows now carry an explicit origin and free-text rows are matched on their original

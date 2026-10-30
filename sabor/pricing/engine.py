@@ -358,7 +358,9 @@ def _estimate(source, store_ctx, rows, pricing, product_overrides, match_policy,
                         break
                     # A substring provider (Open Prices) finds nothing for '4 quesos' when no
                     # product carries the 4: without an eligible carrier, search 'quesos' too.
-                    for product in pricing.search_products(ProductQuery(text, 50), store_ctx):
+                    # Amounts are already stripped here: a leading number left in the query
+                    # belongs to the name, and the provider must not re-read it (#49).
+                    for product in pricing.search_products(ProductQuery(text, 50, lead_is_amount=False), store_ctx):
                         if product.id in seen or product.food is False or not covers(wanted, product.name):
                             continue
                         seen.add(product.id)

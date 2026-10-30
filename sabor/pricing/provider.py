@@ -16,6 +16,10 @@ class RetailContext:
 class ProductQuery:
     query: str
     limit: int = 10
+    # Whether a leading number in `query` is an amount. None lets the provider read it
+    # ('2 huevos' is two eggs); the estimate engine, which strips amounts itself, sends
+    # False so a kept name number ('4 tomates' for 300 g) is never re-read as one (#49).
+    lead_is_amount: bool | None = None
 
 
 @dataclass(frozen=True)
