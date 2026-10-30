@@ -147,6 +147,76 @@ class EngineTests(unittest.TestCase):
         assert tied is not None
         self.assertEqual(tied.product_id, 'twin')
 
+    def basket(self, prices, *names):
+        # Real Mercadona names; processed products are the cheaper ones, as in the catalog.
+        self.pricing.products = [Product(name, name, 'fixture') for name in prices]
+        base = self.pricing.quote
+
+        def quote(product_id, store):
+            # A None price is a candidate whose quote cannot be valued.
+            price = None if prices[product_id] is None else D(prices[product_id])
+            return replace(base, product_id=product_id, package_price=price,
+                           package_quantity=D(1), package_unit='kg', normalized_unit_price=price)
+        setattr(self.pricing, 'get_quote', quote)
+        rows = (n if isinstance(n, dict) else dict(name=n, quantity='300', unit='g') for n in names)
+        lines = self.run_estimate(items(*rows)).lines
+        return [line.quote.product_id if line.quote else None for line in lines]
+
+    def test_basic_ingredients_prefer_unprocessed_products(self):
+        # Paleta (29-oct): 'merluza' picked croquetas and 'jengibre' chewing gum.
+        prices = {'Croquetas de merluza Hacendado ultracongelados': '3', 'Filetes de merluza del Cabo': '9',
+                  'Chicles gragea jengibre sin azúcar Hacendado': '1', 'Jengibre': '5',
+                  'Sándwich atún y huevo Hacendado': '2', 'Atún claro al natural Hacendado': '8',
+                  'Alubias a la jardinera Hacendado': '1', 'Alubia blanca Hacendado': '2',
+                  'Caldo de pollo Hacendado': '1', 'Contramuslo de pollo': '4'}
+        self.assertEqual(self.basket(prices, 'merluza', 'jengibre', 'atún', 'alubias', 'caldo de pollo'),
+                         ['Filetes de merluza del Cabo', 'Jengibre', 'Atún claro al natural Hacendado',
+                          'Alubia blanca Hacendado', 'Caldo de pollo Hacendado'])
+        # A processed product is still used when it is the only match.
+        self.assertEqual(self.basket({'Croquetas de merluza Hacendado ultracongelados': '3'}, 'merluza'),
+                         ['Croquetas de merluza Hacendado ultracongelados'])
+        # A requested modifier is never penalized.
+        self.assertEqual(self.basket(prices, 'croquetas de merluza'),
+                         ['Croquetas de merluza Hacendado ultracongelados'])
+
+    def test_singular_and_plural_names_match(self):
+        # Paleta (29-oct): zanahoria and puerro found nothing, the catalog sells them in plural.
+        self.assertEqual(self.basket({'Zanahorias': '1', 'Puerros': '2', 'Guisante fino Hacendado': '3'},
+                                     'zanahoria', 'puerro', 'guisantes'),
+                         ['Zanahorias', 'Puerros', 'Guisante fino Hacendado'])
+        # Still whole words only: 'sal' never matches 'salsa'.
+        self.assertEqual(self.basket({'salsa': '1'}, 'sal'), [None])
+
+    def test_query_numbers_must_match(self):
+        # CodeRabbit on #105: digits are part of the query (85% is not 70%).
+        self.assertEqual(self.basket({'Chocolate negro 70% Hacendado': '1', 'Chocolate negro 85% Hacendado': '2'},
+                                     'chocolate negro 85%'), ['Chocolate negro 85% Hacendado'])
+        # A decimal is one value: 0,5% is neither 5,0% nor 5%.
+        fat = {'Leche 5,0% materia grasa': '1', 'Leche 0,5% materia grasa': '2'}
+        self.assertEqual(self.basket(fat, 'leche 0,5%', 'leche 5,0%'),
+                         ['Leche 0,5% materia grasa', 'Leche 5,0% materia grasa'])
+
+    def test_leading_amount_in_a_name_is_not_a_required_number(self):
+        # CodeRabbit on #105: a leading number equal to the line's quantity is that
+        # amount ('2 huevos', 2), so 'Huevos' stays a candidate next to '2 huevos cocidos'.
+        self.assertEqual(self.basket({'Huevos': '1', '2 huevos cocidos Hacendado': '3'},
+                                     dict(name='2 huevos', quantity='2', unit='g'),
+                                     dict(name='300 g de arroz', quantity='300', unit='g')), ['Huevos', None])
+        # Any other leading number is part of the name ('4 quesos' for 300 g).
+        self.assertEqual(self.basket({'Pizza 3 quesos Hacendado': '1', 'Pizza 4 quesos Hacendado': '2'},
+                                     '4 quesos'), ['Pizza 4 quesos Hacendado'])
+
+    def test_alphanumeric_words_stay_whole(self):
+        # CodeRabbit on #105: B12 is neither B nor 12.
+        self.assertEqual(self.basket({'Leche vitamina B6 12 unidades': '1', 'Leche vitamina B12': '2'},
+                                     'leche vitamina B12'), ['Leche vitamina B12'])
+
+    def test_unvalued_basic_product_keeps_a_valued_processed_one(self):
+        # CodeRabbit on #105: the preference must not leave the line uncosted.
+        self.assertEqual(self.basket({'Filetes de merluza del Cabo': None,
+                                      'Croquetas de merluza Hacendado ultracongelados': '3'}, 'merluza'),
+                         ['Croquetas de merluza Hacendado ultracongelados'])
+
     def test_whole_word_and_dimension(self):
         self.pricing.products = [Product('salsa', 'salsa', 'fixture')]
         self.assertIsNone(self.run_estimate(items(dict(name='sal', quantity='1', unit='g'))).consumption_subtotal)

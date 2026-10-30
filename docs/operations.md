@@ -359,11 +359,14 @@ reported, not contributor identifiers, proofs or coordinates.
 Catalog cache refresh failures may yield explicitly stale quotes;
 the unofficial API provides no availability guarantee.
 
-Search is food-only; whole-word names rank by fewer extra distinct normalized
-name tokens, then food/name/ID. `estimate_cost` defaults to
+Search is food-only; whole-word names (one trailing `s`/`es` tolerated) rank
+unprocessed products first, then fewer extra normalized name words, then
+food/name/ID. `estimate_cost` defaults to
 `match_policy="cheapest"` among up to 50 candidates: compatible food with the
 lowest checkout cost for the required quantity (whole packages x package
-price), then the lowest unit price. Show `alternatives` and offer to
+price), then the lowest unit price. Processed or compound candidates
+(croquetas, chicles, salsa...) are skipped for a basic ingredient whenever an
+unprocessed candidate matches; the vocabulary lives in `sabor/pricing/matching.py`. Show `alternatives` and offer to
 switch using `product_overrides` (prioritary); use `strict` for ambiguous exclusions.
 Unitless quantities assume count (`assumed_count`); kitchen measures stay unknown.
 Search products and inspect package/unit quotes before selecting overrides.

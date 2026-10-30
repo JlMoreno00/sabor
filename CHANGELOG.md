@@ -8,6 +8,14 @@
   `1 <note>`; Sabor now sends the note. Free-text items with a real quantity keep
   Mealie's display (`3 limones`). This changes the Bring! preview and sync with
   **Mealie included**, an approved exception to Beta A (#41) decided in #101.
+- Pricing matching for basic ingredients: `estimate_cost` no longer picks a cheaper
+  processed or compound product when an unprocessed one matches (`merluza` gave
+  `Croquetas`/`Palitos de merluza`, `jengibre` gave `Chicles de jengibre`, `atún` a
+  sandwich), and whole-word matching tolerates one trailing `s`/`es` (`zanahoria`,
+  `puerro` and `cebolla` now find `Zanahorias`, `Puerros`, `Cebollas`). Processed
+  products are still used when nothing else matches or when the query asks for them.
+  Mercadona search ranks unprocessed products first. Applies to every pricing
+  provider; recipe stores are unaffected.
 
 ### Changed
 - Dependencies: `urllib3>=2.2` is now declared directly. Recipe image downloads read
