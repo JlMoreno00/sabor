@@ -313,6 +313,13 @@ class EngineTests(unittest.TestCase):
         setattr(self.store, 'id', 'mealie')
         self.assertEqual([line.quote.product_id for line in estimate_list() if line.quote],
                          ['Pizza 3 quesos Hacendado'] * 2)
+        # CodeRabbit on #115: a written numeral after the amount still reads as digits.
+        setattr(self.store, 'id', 'fake')
+        self.basket(quesos, 'quesos')
+        weighed = self.store.create_shopping_list('weighed')
+        self.store.add_shopping_items(weighed.id, [ItemDraft(quantity=1, note='300 g de cuatro quesos')])
+        line = self.run_estimate(dict(kind='shopping_list', list_id=weighed.id)).lines[0]
+        self.assertEqual(line.quote.product_id if line.quote else None, 'Pizza 4 quesos Hacendado')
 
     def test_candidate_without_a_local_quote_is_skipped(self):
         # CodeRabbit on #108: Open Prices raises LookupError for a product with no

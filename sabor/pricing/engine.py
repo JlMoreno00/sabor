@@ -345,7 +345,8 @@ def _estimate(source, store_ctx, rows, pricing, product_overrides, match_policy,
                 # the line keeps its written name.
                 named = row['text'] if row.get('origin') == 'free_text' and row.get('text') else row['name']
                 matched = dict(row, name=written_digits(named))
-                wanted = _match_name(matched, q)
+                # Also after the amount is stripped ('300 g de cuatro quesos' -> '4 quesos').
+                wanted = written_digits(_match_name(matched, q))
                 ambiguous = wanted != matched['name'] and _bare_text_number(matched, q)
                 # Query with the decided name, so a stripped amount never narrows the search;
                 # an ambiguous '4 quesos' keeps its number so the provider ranks it first.
