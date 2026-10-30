@@ -158,7 +158,8 @@ class EngineTests(unittest.TestCase):
             return replace(base, product_id=product_id, package_price=price,
                            package_quantity=D(1), package_unit='kg', normalized_unit_price=price)
         setattr(self.pricing, 'get_quote', quote)
-        lines = self.run_estimate(items(*(dict(name=n, quantity='300', unit='g') for n in names))).lines
+        rows = (n if isinstance(n, dict) else dict(name=n, quantity='300', unit='g') for n in names)
+        lines = self.run_estimate(items(*rows)).lines
         return [line.quote.product_id if line.quote else None for line in lines]
 
     def test_basic_ingredients_prefer_unprocessed_products(self):
@@ -196,9 +197,12 @@ class EngineTests(unittest.TestCase):
                          ['Leche 0,5% materia grasa', 'Leche 5,0% materia grasa'])
 
     def test_leading_amount_in_a_name_is_not_a_required_number(self):
-        # CodeRabbit on #105: an inline name such as '2 huevos' still finds 'Huevos'.
-        self.assertEqual(self.basket({'Huevos': '2'}, '2 huevos', '300 g de arroz'), ['Huevos', None])
-        # A number that is part of the name still wins when a product carries it.
+        # CodeRabbit on #105: a leading number equal to the line's quantity is that
+        # amount ('2 huevos', 2), so 'Huevos' stays a candidate next to '2 huevos cocidos'.
+        self.assertEqual(self.basket({'Huevos': '1', '2 huevos cocidos Hacendado': '3'},
+                                     dict(name='2 huevos', quantity='2', unit='g'),
+                                     dict(name='300 g de arroz', quantity='300', unit='g')), ['Huevos', None])
+        # Any other leading number is part of the name ('4 quesos' for 300 g).
         self.assertEqual(self.basket({'Pizza 3 quesos Hacendado': '1', 'Pizza 4 quesos Hacendado': '2'},
                                      '4 quesos'), ['Pizza 4 quesos Hacendado'])
 
