@@ -20,7 +20,7 @@ import requests
 from sabor.integrations.mercadona import _mercadona_cost_query
 from sabor.pricing.matching import carried, covers, processed, same_word, words
 from sabor.pricing.provider import PriceQuote, Product, ProductQuery, RetailContext
-from sabor.pricing.quantities import is_fraction, leading_prefix, package_from_mercadona, parse_text
+from sabor.pricing.quantities import is_fraction, leading_prefix, package_from_mercadona, parse_text, written_digits
 
 
 class CatalogWarming(RuntimeError):
@@ -280,7 +280,9 @@ class MercadonaPricing:
         self._validate(store)
         if not isinstance(query.query, str) or not 1 <= query.limit <= 50:
             raise ValueError('Invalid product query')
-        text = _mercadona_cost_query(query.query)
+        # A written numeral follows the digit rule ('cuatro quesos' as '4 quesos').
+        named = written_digits(query.query)
+        text = _mercadona_cost_query(named)
         if not text:
             return []
         # Numbers of the name that the cost query dropped ('4' in '4 quesos') rank
@@ -289,7 +291,6 @@ class MercadonaPricing:
         # fraction ('1/2 kg', '½') is always an amount.
         # The amount is excluded by position, so a later name number equal to one of its
         # digits still counts ('4' in '1/4 kg de 4 quesos').
-        named = query.query
         prefix = leading_prefix(named)
         if prefix and (is_fraction(prefix) or parse_text(prefix).dimension):
             named = named[len(prefix):]

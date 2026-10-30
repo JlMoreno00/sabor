@@ -71,6 +71,21 @@ def leading_prefix(text: str) -> str | None:
     return match.group(0) if match else None
 
 
+# Written numerals from two up, as digits; articles (un, una, uno, one) stay words, so
+# 'un queso' is always one cheese and never a name number.
+_WRITTEN_DIGITS: dict[str, int] = {word: n for word, n in _WORDS.items() if n > 1}
+_WRITTEN = re.compile(r'(\s*)(' + '|'.join(_WRITTEN_DIGITS) + r')\b', re.I)
+
+
+def written_digits(text: str) -> str:
+    """A leading written numeral as digits ('cuatro quesos' -> '4 quesos'), so it follows
+    the digit rule for amounts and name numbers; any other text is unchanged."""
+    match = _WRITTEN.match(text)
+    if not match:
+        return text
+    return match.group(1) + str(_WRITTEN_DIGITS[match.group(2).lower()]) + text[match.end():]
+
+
 def is_fraction(prefix: str) -> bool:
     """A fraction ('1/2', '1 1/2 kg', '½') is always an amount, never a name number."""
     return '/' in prefix or any(c in _FRACTIONS for c in prefix)

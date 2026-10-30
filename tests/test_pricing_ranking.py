@@ -32,6 +32,20 @@ class GroupSelectionTests(unittest.TestCase):
             self.assertEqual(line.alternatives[0]['checkout_cost'], D('1.20'))
             self.assertEqual(line.consumption, D('.27'))
 
+    def test_written_and_digit_numerals_group_together(self):
+        # CodeRabbit on #113: 'cuatro quesos' and '4 quesos' are one product name, so the
+        # combined 600 g buys one 1 kg package instead of two 500 g ones.
+        pricing = Pricing()
+        pricing.products = [Product(pid, 'Pizza 4 quesos', 'fixture') for pid in ('small', 'big')]
+        quotes = {pid: replace(pricing.quote, product_id=pid, package_quantity=size,
+                               package_price=price, normalized_unit_price=price / size)
+                  for pid, size, price in [('small', D('.5'), D('.60')), ('big', D(1), D('.90'))]}
+        pricing.get_quote = lambda product_id, store: quotes[product_id]
+        rows = [dict(name='cuatro quesos', quantity='300', unit='g'), dict(name='4 quesos', quantity='300', unit='g')]
+        result = estimate(items(*rows), CTX, None, pricing)
+        self.assertEqual(result.procurement_subtotal, D('.90'))
+        self.assertEqual([line.name for line in result.lines], ['cuatro quesos', '4 quesos'])
+
     def test_keep_mixed_selection(self):
         result, _ = self.run_case([200, 900], '1.00')
         self.assertEqual(result.procurement_subtotal, D('1.60'))

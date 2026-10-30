@@ -90,6 +90,18 @@ class MercadonaTests(unittest.TestCase):
         # the food (#49, S3): the 2 of 'Arroz 2 kg' counts kilos, so it carries nothing.
         self.assertEqual(search('2 arroz'), ['round', 'two'])
 
+    def test_written_numerals_rank_like_digits(self):
+        # #49 follow-up (CodeRabbit on #108): 'cuatro quesos' found nothing (the cost query
+        # kept 'cuatro'); it now ranks like '4 quesos', and 'dos kg' is still an amount.
+        self.products = [item('plain', 'Quesos curados Hacendado'), item('pizza4', 'Pizza 4 quesos Hacendado'),
+                         item('pizza2', 'Pizza 2 quesos Hacendado')]
+        self.provider._refresh()
+        search = lambda text: [p.id for p in self.provider.search_products(ProductQuery(text, 50), self.store)]
+        self.assertEqual(search('cuatro quesos'), search('4 quesos'))
+        self.assertEqual(search('Cuatro quesos')[0], 'pizza4')
+        self.assertEqual(search('dos kg de quesos'), search('quesos'))
+        self.assertEqual(search('un queso'), search('queso'))
+
     def test_leading_amount_is_excluded_by_position(self):
         # CodeRabbit on #112: only the prefix is the amount, so a later name number equal
         # to one of its digits still ranks first ('4' in '1/4 kg de 4 quesos').
