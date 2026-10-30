@@ -88,6 +88,10 @@ def _resolve(source, store):
             # quantity is a placeholder; amount and name come from the text.
             text = getattr(item, 'originalText', None) or item.note or item.display or ''
             row = dict(name=ingredient_name(text) or text, quantity=None, unit=None, text=text)
+            if getattr(store, 'id', None) != 'mealie':
+                # Typed by hand: matching reads the original text, so '4 quesos' keeps
+                # its number; Mealie items keep their previous selection (Beta A, #41).
+                row['origin'] = 'free_text'
         else:
             text = getattr(item, 'originalText', None) or item.display or item.note
             # Without a structured food, built-in stores derive the name from the text like
@@ -339,8 +343,10 @@ def _estimate(source, store_ctx, rows, pricing, product_overrides, match_policy,
                 compound, carrying = {}, {}
                 # A written numeral follows the digit rule ('cuatro quesos' as '4 quesos');
                 # the line keeps its written name.
-                matched = dict(row, name=written_digits(row['name']))
-                wanted = _match_name(matched, q)
+                named = row['text'] if row.get('origin') == 'free_text' and row.get('text') else row['name']
+                matched = dict(row, name=written_digits(named))
+                # Also after the amount is stripped ('300 g de cuatro quesos' -> '4 quesos').
+                wanted = written_digits(_match_name(matched, q))
                 ambiguous = wanted != matched['name'] and _bare_text_number(matched, q)
                 # Query with the decided name, so a stripped amount never narrows the search;
                 # an ambiguous '4 quesos' keeps its number so the provider ranks it first.

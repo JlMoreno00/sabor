@@ -3,6 +3,11 @@
 ## [Unreleased]
 
 ### Fixed
+- `estimate_cost` on free-text shopping items (built-in stores): the stored name has
+  its amount stripped (`quesos`), so `4 quesos` could never prefer `Pizza 4 quesos`.
+  Rows now carry an explicit origin and free-text rows are matched on their original
+  text; the line keeps its stripped name. Items from Mealie keep their previous
+  selection (Beta A, #41).
 - Written leading numerals in ingredient names: `estimate_cost` and Mercadona search
   read `cuatro quesos` like `4 quesos` (the same amount or name-number rule as
   digits). Mercadona search for `cuatro quesos` returned nothing because its cost

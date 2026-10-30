@@ -296,6 +296,31 @@ class EngineTests(unittest.TestCase):
                                      dict(name='2 huevos', text='2 huevos'), package_unit='unit'),
                          ['Huevos frescos'])
 
+    def test_free_text_items_match_on_their_original_text(self):
+        # #49 follow-up (CodeRabbit on #108 and #113): a free-text shopping item is stored
+        # with its amount stripped ('quesos'), so '4 quesos' could not prefer products
+        # carrying the 4; matching now reads the original text, marked by row origin.
+        quesos = {'Pizza 3 quesos Hacendado': '1', 'Pizza 4 quesos Hacendado': '2'}
+        self.basket(quesos, 'quesos', package_unit='unit')
+        ref = self.store.create_shopping_list('notes')
+        self.store.add_shopping_items(ref.id, [ItemDraft(quantity=1, note='4 quesos'),
+                                              ItemDraft(quantity=1, note='cuatro quesos')])
+        estimate_list = lambda: self.run_estimate(dict(kind='shopping_list', list_id=ref.id)).lines
+        lines = estimate_list()
+        self.assertEqual([line.quote.product_id for line in lines if line.quote], ['Pizza 4 quesos Hacendado'] * 2)
+        self.assertEqual([line.name for line in lines], ['quesos'] * 2)
+        # Items imported from Mealie keep their previous selection (Beta A, #41).
+        setattr(self.store, 'id', 'mealie')
+        self.assertEqual([line.quote.product_id for line in estimate_list() if line.quote],
+                         ['Pizza 3 quesos Hacendado'] * 2)
+        # CodeRabbit on #115: a written numeral after the amount still reads as digits.
+        setattr(self.store, 'id', 'fake')
+        self.basket(quesos, 'quesos')
+        weighed = self.store.create_shopping_list('weighed')
+        self.store.add_shopping_items(weighed.id, [ItemDraft(quantity=1, note='300 g de cuatro quesos')])
+        line = self.run_estimate(dict(kind='shopping_list', list_id=weighed.id)).lines[0]
+        self.assertEqual(line.quote.product_id if line.quote else None, 'Pizza 4 quesos Hacendado')
+
     def test_candidate_without_a_local_quote_is_skipped(self):
         # CodeRabbit on #108: Open Prices raises LookupError for a product with no
         # observation in the country; that candidate is skipped, the estimate goes on.
