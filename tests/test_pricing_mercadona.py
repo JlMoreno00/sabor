@@ -121,6 +121,22 @@ class MercadonaTests(unittest.TestCase):
         search = lambda text: [p.id for p in self.provider.search_products(ProductQuery(text, 50), self.store)]
         self.assertEqual(search('4 quesos'), ['pizza4', 'plain', 'pack'])
 
+    def test_name_number_check_tokenizes_once_per_search_and_product(self):
+        # CodeRabbit on #114: the number check must not re-tokenize the query for every
+        # number and product, so the work does not grow with the numbers in the query.
+        from unittest.mock import patch
+        import sabor.pricing.matching as matching
+        self.products = [item(c, f'Pizza 1 2 3 4 5 quesos {c}') for c in 'abc']
+        self.provider._refresh()
+        real = matching._tokens
+
+        def calls(text):
+            seen = []
+            with patch.object(matching, '_tokens', side_effect=lambda t: seen.append(t) or real(t)):
+                self.provider.search_products(ProductQuery(text, 50), self.store)
+            return len(seen)
+        self.assertEqual(calls('pizza 1 2 3 4 5 quesos'), calls('pizza 1 quesos'))
+
     def test_name_number_inside_the_query_must_modify_the_food(self):
         # CodeRabbit on #114: the 4 of 'pizza 4 quesos' stays in the cost query, so it must
         # also be next to quesos; 'Pizza 3 quesos 4 unidades' no longer ranks first.

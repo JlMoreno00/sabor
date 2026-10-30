@@ -68,8 +68,28 @@ def carried(number, query, name):
     ``Pizza 3 quesos pack 4 unidades``; ``4 quesos y 4 carnes`` needs both. A number with
     no word after it in the query (``chocolate 85%``) only needs to appear.
     """
-    wanted, product = _tokens(query), _tokens(name)
-    modified = {wanted[i + 1] for i, t in enumerate(wanted[:-1]) if t == number}
+    return carries(number, modifiers(query).get(number, set()), tokens(name))
+
+
+def modifiers(query):
+    """Each query number with the words it modifies (``{'4': {'quesos'}}``), read once
+    per search; a number with nothing after it maps to an empty set."""
+    wanted = _tokens(query)
+    result = {}
+    for i, t in enumerate(wanted):
+        if t[0].isdigit():
+            result.setdefault(t, set()).update(wanted[i + 1:i + 2])
+    return result
+
+
+def tokens(name):
+    """A product name's words in order, read once per product for ``carries``."""
+    return _tokens(name)
+
+
+def carries(number, modified, product):
+    """``carried`` on prepared input: ``modified`` from ``modifiers``, ``product`` from
+    ``tokens``, so a search never re-reads the query per number and product."""
     if not modified:
         return number in product
     return all(any(t == number and same_word(product[i + 1], w) for i, t in enumerate(product[:-1]))
