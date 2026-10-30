@@ -296,6 +296,27 @@ class EngineTests(unittest.TestCase):
                                      dict(name='2 huevos', text='2 huevos'), package_unit='unit'),
                          ['Huevos frescos'])
 
+    def test_number_preference_applies_only_to_valued_candidates(self):
+        # #49 follow-up (CodeRabbit on #108): a carrier without a usable price must not
+        # leave the line uncosted when another candidate can be valued.
+        row = dict(name='4 quesos', text='4 quesos')
+        self.assertEqual(self.basket({'Pizza 4 quesos Hacendado': None, 'Quesos variados Hacendado': '2'}, row,
+                                     package_unit='unit'), ['Quesos variados Hacendado'])
+        # A valued carrier still wins, as before.
+        self.assertEqual(self.basket({'Pizza 4 quesos Hacendado': '3', 'Quesos variados Hacendado': '2'}, row,
+                                     package_unit='unit'), ['Pizza 4 quesos Hacendado'])
+        # A substring provider (Open Prices) also searches the name without the number
+        # when its only carriers cannot be valued.
+        queries = []
+
+        def substring_search(query, store):
+            queries.append(query.query)
+            return [p for p in self.pricing.products if query.query.casefold() in p.name.casefold()]
+        setattr(self.pricing, 'search_products', substring_search)
+        self.assertEqual(self.basket({'Pizza 4 quesos Hacendado': None, 'Quesos variados Hacendado': '2'}, row,
+                                     package_unit='unit'), ['Quesos variados Hacendado'])
+        self.assertEqual(queries, ['4 quesos', 'quesos'])
+
     def test_free_text_items_match_on_their_original_text(self):
         # #49 follow-up (CodeRabbit on #108 and #113): a free-text shopping item is stored
         # with its amount stripped ('quesos'), so '4 quesos' could not prefer products
