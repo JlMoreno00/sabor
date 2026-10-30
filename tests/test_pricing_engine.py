@@ -147,7 +147,7 @@ class EngineTests(unittest.TestCase):
         assert tied is not None
         self.assertEqual(tied.product_id, 'twin')
 
-    def basket(self, prices, *names):
+    def basket(self, prices, *names, package_unit='kg'):
         # Real Mercadona names; processed products are the cheaper ones, as in the catalog.
         self.pricing.products = [Product(name, name, 'fixture') for name in prices]
         base = self.pricing.quote
@@ -156,7 +156,7 @@ class EngineTests(unittest.TestCase):
             # A None price is a candidate whose quote cannot be valued.
             price = None if prices[product_id] is None else D(prices[product_id])
             return replace(base, product_id=product_id, package_price=price,
-                           package_quantity=D(1), package_unit='kg', normalized_unit_price=price)
+                           package_quantity=D(1), package_unit=package_unit, normalized_unit_price=price)
         setattr(self.pricing, 'get_quote', quote)
         rows = (n if isinstance(n, dict) else dict(name=n, quantity='300', unit='g') for n in names)
         lines = self.run_estimate(items(*rows)).lines
@@ -205,6 +205,31 @@ class EngineTests(unittest.TestCase):
         # Any other leading number is part of the name ('4 quesos' for 300 g).
         self.assertEqual(self.basket({'Pizza 3 quesos Hacendado': '1', 'Pizza 4 quesos Hacendado': '2'},
                                      '4 quesos'), ['Pizza 4 quesos Hacendado'])
+
+    def test_leading_amount_compares_the_resolved_quantity(self):
+        # #49 follow-up (CodeRabbit on #105): the name's leading amount is compared with
+        # the resolved quantity in base units, not with the raw quantity field.
+        self.assertEqual(self.basket({'Arroz redondo Hacendado': '1'},
+                                     dict(name='300 g de arroz', quantity='0.3', unit='kg'),
+                                     dict(name='1 l de leche', quantity='1000', unit='ml')),
+                         ['Arroz redondo Hacendado', None])
+        # A zero placeholder takes the amount from the text: '2 huevos' is that amount.
+        self.assertEqual(self.basket({'Huevos frescos': '2'},
+                                     dict(name='2 huevos', quantity='0', text='2 huevos'), package_unit='unit'),
+                         ['Huevos frescos'])
+        # Different resolved amounts still keep the number in the name.
+        self.assertEqual(self.basket({'Pizza 3 quesos Hacendado': '1', 'Pizza 4 quesos Hacendado': '2'},
+                                     dict(name='4 quesos', quantity='0.3', unit='kg')),
+                         ['Pizza 4 quesos Hacendado'])
+        # CodeRabbit on #106: only the leading prefix is parsed, so later name numbers
+        # ('85%') do not hide the unit of '500 g'.
+        self.assertEqual(self.basket({'Chocolate negro 85% Hacendado': '2'},
+                                     dict(name='0,5 kg de chocolate negro 85%', quantity='500', unit='g')),
+                         ['Chocolate negro 85% Hacendado'])
+        # A weight or volume of another dimension is not the line's amount: '300 ml' is
+        # kept for 0.3 kg instead of being stripped down to 'leche'.
+        self.assertEqual(self.basket({'Leche entera Hacendado': '1'},
+                                     dict(name='300 ml de leche', quantity='0.3', unit='kg')), [None])
 
     def test_alphanumeric_words_stay_whole(self):
         # CodeRabbit on #105: B12 is neither B nor 12.
