@@ -140,6 +140,10 @@ selected directory, not only the container filesystem.
 
 Local video import requires system ffmpeg and ffprobe on PATH; Docker includes
 them. Missing binaries produce `provider_unconfigured` with installation guidance.
+yt-dlp downloads the best video and audio streams up to 720p and merges them into
+mp4 with ffmpeg, since YouTube may serve some videos only as separate streams. A
+failed download returns `upstream_error` from `yt_dlp` with the redacted reason in
+`data.reason` (for example `Requested format is not available`).
 Core recipes, planning and shopping do not need ffmpeg or Mealie.
 
 ## Structured preferences migration

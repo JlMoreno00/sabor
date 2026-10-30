@@ -90,6 +90,39 @@ class VideoTests(unittest.TestCase):
             media, captions = v.download('https://youtu.be/a', Path(root))
             self.assertTrue(media.exists())
 
+    def test_youtube_dash_streams_are_merged(self):
+        # #102 PR 1 (Paleta, 29-oct): YouTube serves some videos only as separate DASH video
+        # and audio streams, so a single muxed 'best[...][ext=mp4]' file is unavailable.
+        from sabor.importing import video as v
+        def extract(*args, **kwargs):
+            opts = factory.call_args.args[0]
+            self.assertEqual(opts['format'], 'bv*[height<=720]+ba/b[height<=720]')
+            self.assertEqual(opts['merge_output_format'], 'mp4')
+            Path(opts['outtmpl'].replace('%(ext)s', 'mp4')).write_bytes(b'video')
+            return {'duration': 10}
+        factory = Mock(return_value=Mock(__enter__=Mock(return_value=Mock(extract_info=extract)),
+                                         __exit__=Mock(return_value=False)))
+        with patch.dict(sys.modules, yt_dlp=SimpleNamespace(YoutubeDL=factory)), v.TemporaryDirectory() as root:
+            media, _ = v.download('https://youtu.be/a', Path(root))
+            self.assertEqual(media.suffix, '.mp4')
+
+    def test_download_errors_carry_the_real_redacted_reason(self):
+        # #102 PR 1: the yt-dlp reason was lost in a generic upstream_error attributed to the
+        # video provider; it now comes from yt_dlp, redacted (no URL query, token or email).
+        class DownloadError(Exception):
+            pass
+        reason = ('ERROR: [youtube] V0ySydoCNXM: Requested format is not available. '
+                  'See https://example.com/x?token=SECRET or ask cook@example.com')
+        ydl = Mock(extract_info=Mock(side_effect=DownloadError(reason)))
+        factory = Mock(return_value=Mock(__enter__=Mock(return_value=ydl), __exit__=Mock(return_value=False)))
+        fake = SimpleNamespace(YoutubeDL=factory, DownloadError=DownloadError)
+        with patch.dict(sys.modules, yt_dlp=fake), patch.object(t, 'settings', return_value=load_settings(ENV)):
+            result = t.import_recipe('https://youtu.be/V0ySydoCNXM')
+        self.assertEqual((result['error']['code'], result['error']['provider']), ('upstream_error', 'yt_dlp'))
+        self.assertIn('Requested format is not available', result['data']['reason'])
+        self.assertNotIn('SECRET', str(result))
+        self.assertNotIn('cook@example.com', str(result))
+
     def test_duplicate_before_commit_and_tag(self):
         from sabor.importing import video as v
         cfg = load_settings(dict(ENV, MEALIE_BASE_URL='http://mealie', MEALIE_API_TOKEN='test'))

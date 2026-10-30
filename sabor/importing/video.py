@@ -44,14 +44,22 @@ def download(source, root):
         if progress.get('downloaded_bytes', 0) > MAX_BYTES or time.monotonic() - started > 180:
             raise ValueError('Media download budget exceeded')
 
-    opts: Any = dict(format='best[height<=720][ext=mp4]/best[height<=720]',
+    # YouTube may serve only separate DASH video and audio streams: take the best of each
+    # up to 720p and merge them into mp4 with ffmpeg, else one muxed file (#102).
+    opts: Any = dict(format='bv*[height<=720]+ba/b[height<=720]', merge_output_format='mp4',
         outtmpl=str(root / 'video.%(ext)s'), noplaylist=True, quiet=True,
         max_filesize=MAX_BYTES, match_filter=duration_filter,
         writesubtitles=True, writeautomaticsubtitles=True,
         subtitleslangs=['en', 'es'], subtitlesformat='vtt',
         socket_timeout=20, retries=1, fragment_retries=1, progress_hooks=[budget])
-    with yt_dlp.YoutubeDL(opts) as ydl:
-        info = ydl.extract_info(source, download=True)
+    try:
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            info = ydl.extract_info(source, download=True)
+    except getattr(yt_dlp, 'DownloadError', ()) as exc:
+        # The real reason, redacted by the error envelope (no URL query, token or email),
+        # from yt_dlp instead of a generic failure of the video provider (#102).
+        reason = re.sub(r'^ERROR:\s*', '', str(exc)).strip()[:300]
+        reject('upstream_error', 'Video download failed.', 'yt_dlp', data={'reason': reason})
     if not isinstance(info, dict) or duration_filter(info):
         reject('unsupported_operation', 'Video exceeds media limits or has no bounded duration.')
     media = [p for p in root.glob('video.*') if p.suffix.lower() in ('.mp4', '.webm', '.mov', '.mkv')]
