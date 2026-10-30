@@ -30,8 +30,12 @@ class BringSyncProvider(bring.BringClient):
             if row.get('checked'):
                 skipped.append({'source_id': row['id'], 'reason': 'checked'})
                 continue
-            raw = row.get('display') or row.get('note') or ''
             food = (row.get('food') or {}).get('name')
+            raw = row.get('display') or row.get('note') or ''
+            if not food and not row.get('unit') and row.get('quantity') in (None, 0, 1) and row.get('note'):
+                # Mealie gives free-text items quantity 1 and displays "1 <note>":
+                # the note alone is what the user wrote.
+                raw = row['note']
             name = bring._clean_food_name(food or raw)
             if not name:
                 raise ValueError('Missing source representation')

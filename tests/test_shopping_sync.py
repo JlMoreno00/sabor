@@ -51,6 +51,23 @@ class ShoppingSyncTests(unittest.TestCase):
         self.purchase = [{'itemId': 'Bread', 'spec': ''}]
         self.assertEqual(self.sync()['data']['remove'], [])
 
+    def test_free_text_items_drop_mealie_default_quantity(self):
+        # Mealie stores a free-text item with quantity 1 and builds its display as
+        # "1 <note>"; Bring! must get the note, not "1 600 g calabaza" (Paleta, 29-oct).
+        rows = [ShoppingItem(id='t1', note='600 g calabaza', display='1 600 g calabaza', quantity=1),
+                ShoppingItem(id='t2', note='4 huevos', display='1 4 huevos', quantity=1.0),
+                ShoppingItem(id='t3', note='500 ml caldo de pollo', display='1 500 ml caldo de pollo',
+                             quantity=1),
+                # A real quantity on a free-text item is kept as Mealie displays it.
+                ShoppingItem(id='t4', note='limones', display='3 limones', quantity=3),
+                ShoppingItem(id='t5', note='sal', display='sal', quantity=0)]
+        self.read.side_effect = lambda _: ShoppingSnapshot('source', tuple(rows))
+        added = {row['source_ids'][0]: (row['itemId'], row['spec']) for row in self.sync()['data']['add']}
+        self.assertEqual(added, {'t1': ('600 g calabaza', '600 g calabaza'), 't2': ('4 huevos', '4 huevos'),
+                                 't3': ('500 ml caldo de pollo', '500 ml caldo de pollo'),
+                                 # Bring!'s catalog still names a known item ("Sal").
+                                 't4': ('3 limones', '3 limones'), 't5': ('Sal', 'sal')})
+
     def test_identical_skipped(self):
         self.purchase = [{'itemId': 'Milk', 'spec': '2 litre'}]
         self.assertEqual(self.sync()['data']['skipped'][0]['reason'], 'identical')
