@@ -153,8 +153,10 @@ class EngineTests(unittest.TestCase):
         base = self.pricing.quote
 
         def quote(product_id, store):
-            return replace(base, product_id=product_id, package_price=D(prices[product_id]),
-                           package_quantity=D(1), package_unit='kg', normalized_unit_price=D(prices[product_id]))
+            # A None price is a candidate whose quote cannot be valued.
+            price = None if prices[product_id] is None else D(prices[product_id])
+            return replace(base, product_id=product_id, package_price=price,
+                           package_quantity=D(1), package_unit='kg', normalized_unit_price=price)
         setattr(self.pricing, 'get_quote', quote)
         lines = self.run_estimate(items(*(dict(name=n, quantity='300', unit='g') for n in names))).lines
         return [line.quote.product_id if line.quote else None for line in lines]
@@ -183,6 +185,17 @@ class EngineTests(unittest.TestCase):
                          ['Zanahorias', 'Puerros', 'Guisante fino Hacendado'])
         # Still whole words only: 'sal' never matches 'salsa'.
         self.assertEqual(self.basket({'salsa': '1'}, 'sal'), [None])
+
+    def test_query_numbers_must_match(self):
+        # CodeRabbit on #105: digits are part of the query (85% is not 70%).
+        self.assertEqual(self.basket({'Chocolate negro 70% Hacendado': '1', 'Chocolate negro 85% Hacendado': '2'},
+                                     'chocolate negro 85%'), ['Chocolate negro 85% Hacendado'])
+
+    def test_unvalued_basic_product_keeps_a_valued_processed_one(self):
+        # CodeRabbit on #105: the preference must not leave the line uncosted.
+        self.assertEqual(self.basket({'Filetes de merluza del Cabo': None,
+                                      'Croquetas de merluza Hacendado ultracongelados': '3'}, 'merluza'),
+                         ['Croquetas de merluza Hacendado ultracongelados'])
 
     def test_whole_word_and_dimension(self):
         self.pricing.products = [Product('salsa', 'salsa', 'fixture')]

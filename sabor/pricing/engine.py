@@ -291,11 +291,12 @@ def _estimate(source, store_ctx, rows, pricing, product_overrides, match_policy,
                                     and price.is_finite() and price >= 0):
                                 comparable.append((checkout, price, product.name, product.id))
                 candidates = list(dict.fromkeys(candidates))
-                if any(not compound[pid] for pid in candidates):
+                basic = [pid for pid in candidates if not compound[pid]]
+                basic_comparable = [row for row in comparable if not compound[row[3]]]
+                if basic_comparable or (basic and not comparable):
                     # A basic ingredient prefers unprocessed products: croquetas or chewing
-                    # gum only when nothing else matches.
-                    candidates = [pid for pid in candidates if not compound[pid]]
-                    comparable = [row for row in comparable if not compound[row[3]]]
+                    # gum only when nothing else matches, or nothing else can be valued.
+                    candidates, comparable = basic, basic_comparable
                 evidence.append('whole_word')
             if len(candidates) > 1 and match_policy == 'cheapest' and key not in overrides and comparable:
                 # Cheapest = lowest checkout cost for the required quantity (whole

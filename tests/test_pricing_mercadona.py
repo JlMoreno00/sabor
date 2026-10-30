@@ -55,6 +55,13 @@ class MercadonaTests(unittest.TestCase):
         self.assertEqual(search('croquetas de merluza'), ['croq'])
         self.assertEqual(search('sal'), [])
 
+    def test_query_numbers_must_match(self):
+        # CodeRabbit on #105: the previous search required numeric tokens too.
+        self.products = [item('70', 'Chocolate negro 70% Hacendado'), item('85', 'Chocolate negro 85% Hacendado')]
+        self.provider._refresh()
+        self.assertEqual([p.id for p in self.provider.search_products(ProductQuery('chocolate negro 85%'), self.store)],
+                         ['85'])
+
     def test_plural_and_punctuated_derivatives(self):
         # Plural and punctuated derivative names are penalized too (#49).
         self.products = [item('cookies', 'Galletas leche Hacendado'), item('yogurt', 'Yogur, leche Hacendado'),
