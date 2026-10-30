@@ -175,7 +175,11 @@ whole-video audio/vision; OpenAI-compatible uses frames and captions. Selection
 is explicit or Gemini-first when configured. Sync adapters implement
 targets/plan/apply; the orchestrator reads the recipe store, resolves a unique target,
 previews and confirms a rebuilt current plan. Bring! is the only sync provider;
-Todoist is planned for 0.3.1.
+Todoist is planned for 0.3.1. A free-text source item (no food, no unit) with the
+default quantity (`None`, `0` or `1`) is sent to Bring! as its note: Mealie stores
+such items with quantity 1 and displays `1 <note>`. This applies with every store,
+**Mealie included**, as an approved exception to the Beta A rule (#41) decided in
+#101; free-text items with a real quantity keep the store's display.
 
 Public success is `{ok:true,data:{...}}`; errors use
 `{ok:false,error:{code,message,provider}}` with optional safe partial outcomes.
