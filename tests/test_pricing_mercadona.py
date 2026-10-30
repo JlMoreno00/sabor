@@ -64,6 +64,9 @@ class MercadonaTests(unittest.TestCase):
         self.provider._refresh()
         search = lambda text: [p.id for p in self.provider.search_products(ProductQuery(text, 50), self.store)]
         self.assertEqual(search('4 quesos')[0], 'pizza4')
+        # CodeRabbit on #117: a caller that says the 4 is an amount gets no number ranking.
+        self.assertEqual([p.id for p in self.provider.search_products(
+            ProductQuery('4 quesos', 50, lead_is_amount=True), self.store)], search('quesos'))
         # A leading amount with a unit is not a name number: ranking is unchanged.
         self.assertEqual(search('500 g de quesos'), search('quesos'))
         self.assertNotIn('pizza4', search('quesos'))
