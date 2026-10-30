@@ -16,7 +16,7 @@ from .quantities import from_structured, to_base
 
 def _substring_query(text):
     """product_name__like is a substring filter: a one-word plural ('guisantes') drops
-    its trailing 's' so the same request also finds singular names ('Guisante fino').
+    its trailing 's' so a follow-up request also finds singular names ('Guisante fino').
     Multi-word queries stay as given, since a shortened inner word breaks the substring."""
     words = text.split()
     if len(words) == 1 and len(words[0]) > 3 and words[0].lower().endswith('s'):
@@ -84,7 +84,17 @@ class OpenPricesPricing:
     def search_products(self, query, store):
         self._context(store)
         limit = min(query.limit, 10)
-        items, _ = self._get('products', dict(product_name__like=_substring_query(query.query),
+        products = self._products(query.query, limit)
+        singular = _substring_query(query.query)
+        if singular != query.query and len(products) < limit:
+            # The original matches stay first and are never displaced ('mora' also
+            # matches 'morada'); the singular only fills the remaining room.
+            seen = {p.id for p in products}
+            products += [p for p in self._products(singular, limit) if p.id not in seen]
+        return products[:limit]
+
+    def _products(self, text, limit):
+        items, _ = self._get('products', dict(product_name__like=text,
                                               order_by='-price_count', size=limit))
         return [Product(str(p['code']), self._name(p), self.attribution)
                 for p in items if isinstance(p, dict) and p.get('code')
