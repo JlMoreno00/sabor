@@ -52,8 +52,26 @@ _FRACTIONS = {'½': '1/2', '¼': '1/4', '¾': '3/4', '⅓': '1/3', '⅔': '2/3',
 _KITCHEN = set('cucharada cucharadas cda cdas cucharadita cucharaditas cdta cdtas taza tazas cup cups tablespoon tablespoons tbsp teaspoon teaspoons tsp'.split())
 _PACKAGES = set('lata latas bote botes paquete paquetes bolsa bolsas pack packs can cans tin tins'.split())
 _COUNTABLE = set('huevo huevos cebolla cebollas tomate tomates patata patatas limón limones manzana manzanas egg eggs onion onions tomato tomatoes potato potatoes lemon lemons apple apples'.split())
-_NUMBER = r'(?:\d+\s+\d+/\d+|\d+/\d+|\d+(?:[.,]\d+)?|[½¼¾⅓⅔⅛]|' + '|'.join(word + r'\b' for word in _WORDS) + r')'
+# Written with digits: mixed numbers and fractions first, so '1 1/2' is never '1'.
+NUMERAL = r'\d+\s+\d+/\d+|\d+/\d+|\d+(?:[.,]\d+)?|[½¼¾⅓⅔⅛]'
+_NUMBER = r'(?:' + NUMERAL + '|' + '|'.join(word + r'\b' for word in _WORDS) + r')'
 _LEADING = re.compile(r'^(' + _NUMBER + r')(?=\s|[a-záéíóúñ]|$)', re.I)
+_PREFIX = re.compile(r'\s*(?:' + NUMERAL + r')\s*[^\W\d_]*')
+
+
+def leading_prefix(text: str) -> str | None:
+    """The leading amount of a name and its unit word ('1 1/2 kg' in '1 1/2 kg de harina').
+
+    Shared by the estimate engine and provider search (#49), so both read the same
+    amount; later name numbers ('85%') are never part of it.
+    """
+    match = _PREFIX.match(text)
+    return match.group(0) if match else None
+
+
+def is_fraction(prefix: str) -> bool:
+    """A fraction ('1/2', '1 1/2 kg', '½') is always an amount, never a name number."""
+    return '/' in prefix or any(c in _FRACTIONS for c in prefix)
 
 
 def _decimal(value: object, *, api: bool = False) -> Decimal | None:

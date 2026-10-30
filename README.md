@@ -173,8 +173,8 @@ uncertainty. `estimate_cost` reads only; it never modifies recipes or buys goods
 Mercadona search is food-only (non-food top categories 20, 21, 22, 23, 25,
 26 are excluded). Matching is by whole words, tolerating one trailing `s`/`es`
 on either side (`zanahoria` finds `Zanahorias`; `sal` never finds `Salsa`).
-A number that is part of the name (`4 quesos`, not an amount such as `500 g` or
-`2 huevos`) ranks products carrying it first, so they stay inside the 50-result
+A number that is part of the name (`4 quesos`, not an amount such as `500 g`,
+`2 huevos` or a fraction such as `1/2 kg`) ranks products carrying it first, so they stay inside the 50-result
 window. Then matches rank by unrequested processed or compound words (`croquetas`,
 `chicles`, `salsa`, `molido`, `a la jardinera`, condensed milk...), then by the
 number of normalized name words absent from the query (fewer is closer), food

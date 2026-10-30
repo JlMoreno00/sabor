@@ -7,7 +7,6 @@ import json
 import math
 from contextvars import copy_context
 import os
-import re
 from pathlib import Path
 import time
 import warnings
@@ -21,7 +20,7 @@ import requests
 from sabor.integrations.mercadona import _mercadona_cost_query
 from sabor.pricing.matching import covers, processed, same_word, words
 from sabor.pricing.provider import PriceQuote, Product, ProductQuery, RetailContext
-from sabor.pricing.quantities import package_from_mercadona, parse_text
+from sabor.pricing.quantities import is_fraction, leading_prefix, package_from_mercadona, parse_text
 
 
 class CatalogWarming(RuntimeError):
@@ -286,11 +285,12 @@ class MercadonaPricing:
             return []
         # Numbers of the name that the cost query dropped ('4' in '4 quesos') rank
         # first; a leading amount ('500 g', '2 huevos') never does. Only the leading
-        # prefix is parsed, so later name numbers ('85%') cannot hide its unit.
+        # prefix is parsed, so later name numbers ('85%') cannot hide its unit, and a
+        # fraction ('1/2 kg', '½') is always an amount.
         numbers = {w for w in words(query.query) if w[0].isdigit()} - words(text)
-        prefix = re.match(r'\s*\d+(?:[.,]\d+)?\s*[^\W\d_]*', query.query)
-        if prefix and parse_text(prefix.group(0)).dimension:
-            numbers -= words(prefix.group(0))
+        prefix = leading_prefix(query.query)
+        if prefix and (is_fraction(prefix) or parse_text(prefix).dimension):
+            numbers -= words(prefix)
         catalog, observed, stale = self._snapshot()
         scored = []
         for pid, product in catalog.items():
