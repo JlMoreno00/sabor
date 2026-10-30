@@ -60,7 +60,7 @@ def _mercadona_cost_query(text: str) -> str:
                      or (after_amount and words[0] in _UNIT_WORDS | _CONNECTORS)):
         after_amount = after_amount or words[0][0].isdigit() or words[0] in {"un", "una", "uno", "one"}
         words.pop(0)
-    return " ".join(w for w in words if w not in {"de", "del", "of"})
+    return " ".join(w for w in words if w not in {"de", "del"})
 
 
 def _mercadona_cost_score(product: str, query: str) -> int:

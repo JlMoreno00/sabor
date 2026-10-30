@@ -160,6 +160,12 @@ class MercadonaTests(unittest.TestCase):
             self.assertEqual(search(text), [expected], text)
         # A unit word that is the product itself is kept when nothing follows it.
         self.assertEqual(search('arroz'), ['rice'])
+        # CodeRabbit on #118: the new unit and connector words go only after an amount,
+        # and connectors inside the name stay ('cream of mushroom').
+        from sabor.integrations.mercadona import _mercadona_cost_query
+        self.assertEqual(_mercadona_cost_query('grams of rice'), 'grams of rice')
+        self.assertEqual(_mercadona_cost_query('cream of mushroom'), 'cream of mushroom')
+        self.assertEqual(_mercadona_cost_query('300 grams of cream of mushroom'), 'cream of mushroom')
 
     def test_query_numbers_must_match(self):
         # CodeRabbit on #105: the previous search required numeric tokens too.

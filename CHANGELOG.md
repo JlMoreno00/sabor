@@ -8,7 +8,8 @@
   English (#95). `2 kilos de arroz` searched `kilos arroz` and `300 grams of rice`
   searched `grams of rice`, finding nothing; both now search the food. The article
   `one` is stripped like `un`/`una`/`uno`. Unit words without a preceding amount are
-  kept (`pieza de pollo`).
+  kept (`pieza de pollo`, `grams of rice`), and so are connectors inside the name
+  (`cream of mushroom`).
 - `estimate_cost`: the preference for products carrying a text line's number
   (`4 quesos`) gives way when none of them can be valued and an unprocessed candidate
   can. An unpriced `Pizza 4 quesos` no longer leaves the line uncosted when
