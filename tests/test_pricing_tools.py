@@ -104,7 +104,8 @@ class PricingToolTests(unittest.TestCase):
     def test_search_fills_the_limit_past_products_without_a_local_quote(self):
         # CodeRabbit on #111: with limit=1 and a first candidate without a local quote,
         # the next quoted candidate is returned instead of an empty list. The provider is
-        # asked for its maximum window and the result is cut to the requested limit.
+        # first asked for the requested limit and widened only after a skipped candidate
+        # (CodeRabbit on b2239ad: a fully quoted first window sends exactly the old query).
         self.provider.products = [Product('missing', 'rice far away', 'fixture'), Product('rice', 'rice', 'fixture'),
                                   Product('rice2', 'rice brown', 'fixture')]
         priced, asked = self.provider.get_quote, []
@@ -121,9 +122,15 @@ class PricingToolTests(unittest.TestCase):
                 patch.object(self.provider, 'search_products', side_effect=search):
             result = self.call('search_pricing_products', query='rice', limit=1)
             two = self.call('search_pricing_products', query='rice', limit=2)
-        self.assertEqual([item['id'] for item in result['data']['items']], ['rice'])
-        self.assertEqual([item['id'] for item in two['data']['items']], ['rice', 'rice2'])
-        self.assertEqual(asked, [50, 50])
+            self.assertEqual([item['id'] for item in result['data']['items']], ['rice'])
+            self.assertEqual([item['id'] for item in two['data']['items']], ['rice', 'rice2'])
+            self.assertEqual(asked, [1, 50, 2, 50])
+            # Nothing skipped: one request with the requested limit, as before.
+            asked.clear()
+            self.provider.products = self.provider.products[1:]
+            self.assertEqual([item['id'] for item in self.call('search_pricing_products', query='rice', limit=1)
+                              ['data']['items']], ['rice'])
+            self.assertEqual(asked, [1])
 
     def test_limit_bounds(self):
         for limit in (0, 51):

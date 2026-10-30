@@ -78,19 +78,26 @@ def _run(ctx, store, operation, argument, overrides=None, match_policy='cheapest
             data['source_digest'] = _digest(source)
             data['quote_digest'] = _digest(_public(result.lines))
         elif operation == 'search_products':
-            items = []
-            # Ask for the widest window so candidates without a local quote can be
-            # skipped and the requested limit still filled, in the provider's order.
-            for product in pricing.search_products(ProductQuery(argument.query, 50), retail):
-                if len(items) == argument.limit:
+            items, seen, skipped = [], set(), False
+            # First the requested window, exactly as before; only after skipping a
+            # candidate without a local quote is the window widened to fill the limit.
+            for window in (argument.limit, 50):
+                if window != argument.limit and (not skipped or len(items) == argument.limit):
                     break
-                try:
-                    quote = pricing.get_quote(product.id, retail)
-                except LookupError:
-                    # No quote here (e.g. no Open Prices observation in the country):
-                    # skip it rather than failing the whole search.
-                    continue
-                items.append(_public(product) | {'quote': _public(quote)})
+                for product in pricing.search_products(ProductQuery(argument.query, window), retail):
+                    if len(items) == argument.limit:
+                        break
+                    if product.id in seen:
+                        continue
+                    seen.add(product.id)
+                    try:
+                        quote = pricing.get_quote(product.id, retail)
+                    except LookupError:
+                        # No quote here (e.g. no Open Prices observation in the country):
+                        # skip it rather than failing the whole search.
+                        skipped = True
+                        continue
+                    items.append(_public(product) | {'quote': _public(quote)})
             data = {'items': items}
         else:
             data = _public(pricing.get_quote(argument, retail))
