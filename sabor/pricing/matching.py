@@ -25,10 +25,16 @@ def words(text):
     decimal is one value, comma or point alike (``0,5`` is ``0.5``, never ``5``), and an
     alphanumeric word stays whole (``B12`` is neither ``B`` nor ``12``).
     """
+    return set(_tokens(text))
+
+
+def _tokens(text):
+    # The words of ``words`` in order, so a number can be read with the word after it.
     plain = ''.join(c for c in unicodedata.normalize('NFKD', text.casefold())
                     if not unicodedata.combining(c))
     tokens = re.findall(r'\d+(?:[.,]\d+)?(?![^\W_])|[^\W_]+', plain)
-    return {_number(t) if re.fullmatch(r'\d+(?:[.,]\d+)?', t) else t for t in tokens} - {'de', 'the', 'of'}
+    return [_number(t) if re.fullmatch(r'\d+(?:[.,]\d+)?', t) else t for t in tokens
+            if t not in ('de', 'the', 'of')]
 
 
 def _number(token):
@@ -53,6 +59,41 @@ def covers(query, name):
     product = words(name)
     wanted = words(query)
     return bool(wanted) and all(any(same_word(w, p) for p in product) for w in wanted)
+
+
+def carried(number, query, name):
+    """True when the product carries the query's number with the word it modifies.
+
+    ``4 quesos`` needs a 4 followed by quesos (``Pizza 4 quesos``), never the 4 of
+    ``Pizza 3 quesos pack 4 unidades``; ``4 quesos y 4 carnes`` needs both. A number with
+    no word after it in the query (``chocolate 85%``) only needs to appear.
+    """
+    return carries(number, modifiers(query).get(number, set()), tokens(name))
+
+
+def modifiers(query):
+    """Each query number with the words it modifies (``{'4': {'quesos'}}``), read once
+    per search; a number with nothing after it maps to an empty set."""
+    wanted = _tokens(query)
+    result = {}
+    for i, t in enumerate(wanted):
+        if t[0].isdigit():
+            result.setdefault(t, set()).update(wanted[i + 1:i + 2])
+    return result
+
+
+def tokens(name):
+    """A product name's words in order, read once per product for ``carries``."""
+    return _tokens(name)
+
+
+def carries(number, modified, product):
+    """``carried`` on prepared input: ``modified`` from ``modifiers``, ``product`` from
+    ``tokens``, so a search never re-reads the query per number and product."""
+    if not modified:
+        return number in product
+    return all(any(t == number and same_word(product[i + 1], w) for i, t in enumerate(product[:-1]))
+               for w in modified)
 
 
 def processed(name, query):

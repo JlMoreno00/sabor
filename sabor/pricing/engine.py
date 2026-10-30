@@ -6,7 +6,7 @@ from decimal import Decimal, InvalidOperation, ROUND_CEILING
 from .provider import RetailContext, ProductQuery, PriceQuote
 from .quantities import (LEADING_NUMBER, from_structured, ingredient_name, is_fraction, leading_prefix,
                          parse_text, to_base, written_digits)
-from .matching import covers, processed
+from .matching import carried, covers, processed, words
 from .pantry import match_pantry
 from sabor.store import DateRange
 
@@ -373,7 +373,10 @@ def _estimate(source, store_ctx, rows, pricing, product_overrides, match_policy,
                         if candidate_quote.food is not False and dimension_unit in (None, q.unit):
                             candidates.append(product.id)
                             compound[product.id] = processed(product.name, wanted) > 0
-                            carrying[product.id] = covers(matched['name'], product.name)
+                            # The number must modify the food: '4 quesos' is not carried by
+                            # the 4 of 'Pizza 3 quesos pack 4 unidades'.
+                            carrying[product.id] = covers(matched['name'], product.name) and all(
+                                carried(n, matched['name'], product.name) for n in words(matched['name']) if n[0].isdigit())
                             price = candidate_quote.normalized_unit_price
                             checkout = _checkout_cost(required, q.unit, candidate_quote)
                             if (dimension_unit == q.unit and checkout is not None and isinstance(price, Decimal)

@@ -86,8 +86,9 @@ class MercadonaTests(unittest.TestCase):
         self.assertEqual(search('arroz'), ['round', 'two'])
         for text in ('1/2 kg de arroz', '1 1/2 kg de arroz', '½ kg de arroz', '1/2 arroz'):
             self.assertEqual(search(text), ['round', 'two'], text)
-        # A whole leading number without a unit is still a name number.
-        self.assertEqual(search('2 arroz'), ['two', 'round'])
+        # A whole leading number without a unit is still a name number, but it must modify
+        # the food (#49, S3): the 2 of 'Arroz 2 kg' counts kilos, so it carries nothing.
+        self.assertEqual(search('2 arroz'), ['round', 'two'])
 
     def test_written_numerals_rank_like_digits(self):
         # #49 follow-up (CodeRabbit on #108): 'cuatro quesos' found nothing (the cost query
@@ -110,6 +111,40 @@ class MercadonaTests(unittest.TestCase):
         self.assertEqual(search('quesos'), ['plain', 'pizza4'])
         self.assertEqual(search('1/4 kg de 4 quesos'), ['pizza4', 'plain'])
         self.assertEqual(search('500 g de 4 quesos'), ['pizza4', 'plain'])
+
+    def test_name_number_must_modify_the_food(self):
+        # #49 follow-up (CodeRabbit on #108): a product carries '4 quesos' only when its 4
+        # is followed by quesos; the 4 of 'pack 4 unidades' counts units.
+        self.products = [item('plain', 'Quesos curados Hacendado'), item('pizza4', 'Pizza 4 quesos Hacendado'),
+                         item('pack', 'Pizza 3 quesos pack 4 unidades')]
+        self.provider._refresh()
+        search = lambda text: [p.id for p in self.provider.search_products(ProductQuery(text, 50), self.store)]
+        self.assertEqual(search('4 quesos'), ['pizza4', 'plain', 'pack'])
+
+    def test_name_number_check_tokenizes_once_per_search_and_product(self):
+        # CodeRabbit on #114: the number check must not re-tokenize the query for every
+        # number and product, so the work does not grow with the numbers in the query.
+        from unittest.mock import patch
+        import sabor.pricing.matching as matching
+        self.products = [item(c, f'Pizza 1 2 3 4 5 quesos {c}') for c in 'abc']
+        self.provider._refresh()
+        real = matching._tokens
+
+        def calls(text):
+            seen = []
+            with patch.object(matching, '_tokens', side_effect=lambda t: seen.append(t) or real(t)):
+                self.provider.search_products(ProductQuery(text, 50), self.store)
+            return len(seen)
+        self.assertEqual(calls('pizza 1 2 3 4 5 quesos'), calls('pizza 1 quesos'))
+
+    def test_name_number_inside_the_query_must_modify_the_food(self):
+        # CodeRabbit on #114: the 4 of 'pizza 4 quesos' stays in the cost query, so it must
+        # also be next to quesos; 'Pizza 3 quesos 4 unidades' no longer ranks first.
+        self.products = [item('pizza4', 'Pizza 4 quesos Hacendado familiar grande'),
+                         item('units', 'Pizza 3 quesos 4 unidades')]
+        self.provider._refresh()
+        self.assertEqual([p.id for p in self.provider.search_products(ProductQuery('pizza 4 quesos', 50), self.store)],
+                         ['pizza4', 'units'])
 
     def test_query_numbers_must_match(self):
         # CodeRabbit on #105: the previous search required numeric tokens too.
