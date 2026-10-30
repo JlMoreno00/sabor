@@ -231,6 +231,20 @@ class EngineTests(unittest.TestCase):
         self.assertEqual(self.basket({'Leche entera Hacendado': '1'},
                                      dict(name='300 ml de leche', quantity='0.3', unit='kg')), [None])
 
+    def test_text_amount_with_a_bare_leading_number_prefers_products_carrying_it(self):
+        # #49 follow-up 2 (CodeRabbit on #105): without a structured quantity the amount
+        # comes from the text itself, so '4 quesos' may be 4 cheeses or a 4-cheese
+        # product. Products carrying the number win; otherwise the number is dropped.
+        quesos = {'Pizza 3 quesos Hacendado': '1', 'Pizza 4 quesos Hacendado': '2'}
+        self.assertEqual(self.basket(quesos, dict(name='4 quesos', text='4 quesos'), package_unit='unit'),
+                         ['Pizza 4 quesos Hacendado'])
+        self.assertEqual(self.basket({'Quesos variados Hacendado': '2'}, dict(name='4 quesos', text='4 quesos'),
+                                     package_unit='unit'), ['Quesos variados Hacendado'])
+        # A countable food the parser reads as pieces ('2 huevos') is plainly an amount.
+        self.assertEqual(self.basket({'Huevos frescos': '1', '2 huevos cocidos Hacendado': '3'},
+                                     dict(name='2 huevos', text='2 huevos'), package_unit='unit'),
+                         ['Huevos frescos'])
+
     def test_alphanumeric_words_stay_whole(self):
         # CodeRabbit on #105: B12 is neither B nor 12.
         self.assertEqual(self.basket({'Leche vitamina B6 12 unidades': '1', 'Leche vitamina B12': '2'},
