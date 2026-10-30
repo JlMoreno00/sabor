@@ -3,6 +3,13 @@
 ## [Unreleased]
 
 ### Fixed
+- Mercadona search (`search_pricing_products`): after a leading amount, the cost
+  query strips the same unit and connector words as `ingredient_name`, in Spanish and
+  English (#95). `2 kilos de arroz` searched `kilos arroz` and `300 grams of rice`
+  searched `grams of rice`, finding nothing; both now search the food. The article
+  `one` is stripped like `un`/`una`/`uno`. Unit words without a preceding amount are
+  kept (`pieza de pollo`, `grams of rice`), and so are connectors inside the name
+  (`cream of mushroom`).
 - `estimate_cost` passes its leading-number decision to the provider: `ProductQuery`
   gains an optional `lead_is_amount` (default `None`, the provider decides as before).
   The engine, which strips amounts itself, sends `False`, so Mercadona no longer

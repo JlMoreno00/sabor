@@ -9,6 +9,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 import requests
 from sabor.core.toolsets import tool
+from sabor.pricing.quantities import _CONNECTORS, _UNIT_WORDS
 
 # SUPERMARKET — Mercadona Prices
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -49,10 +50,15 @@ def _mercadona_relevance_score(product_name_norm: str, query_norm: str) -> int:
 def _mercadona_cost_query(text: str) -> str:
     """Strip leading amounts/units and connector words for cost matching."""
     words = re.findall(r"\w+(?:[.,/]\d+)?", _mercadona_normalize(text))
-    prefixes = {"un", "una", "uno", "dos", "g", "gr", "gramos", "gramo",
+    prefixes = {"un", "una", "uno", "one", "dos", "g", "gr", "gramos", "gramo",
                 "kg", "kilogramo", "kilogramos", "ml", "l", "litro", "litros",
                 "mililitro", "mililitros", "de"}
-    while words and (words[0] in prefixes or words[0][0].isdigit()):
+    # After an amount, the unit and connector words ingredient_name strips (Spanish and
+    # English, #95): '2 kilos de arroz' and '300 grams of rice' search the food only.
+    after_amount = False
+    while words and (words[0] in prefixes or words[0][0].isdigit()
+                     or (after_amount and words[0] in _UNIT_WORDS | _CONNECTORS)):
+        after_amount = after_amount or words[0][0].isdigit() or words[0] in {"un", "una", "uno", "one"}
         words.pop(0)
     return " ".join(w for w in words if w not in {"de", "del"})
 

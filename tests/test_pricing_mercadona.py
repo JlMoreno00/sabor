@@ -163,6 +163,27 @@ class MercadonaTests(unittest.TestCase):
         self.assertEqual([p.id for p in self.provider.search_products(ProductQuery('pizza 4 quesos', 50), self.store)],
                          ['pizza4', 'units'])
 
+    def test_leading_unit_words_are_stripped_like_ingredient_names(self):
+        # #49 follow-up (noted on #113): the cost query only knew some Spanish units, so
+        # '2 kilos de arroz' searched 'kilos arroz' and found nothing; English units
+        # (#95) and the article 'one' were kept as well.
+        self.products = [item('rice', 'Arroz redondo Hacendado'), item('milk', 'Leche entera Hacendado'),
+                         item('cheese', 'Queso curado Hacendado')]
+        self.provider._refresh()
+        search = lambda text: [p.id for p in self.provider.search_products(ProductQuery(text, 50), self.store)]
+        for text, expected in (('2 kilos de arroz', 'rice'), ('300 grams of arroz', 'rice'),
+                               ('1 litro de leche', 'milk'), ('1 litre of leche', 'milk'),
+                               ('one queso', 'cheese'), ('500 gr de arroz', 'rice')):
+            self.assertEqual(search(text), [expected], text)
+        # A unit word that is the product itself is kept when nothing follows it.
+        self.assertEqual(search('arroz'), ['rice'])
+        # CodeRabbit on #118: the new unit and connector words go only after an amount,
+        # and connectors inside the name stay ('cream of mushroom').
+        from sabor.integrations.mercadona import _mercadona_cost_query
+        self.assertEqual(_mercadona_cost_query('grams of rice'), 'grams of rice')
+        self.assertEqual(_mercadona_cost_query('cream of mushroom'), 'cream of mushroom')
+        self.assertEqual(_mercadona_cost_query('300 grams of cream of mushroom'), 'cream of mushroom')
+
     def test_query_numbers_must_match(self):
         # CodeRabbit on #105: the previous search required numeric tokens too.
         self.products = [item('70', 'Chocolate negro 70% Hacendado'), item('85', 'Chocolate negro 85% Hacendado')]
