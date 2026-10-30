@@ -138,6 +138,29 @@ class PricingToolTests(unittest.TestCase):
                               ['data']['items']], ['rice', 'rice2'])
             self.assertEqual(asked, [50])
 
+    def test_failed_widened_search_keeps_quoted_results(self):
+        # CodeRabbit on #111: if the widened window fails, the products already quoted
+        # are returned; with none, the provider error is kept.
+        from sabor.store import StoreError
+        self.provider.products = [Product('missing', 'rice far away', 'fixture'), Product('rice', 'rice', 'fixture')]
+        priced = self.provider.get_quote
+
+        def quote(product_id, store):
+            if product_id == 'missing':
+                raise LookupError('No Open Prices observation in requested country')
+            return priced(product_id, store)
+
+        def search(query, store):
+            if query.limit == 50:
+                raise StoreError('timeout', 'fake')
+            return self.provider.products[:query.limit]
+        with patch.object(self.provider, 'get_quote', side_effect=quote), \
+                patch.object(self.provider, 'search_products', side_effect=search):
+            result = self.call('search_pricing_products', query='rice', limit=3)
+            self.assertEqual([item['id'] for item in result['data']['items']], ['rice'])
+            self.provider.products = self.provider.products[:1]
+            self.assertEqual(self.call('search_pricing_products', query='rice', limit=3)['error']['code'], 'timeout')
+
     def test_limit_bounds(self):
         for limit in (0, 51):
             self.assertEqual(self.call('search_pricing_products', query='rice', limit=limit)['error']['code'], 'invalid_argument')

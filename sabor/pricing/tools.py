@@ -83,22 +83,29 @@ def _run(ctx, store, operation, argument, overrides=None, match_policy='cheapest
             # candidate without a local quote is the window widened to fill the limit.
             windows = (argument.limit,) if argument.limit >= 50 else (argument.limit, 50)
             for window in windows:
-                if window != argument.limit and (not skipped or len(items) == argument.limit):
+                widened = window != argument.limit
+                if widened and (not skipped or len(items) == argument.limit):
                     break
-                for product in pricing.search_products(ProductQuery(argument.query, window), retail):
-                    if len(items) == argument.limit:
-                        break
-                    if product.id in seen:
-                        continue
-                    seen.add(product.id)
-                    try:
-                        quote = pricing.get_quote(product.id, retail)
-                    except LookupError:
-                        # No quote here (e.g. no Open Prices observation in the country):
-                        # skip it rather than failing the whole search.
-                        skipped = True
-                        continue
-                    items.append(_public(product) | {'quote': _public(quote)})
+                try:
+                    for product in pricing.search_products(ProductQuery(argument.query, window), retail):
+                        if len(items) == argument.limit:
+                            break
+                        if product.id in seen:
+                            continue
+                        seen.add(product.id)
+                        try:
+                            quote = pricing.get_quote(product.id, retail)
+                        except LookupError:
+                            # No quote here (e.g. no Open Prices observation in the
+                            # country): skip it rather than failing the whole search.
+                            skipped = True
+                            continue
+                        items.append(_public(product) | {'quote': _public(quote)})
+                except StoreError:
+                    # The widened window never loses products already quoted; with none,
+                    # the provider error stands.
+                    if not (widened and items):
+                        raise
             data = {'items': items}
         else:
             data = _public(pricing.get_quote(argument, retail))
