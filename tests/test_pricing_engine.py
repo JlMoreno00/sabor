@@ -302,6 +302,10 @@ class EngineTests(unittest.TestCase):
         row = dict(name='4 quesos', text='4 quesos')
         self.assertEqual(self.basket({'Pizza 4 quesos Hacendado': None, 'Quesos variados Hacendado': '2'}, row,
                                      package_unit='unit'), ['Quesos variados Hacendado'])
+        # CodeRabbit on #116: only a valued basic candidate replaces an unpriced carrier; a
+        # processed one ('Pizza de quesos') is never priced as cheese, as before.
+        self.assertEqual(self.basket({'4 quesos Hacendado': None, 'Pizza de quesos': '2'}, row, package_unit='unit'),
+                         ['4 quesos Hacendado'])
         # A valued carrier still wins, as before.
         self.assertEqual(self.basket({'Pizza 4 quesos Hacendado': '3', 'Quesos variados Hacendado': '2'}, row,
                                      package_unit='unit'), ['Pizza 4 quesos Hacendado'])

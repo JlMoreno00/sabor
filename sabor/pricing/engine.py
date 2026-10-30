@@ -385,9 +385,11 @@ def _estimate(source, store_ctx, rows, pricing, product_overrides, match_policy,
                 candidates = list(dict.fromkeys(candidates))
                 carriers = [pid for pid in candidates if carrying[pid]]
                 carriers_comparable = [row for row in comparable if carrying[row[3]]]
-                if ambiguous and (carriers_comparable or (carriers and not comparable)):
-                    # '4 quesos' from text alone: prefer products carrying the 4, like the
-                    # unprocessed preference below, only when one can be valued or none can.
+                valued_basic = any(not compound[row[3]] for row in comparable)
+                if ambiguous and carriers and (carriers_comparable or not valued_basic):
+                    # '4 quesos' from text alone: prefer products carrying the 4, unless none
+                    # can be valued and an unprocessed candidate can (#49); a processed one
+                    # ('Pizza de quesos') never replaces them, as the basic rule below.
                     candidates, comparable = carriers, carriers_comparable
                 basic = [pid for pid in candidates if not compound[pid]]
                 basic_comparable = [row for row in comparable if not compound[row[3]]]

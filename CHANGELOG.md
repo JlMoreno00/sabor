@@ -4,10 +4,11 @@
 
 ### Fixed
 - `estimate_cost`: the preference for products carrying a text line's number
-  (`4 quesos`) applies only when one of them can be valued, like the unprocessed
-  preference. An unpriced `Pizza 4 quesos` no longer leaves the line uncosted when
+  (`4 quesos`) gives way when none of them can be valued and an unprocessed candidate
+  can. An unpriced `Pizza 4 quesos` no longer leaves the line uncosted when
   `Quesos variados` has a price, and a substring provider (Open Prices) still
-  searches `quesos` when its only carriers cannot be valued.
+  searches `quesos` when its only carriers cannot be valued. A processed candidate
+  (`Pizza de quesos`) never replaces an unpriced `4 quesos Hacendado`.
 - `estimate_cost` on free-text shopping items (built-in stores): the stored name has
   its amount stripped (`quesos`), so `4 quesos` could never prefer `Pizza 4 quesos`.
   Rows now carry an explicit origin and free-text rows are matched on their original
