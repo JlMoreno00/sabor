@@ -294,7 +294,8 @@ def _estimate(source, store_ctx, rows, pricing, product_overrides, match_policy,
             else:
                 compound = {}
                 wanted = _match_name(row)
-                for product in pricing.search_products(ProductQuery(row['name'], 50), store_ctx):
+                # Query with the decided name: a stripped amount never narrows the search.
+                for product in pricing.search_products(ProductQuery(wanted, 50), store_ctx):
                     if product.food is not False and covers(wanted, product.name):
                         candidate_quote = pricing.get_quote(product.id, store_ctx)
                         dimension_unit = {'kg': 'g', 'l': 'ml', 'unit': 'ud'}.get(candidate_quote.package_unit)

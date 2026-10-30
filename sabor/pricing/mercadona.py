@@ -20,7 +20,7 @@ import requests
 from sabor.integrations.mercadona import _mercadona_cost_query
 from sabor.pricing.matching import covers, processed, same_word, words
 from sabor.pricing.provider import PriceQuote, Product, ProductQuery, RetailContext
-from sabor.pricing.quantities import package_from_mercadona
+from sabor.pricing.quantities import package_from_mercadona, parse_text
 
 
 class CatalogWarming(RuntimeError):
@@ -283,6 +283,10 @@ class MercadonaPricing:
         text = _mercadona_cost_query(query.query)
         if not text:
             return []
+        # Numbers of the name that the cost query dropped ('4' in '4 quesos') rank
+        # first; a leading amount the parser reads as one ('500 g', '2 huevos') does not.
+        numbers = (set() if parse_text(query.query).dimension else
+                   {w for w in words(query.query) if w[0].isdigit()} - words(text))
         catalog, observed, stale = self._snapshot()
         scored = []
         for pid, product in catalog.items():
@@ -293,8 +297,9 @@ class MercadonaPricing:
                 quote = self._quote(pid, product, observed, stale)
                 wanted = words(text)
                 extra = sum(1 for word in words(name) if not any(same_word(word, w) for w in wanted))
-                scored.append((processed(name, text), extra, Product(pid, name, self._provenance, observed,
-                                                                     quote.uncertainty_reasons, quote.food)))
-        # Food-only browsing; unprocessed first, then closest name, food, name and id.
-        scored.sort(key=lambda row: (row[0], row[1], row[2].food is not True, row[2].name, row[2].id))
-        return [product for _, _, product in scored[:query.limit]]
+                rank = (len(numbers - words(name)), processed(name, text), extra)
+                scored.append((rank, Product(pid, name, self._provenance, observed,
+                                             quote.uncertainty_reasons, quote.food)))
+        # Food-only browsing; name numbers, unprocessed, closest name, food, name and id.
+        scored.sort(key=lambda row: (*row[0], row[1].food is not True, row[1].name, row[1].id))
+        return [product for _, product in scored[:query.limit]]
