@@ -190,6 +190,14 @@ class EngineTests(unittest.TestCase):
         # CodeRabbit on #105: digits are part of the query (85% is not 70%).
         self.assertEqual(self.basket({'Chocolate negro 70% Hacendado': '1', 'Chocolate negro 85% Hacendado': '2'},
                                      'chocolate negro 85%'), ['Chocolate negro 85% Hacendado'])
+        # A decimal is one value: 0,5% is neither 5,0% nor 5%.
+        fat = {'Leche 5,0% materia grasa': '1', 'Leche 0,5% materia grasa': '2'}
+        self.assertEqual(self.basket(fat, 'leche 0,5%', 'leche 5,0%'),
+                         ['Leche 0,5% materia grasa', 'Leche 5,0% materia grasa'])
+
+    def test_leading_amount_in_a_name_is_not_a_required_number(self):
+        # CodeRabbit on #105: an inline name such as '2 huevos' still finds 'Huevos'.
+        self.assertEqual(self.basket({'Huevos': '2'}, '2 huevos', '300 g de arroz'), ['Huevos', None])
 
     def test_unvalued_basic_product_keeps_a_valued_processed_one(self):
         # CodeRabbit on #105: the preference must not leave the line uncosted.

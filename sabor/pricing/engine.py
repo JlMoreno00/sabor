@@ -278,13 +278,15 @@ def _estimate(source, store_ctx, rows, pricing, product_overrides, match_policy,
                 evidence.append('caller_override')
             else:
                 compound = {}
+                # A leading amount ('2 huevos') is not a number the product must carry.
+                wanted = ingredient_name(row['name']) or row['name']
                 for product in pricing.search_products(ProductQuery(row['name'], 50), store_ctx):
-                    if product.food is not False and covers(row['name'], product.name):
+                    if product.food is not False and covers(wanted, product.name):
                         candidate_quote = pricing.get_quote(product.id, store_ctx)
                         dimension_unit = {'kg': 'g', 'l': 'ml', 'unit': 'ud'}.get(candidate_quote.package_unit)
                         if candidate_quote.food is not False and dimension_unit in (None, q.unit):
                             candidates.append(product.id)
-                            compound[product.id] = processed(product.name, row['name']) > 0
+                            compound[product.id] = processed(product.name, wanted) > 0
                             price = candidate_quote.normalized_unit_price
                             checkout = _checkout_cost(required, q.unit, candidate_quote)
                             if (dimension_unit == q.unit and checkout is not None and isinstance(price, Decimal)

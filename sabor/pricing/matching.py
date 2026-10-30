@@ -21,11 +21,18 @@ PROCESSED = frozenset('''
 def words(text):
     """Casefolded, accent-free words and numbers, without the connectors de/the/of.
 
-    Numbers stay: ``chocolate negro 85%`` must not match ``Chocolate negro 70%``.
+    Numbers stay: ``chocolate negro 85%`` must not match ``Chocolate negro 70%``. A
+    decimal is one value, comma or point alike (``0,5`` is ``0.5``, never ``5``).
     """
     plain = ''.join(c for c in unicodedata.normalize('NFKD', text.casefold())
                     if not unicodedata.combining(c))
-    return set(re.findall(r'[^\W_]+', plain)) - {'de', 'the', 'of'}
+    tokens = re.findall(r'\d+(?:[.,]\d+)?|[^\W\d_]+', plain)
+    return {_number(t) if t[0].isdigit() else t for t in tokens} - {'de', 'the', 'of'}
+
+
+def _number(token):
+    value = token.replace(',', '.')
+    return value.rstrip('0').rstrip('.') if '.' in value else value
 
 
 def _forms(word):
