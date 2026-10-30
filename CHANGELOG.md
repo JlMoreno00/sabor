@@ -3,6 +3,10 @@
 ## [Unreleased]
 
 ### Fixed
+- `estimate_cost`: a leading number in an item name counts as the line's own amount
+  when it equals the resolved quantity in base units (`300 g de arroz` with `0.3 kg`,
+  or a zero placeholder whose text gives `2 huevos`), so the product no longer has
+  to carry it. Other leading numbers stay part of the name (`4 quesos` for 300 g).
 - Mercadona search ranks products carrying a number that is part of the query's
   name first (`4 quesos` keeps `Pizza 4 quesos` inside the 50-result window, even
   though the cost query drops the leading `4`); amounts such as `500 g` or `2 huevos`

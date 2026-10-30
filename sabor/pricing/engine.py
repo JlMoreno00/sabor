@@ -4,7 +4,7 @@ from dataclasses import dataclass, replace
 from datetime import date
 from decimal import Decimal, InvalidOperation, ROUND_CEILING
 from .provider import RetailContext, ProductQuery, PriceQuote
-from .quantities import from_structured, ingredient_name, to_base
+from .quantities import from_structured, ingredient_name, parse_text, to_base
 from .matching import covers, processed
 from .pantry import match_pantry
 from sabor.store import DateRange
@@ -243,19 +243,34 @@ def estimate(source, store_ctx: RetailContext, recipe_store, pricing, product_ov
     return result
 
 
-def _match_name(row):
+def _match_name(row, q):
     """Name products must carry. A leading number is the line's amount when it equals
-    the row quantity or the row has none ('2 huevos' for 2); any other leading number
-    is part of the name ('4 quesos' for 300 g)."""
+    the resolved quantity `q` ('2 huevos' for 2, '300 g de arroz' for 0.3 kg) or the
+    line has none; any other leading number is part of the name ('4 quesos' for 300 g)."""
     name = row['name']
     lead = re.match(r'\s*(\d+(?:[.,]\d+)?)(?=\s)', name)
-    if lead and row.get('quantity') is not None:
-        try:
-            if Decimal(lead.group(1).replace(',', '.')) != Decimal(str(row['quantity'])):
-                return name
-        except InvalidOperation:
-            return name
+    if lead and q.amount is not None and not _is_amount(lead.group(1), name, row, q):
+        return name
     return ingredient_name(name) or name
+
+
+def _is_amount(number, name, row, q):
+    # Parse only the leading amount and its unit word, never later name numbers ('85%').
+    prefix = re.match(r'\s*\d+(?:[.,]\d+)?\s*[^\W\d_]*', name)
+    named = to_base(parse_text(prefix.group(0) if prefix else name))
+    # With a unit in the name, compare both in base units (300 g == 0.3 kg).
+    if named.amount is not None and named.dimension is not None and named.dimension == q.dimension:
+        return named.amount == q.amount
+    # A weight or volume of another dimension is not this line's amount (300 ml vs 0.3 kg).
+    if named.dimension in ('mass', 'volume'):
+        return False
+    # Otherwise the bare number must be the raw quantity or the resolved amount.
+    try:
+        value = Decimal(number.replace(',', '.'))
+        raw = Decimal(str(row['quantity'])) if row.get('quantity') is not None else None
+    except InvalidOperation:
+        return False
+    return value in (raw, q.amount)
 
 
 def _estimate(source, store_ctx, rows, pricing, product_overrides, match_policy, pantry):
@@ -293,7 +308,7 @@ def _estimate(source, store_ctx, rows, pricing, product_overrides, match_policy,
                 evidence.append('caller_override')
             else:
                 compound = {}
-                wanted = _match_name(row)
+                wanted = _match_name(row, q)
                 # Query with the decided name: a stripped amount never narrows the search.
                 for product in pricing.search_products(ProductQuery(wanted, 50), store_ctx):
                     if product.food is not False and covers(wanted, product.name):
