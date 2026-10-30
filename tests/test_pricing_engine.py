@@ -250,6 +250,12 @@ class EngineTests(unittest.TestCase):
                                      dict(name='½ l de harina', quantity='0.5', unit='kg'),
                                      dict(name='1/2 kg de harina', quantity='300', unit='g')),
                          [None, None, 'Harina de trigo Hacendado'])
+        # CodeRabbit on #112: the same holds with the unit attached to the number.
+        self.assertEqual(self.basket({'Harina de trigo Hacendado': '1'},
+                                     dict(name='1/2l de harina', quantity='0.5', unit='kg'),
+                                     dict(name='300ml de harina', quantity='0.3', unit='kg'),
+                                     dict(name='300g de harina', quantity='0.3', unit='kg')),
+                         [None, None, 'Harina de trigo Hacendado'])
         # A fraction is never a name number: '1/2 queso' from text does not prefer
         # products carrying '1' and '2'; the cheapest cheese wins, as before.
         self.assertEqual(self.basket({'Queso 1/2 curado Hacendado': '3', 'Queso tierno Hacendado': '2'},
