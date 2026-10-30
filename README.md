@@ -220,6 +220,8 @@ universal crowd observations, not a current catalog: Spanish coverage is sparse
 and old. The latest matching country observation wins (ties: latest ID), never
 the cheapest. Missing locations/country observations return `not_found`, not zero.
 Search returns up to ten products with observations; some may lack a local quote.
+Its name filter is a substring match, so a one-word plural query drops its trailing
+`s` (`guisantes` also finds `Guisante fino`); multi-word queries are sent as given.
 Quotes include observation date, public store/city, unknown availability and
 `observation` always; `stale_observation` means older than 180 days, `discounted`
 marks promotions, `single_observation` means only one matching observation in the

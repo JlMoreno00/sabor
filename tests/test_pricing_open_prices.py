@@ -81,6 +81,18 @@ class OpenPricesTests(unittest.TestCase):
         self.assertEqual(self.session.get.call_count, 1)
         self.assertEqual(self.session.get.call_args.kwargs['params'], dict(product_name__like='leche', order_by='-price_count', size=10))
 
+    def test_plural_queries_also_find_singular_names(self):
+        # #49 follow-up (CodeRabbit on #105): product_name__like is a substring filter, so
+        # 'guisantes' missed 'Guisante fino'. One request with the trailing 's' dropped
+        # finds both forms; words without it, short words and multi-word queries (where a
+        # shortened word would break the substring) are unchanged.
+        for text, sent in (('guisantes', 'guisante'), ('Zanahorias', 'Zanahoria'),
+                           ('alubias blancas', 'alubias blancas'),
+                           ('leche', 'leche'), ('sal', 'sal'), ('gas', 'gas'), ('arroz', 'arroz')):
+            with self.subTest(text=text):
+                self.provider.search_products(ProductQuery(text, 10), self.store)
+                self.assertEqual(self.session.get.call_args.kwargs['params']['product_name__like'], sent)
+
     def test_selection_country_currency_date_and_id_not_price(self):
         original = self.prices['items'][0]
         recent = dict(original, id=10, date='2026-10-24', price=2, price_is_discounted=True)
