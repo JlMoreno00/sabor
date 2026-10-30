@@ -245,6 +245,19 @@ class EngineTests(unittest.TestCase):
                                      dict(name='2 huevos', text='2 huevos'), package_unit='unit'),
                          ['Huevos frescos'])
 
+    def test_ambiguous_number_falls_back_to_a_search_without_it(self):
+        # CodeRabbit on #108: a substring-filtering provider (Open Prices) returns nothing
+        # for '4 quesos' when no product carries the 4; the name without it is searched too.
+        queries = []
+
+        def substring_search(query, store):
+            queries.append(query.query)
+            return [p for p in self.pricing.products if query.query.casefold() in p.name.casefold()]
+        setattr(self.pricing, 'search_products', substring_search)
+        self.assertEqual(self.basket({'Quesos variados Hacendado': '2'}, dict(name='4 quesos', text='4 quesos'),
+                                     package_unit='unit'), ['Quesos variados Hacendado'])
+        self.assertEqual(queries, ['4 quesos', 'quesos'])
+
     def test_provider_search_uses_the_decided_name(self):
         # #49 follow-up 3: the provider is queried with the name the engine matches on,
         # so a stripped amount never narrows the search and a name number is kept.

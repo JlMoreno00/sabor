@@ -325,7 +325,14 @@ def _estimate(source, store_ctx, rows, pricing, product_overrides, match_policy,
                 # Query with the decided name, so a stripped amount never narrows the search;
                 # an ambiguous '4 quesos' keeps its number so the provider ranks it first.
                 query = row['name'] if ambiguous else wanted
-                for product in pricing.search_products(ProductQuery(query, 50), store_ctx):
+                found = list(pricing.search_products(ProductQuery(query, 50), store_ctx))
+                if ambiguous and not any(covers(row['name'], p.name) for p in found):
+                    # A substring provider (Open Prices) finds nothing for '4 quesos' when no
+                    # product carries the 4: search the name without it as well.
+                    seen = {p.id for p in found}
+                    found += [p for p in pricing.search_products(ProductQuery(wanted, 50), store_ctx)
+                              if p.id not in seen]
+                for product in found:
                     if product.food is not False and covers(wanted, product.name):
                         candidate_quote = pricing.get_quote(product.id, store_ctx)
                         dimension_unit = {'kg': 'g', 'l': 'ml', 'unit': 'ud'}.get(candidate_quote.package_unit)
