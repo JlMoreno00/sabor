@@ -141,6 +141,26 @@ class OpenPricesTests(unittest.TestCase):
         with self.assertRaises(StoreError):
             self.provider.search_products(ProductQuery('guisante', 10), self.store)
 
+    def test_invalid_singular_response_keeps_original_results(self):
+        # CodeRabbit on #110: an invalid singular response (no 'items') must not lose the
+        # original matches either; with none, the invalid response still fails.
+        item = self.products['items'][0]
+
+        def fetch(url, **kwargs):
+            response = Mock()
+            like = kwargs['params']['product_name__like']
+            if like in ('guisante', 'zanahoria'):
+                response.json.return_value = {'detail': 'unexpected'}
+            else:
+                names = ['Guisantes extra'] if like == 'guisantes' else []
+                response.json.return_value = {'items': [dict(item, code=n, product_name=n, brands='') for n in names]}
+            return response
+        self.session.get.side_effect = fetch
+        found = self.provider.search_products(ProductQuery('guisantes', 10), self.store)
+        self.assertEqual([p.id for p in found], ['Guisantes extra'])
+        with self.assertRaises(RuntimeError):
+            self.provider.search_products(ProductQuery('zanahorias', 10), self.store)
+
     def test_selection_country_currency_date_and_id_not_price(self):
         original = self.prices['items'][0]
         recent = dict(original, id=10, date='2026-10-24', price=2, price_is_discounted=True)
