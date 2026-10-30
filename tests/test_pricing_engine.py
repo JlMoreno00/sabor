@@ -198,6 +198,14 @@ class EngineTests(unittest.TestCase):
     def test_leading_amount_in_a_name_is_not_a_required_number(self):
         # CodeRabbit on #105: an inline name such as '2 huevos' still finds 'Huevos'.
         self.assertEqual(self.basket({'Huevos': '2'}, '2 huevos', '300 g de arroz'), ['Huevos', None])
+        # A number that is part of the name still wins when a product carries it.
+        self.assertEqual(self.basket({'Pizza 3 quesos Hacendado': '1', 'Pizza 4 quesos Hacendado': '2'},
+                                     '4 quesos'), ['Pizza 4 quesos Hacendado'])
+
+    def test_alphanumeric_words_stay_whole(self):
+        # CodeRabbit on #105: B12 is neither B nor 12.
+        self.assertEqual(self.basket({'Leche vitamina B6 12 unidades': '1', 'Leche vitamina B12': '2'},
+                                     'leche vitamina B12'), ['Leche vitamina B12'])
 
     def test_unvalued_basic_product_keeps_a_valued_processed_one(self):
         # CodeRabbit on #105: the preference must not leave the line uncosted.

@@ -22,12 +22,13 @@ def words(text):
     """Casefolded, accent-free words and numbers, without the connectors de/the/of.
 
     Numbers stay: ``chocolate negro 85%`` must not match ``Chocolate negro 70%``. A
-    decimal is one value, comma or point alike (``0,5`` is ``0.5``, never ``5``).
+    decimal is one value, comma or point alike (``0,5`` is ``0.5``, never ``5``), and an
+    alphanumeric word stays whole (``B12`` is neither ``B`` nor ``12``).
     """
     plain = ''.join(c for c in unicodedata.normalize('NFKD', text.casefold())
                     if not unicodedata.combining(c))
-    tokens = re.findall(r'\d+(?:[.,]\d+)?|[^\W\d_]+', plain)
-    return {_number(t) if t[0].isdigit() else t for t in tokens} - {'de', 'the', 'of'}
+    tokens = re.findall(r'\d+(?:[.,]\d+)?(?![^\W_])|[^\W_]+', plain)
+    return {_number(t) if re.fullmatch(r'\d+(?:[.,]\d+)?', t) else t for t in tokens} - {'de', 'the', 'of'}
 
 
 def _number(token):

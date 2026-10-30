@@ -277,8 +277,9 @@ def _estimate(source, store_ctx, rows, pricing, product_overrides, match_policy,
                 candidates = [overrides[key]]
                 evidence.append('caller_override')
             else:
-                compound = {}
-                # A leading amount ('2 huevos') is not a number the product must carry.
+                compound, exact = {}, {}
+                # A leading amount ('2 huevos') is not a number the product must carry,
+                # but products carrying the full name ('4 quesos') are preferred below.
                 wanted = ingredient_name(row['name']) or row['name']
                 for product in pricing.search_products(ProductQuery(row['name'], 50), store_ctx):
                     if product.food is not False and covers(wanted, product.name):
@@ -287,12 +288,16 @@ def _estimate(source, store_ctx, rows, pricing, product_overrides, match_policy,
                         if candidate_quote.food is not False and dimension_unit in (None, q.unit):
                             candidates.append(product.id)
                             compound[product.id] = processed(product.name, wanted) > 0
+                            exact[product.id] = covers(row['name'], product.name)
                             price = candidate_quote.normalized_unit_price
                             checkout = _checkout_cost(required, q.unit, candidate_quote)
                             if (dimension_unit == q.unit and checkout is not None and isinstance(price, Decimal)
                                     and price.is_finite() and price >= 0):
                                 comparable.append((checkout, price, product.name, product.id))
                 candidates = list(dict.fromkeys(candidates))
+                if any(exact[pid] for pid in candidates):
+                    candidates = [pid for pid in candidates if exact[pid]]
+                    comparable = [row for row in comparable if exact[row[3]]]
                 basic = [pid for pid in candidates if not compound[pid]]
                 basic_comparable = [row for row in comparable if not compound[row[3]]]
                 if basic_comparable or (basic and not comparable):
