@@ -287,6 +287,10 @@ class EngineTests(unittest.TestCase):
         self.assertEqual(self.basket({pack: '1', 'Quesos variados Hacendado': '2'},
                                      dict(name='4 quesos', text='4 quesos'), package_unit='unit'),
                          ['Quesos variados Hacendado'])
+        # CodeRabbit on #114: a number modifying several words must carry each of them.
+        self.assertEqual(self.basket({'Pizza 4 quesos y 3 carnes pack 4 unidades': '1', 'Pizza 4 quesos y 4 carnes': '2'},
+                                     dict(name='4 quesos y 4 carnes', text='4 quesos y 4 carnes'), package_unit='unit'),
+                         ['Pizza 4 quesos y 4 carnes'])
 
     def test_candidate_without_a_local_quote_is_skipped(self):
         # CodeRabbit on #108: Open Prices raises LookupError for a product with no

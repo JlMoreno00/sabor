@@ -65,15 +65,15 @@ def carried(number, query, name):
     """True when the product carries the query's number with the word it modifies.
 
     ``4 quesos`` needs a 4 followed by quesos (``Pizza 4 quesos``), never the 4 of
-    ``Pizza 3 quesos pack 4 unidades``. A number with no word after it in the query
-    (``chocolate 85%``) only needs to appear.
+    ``Pizza 3 quesos pack 4 unidades``; ``4 quesos y 4 carnes`` needs both. A number with
+    no word after it in the query (``chocolate 85%``) only needs to appear.
     """
     wanted, product = _tokens(query), _tokens(name)
     modified = {wanted[i + 1] for i, t in enumerate(wanted[:-1]) if t == number}
     if not modified:
         return number in product
-    return any(t == number and any(same_word(product[i + 1], w) for w in modified)
-               for i, t in enumerate(product[:-1]))
+    return all(any(t == number and same_word(product[i + 1], w) for i, t in enumerate(product[:-1]))
+               for w in modified)
 
 
 def processed(name, query):
