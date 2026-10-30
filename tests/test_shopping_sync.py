@@ -54,6 +54,7 @@ class ShoppingSyncTests(unittest.TestCase):
     def test_free_text_items_drop_mealie_default_quantity(self):
         # Mealie stores a free-text item with quantity 1 and builds its display as
         # "1 <note>"; Bring! must get the note, not "1 600 g calabaza" (Paleta, 29-oct).
+        # Approved exception to Beta A (#41): this applies with Mealie too (#101).
         rows = [ShoppingItem(id='t1', note='600 g calabaza', display='1 600 g calabaza', quantity=1),
                 ShoppingItem(id='t2', note='4 huevos', display='1 4 huevos', quantity=1.0),
                 ShoppingItem(id='t3', note='500 ml caldo de pollo', display='1 500 ml caldo de pollo',

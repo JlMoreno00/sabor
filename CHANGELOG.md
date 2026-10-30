@@ -6,7 +6,8 @@
 - Bring! sync: free-text Mealie items no longer get a leading `1 ` (`1 600 g
   calabaza` is now `600 g calabaza`). Mealie stores them with quantity 1 and displays
   `1 <note>`; Sabor now sends the note. Free-text items with a real quantity keep
-  Mealie's display (`3 limones`).
+  Mealie's display (`3 limones`). This changes the Bring! preview and sync with
+  **Mealie included**, an approved exception to Beta A (#41) decided in #101.
 
 ### Changed
 - Dependencies: `urllib3>=2.2` is now declared directly. Recipe image downloads read
