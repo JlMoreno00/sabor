@@ -186,7 +186,8 @@ def estimate(source, store_ctx: RetailContext, recipe_store, pricing, product_ov
     selection_groups = {}
     for line in result.lines:
         if line.key not in overrides and line.required_quantity is not None and line.quote is not None:
-            identity = (frozenset(_words(line.name)), line.base_unit)
+            # 'cuatro quesos' and '4 quesos' are one name for grouping.
+            identity = (frozenset(_words(written_digits(line.name))), line.base_unit)
             selection_groups.setdefault(identity, []).append(line)
     for members in selection_groups.values():
         if len(members) < 2:
