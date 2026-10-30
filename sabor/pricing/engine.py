@@ -161,8 +161,15 @@ class _SnapshotPricing:
 
     def get_quote(self, product_id, store):
         if product_id not in self._quotes:
-            self._quotes[product_id] = self._pricing.get_quote(product_id, store)
-        return self._quotes[product_id]
+            try:
+                self._quotes[product_id] = self._pricing.get_quote(product_id, store)
+            except LookupError as missing:
+                # A missing quote is part of the snapshot too: every row sees the same answer.
+                self._quotes[product_id] = missing
+        cached = self._quotes[product_id]
+        if isinstance(cached, LookupError):
+            raise cached
+        return cached
 
 
 def estimate(source, store_ctx: RetailContext, recipe_store, pricing, product_overrides=None,

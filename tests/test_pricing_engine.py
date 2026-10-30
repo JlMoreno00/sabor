@@ -260,6 +260,23 @@ class EngineTests(unittest.TestCase):
         self.assertEqual([line.quote.product_id if line.quote else None for line in lines],
                          [None, 'Quesos variados Hacendado'])
 
+    def test_missing_quote_is_cached_for_the_whole_estimate(self):
+        # CodeRabbit on #108: one snapshot per estimate, so a product without a local
+        # quote is asked once and stays missing for every row that meets it.
+        self.basket({'Quesos sin precio local': '1', 'Quesos variados Hacendado': '2'}, 'quesos')
+        priced, misses = self.pricing.get_quote, []
+
+        def quote(product_id, store):
+            if product_id == 'Quesos sin precio local':
+                misses.append(product_id)
+                raise LookupError('No Open Prices observation in requested country')
+            return priced(product_id, store)
+        setattr(self.pricing, 'get_quote', quote)
+        row = dict(name='quesos', quantity='300', unit='g')
+        lines = self.run_estimate(items(row, dict(row), dict(row))).lines
+        self.assertEqual([line.quote.product_id for line in lines if line.quote], ['Quesos variados Hacendado'] * 3)
+        self.assertEqual(misses, ['Quesos sin precio local'])
+
     def test_ambiguous_number_falls_back_to_a_search_without_it(self):
         # CodeRabbit on #108: a substring-filtering provider (Open Prices) returns nothing
         # for '4 quesos' when no product carries the 4; the name without it is searched too.
