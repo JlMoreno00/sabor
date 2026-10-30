@@ -7,6 +7,11 @@
   when it equals the resolved quantity in base units (`300 g de arroz` with `0.3 kg`,
   or a zero placeholder whose text gives `2 huevos`), so the product no longer has
   to carry it. Other leading numbers stay part of the name (`4 quesos` for 300 g).
+- Mercadona search ranks products carrying a number that is part of the query's
+  name first (`4 quesos` keeps `Pizza 4 quesos` inside the 50-result window, even
+  though the cost query drops the leading `4`); amounts such as `500 g` or `2 huevos`
+  do not change the order. `estimate_cost` now queries the provider with the name it
+  matches on, so a leading amount never narrows the search.
 - Bring! sync: free-text Mealie items no longer get a leading `1 ` (`1 600 g
   calabaza` is now `600 g calabaza`). Mealie stores them with quantity 1 and displays
   `1 <note>`; Sabor now sends the note. Free-text items with a real quantity keep

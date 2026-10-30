@@ -360,8 +360,10 @@ Catalog cache refresh failures may yield explicitly stale quotes;
 the unofficial API provides no availability guarantee.
 
 Search is food-only; whole-word names (one trailing `s`/`es` tolerated) rank
-unprocessed products first, then fewer extra normalized name words, then
-food/name/ID. `estimate_cost` defaults to
+products carrying the query's name numbers first (`4 quesos`; amounts such as
+`500 g` do not count), then unprocessed products, fewer extra normalized name
+words and food/name/ID. `estimate_cost` searches with the name it matches on,
+so a leading amount (`2 huevos`) never narrows the query. `estimate_cost` defaults to
 `match_policy="cheapest"` among up to 50 candidates: compatible food with the
 lowest checkout cost for the required quantity (whole packages x package
 price), then the lowest unit price. Processed or compound candidates
