@@ -347,7 +347,9 @@ alpha-2 country (default ES), currency default EUR and barcode product IDs.
 Country is filtered locally; absent locations are excluded. The latest of up to
 50 observations is selected by date then ID, not cheapest price. No matching
 observation returns `not_found`. Spanish coverage is sparse/old, not a catalog.
-Search is capped at ten products. Instance caches hold up to 128 responses for
+Search is capped at ten products; a one-word plural query that returns fewer also
+searches its singular (`guisantes` → `guisante`) to fill the remaining room, never
+displacing the original results. Instance caches hold up to 128 responses for
 ten minutes; restart clears them, with no disk cache or background requests.
 Quotes always flag `observation`; older than 180 days adds `stale_observation`,
 promotions add `discounted`, and a single country observation in the fetched

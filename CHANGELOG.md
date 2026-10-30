@@ -3,6 +3,10 @@
 ## [Unreleased]
 
 ### Fixed
+- Open Prices search: when a one-word plural query (`guisantes`) returns fewer than
+  the limit, its singular (`guisante`) is searched too and fills the remaining room,
+  so singular product names (`Guisante fino`) are found. The original results are
+  kept first and never displaced; multi-word queries are sent unchanged.
 - `estimate_cost`: a leading number in an item name counts as the line's own amount
   when it equals the resolved quantity in base units (`300 g de arroz` with `0.3 kg`,
   or a zero placeholder whose text gives `2 huevos`), so the product no longer has

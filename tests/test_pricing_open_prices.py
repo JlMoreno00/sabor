@@ -81,6 +81,44 @@ class OpenPricesTests(unittest.TestCase):
         self.assertEqual(self.session.get.call_count, 1)
         self.assertEqual(self.session.get.call_args.kwargs['params'], dict(product_name__like='leche', order_by='-price_count', size=10))
 
+    def search_by_name(self, catalog):
+        # Fake substring filter: each product_name__like gets the names containing it.
+        item = self.products['items'][0]
+        sent = []
+
+        def fetch(url, **kwargs):
+            like = kwargs['params']['product_name__like']
+            sent.append(like)
+            names = [n for n in catalog if like.casefold() in n.casefold()][:kwargs['params']['size']]
+            response = Mock()
+            response.json.return_value = {'items': [dict(item, code=n, product_name=n, brands='') for n in names]}
+            return response
+        self.session.get.side_effect = fetch
+        return sent
+
+    def test_plural_queries_also_find_singular_names(self):
+        # #49 follow-up (CodeRabbit on #105): product_name__like is a substring filter, so
+        # 'guisantes' missed 'Guisante fino'. The original query runs first and keeps its
+        # results; only when it returns fewer than the limit does a one-word plural add the
+        # results of its singular ('guisante'), without duplicates.
+        sent = self.search_by_name(['Guisantes extra', 'Guisante fino'])
+        found = self.provider.search_products(ProductQuery('guisantes', 10), self.store)
+        self.assertEqual(([p.id for p in found], sent), (['Guisantes extra', 'Guisante fino'], ['guisantes', 'guisante']))
+        # Multi-word queries and words without a plural 's' send one request, unchanged.
+        for text in ('alubias blancas', 'leche', 'sal', 'gas', 'arroz'):
+            with self.subTest(text=text):
+                sent.clear()
+                self.provider.search_products(ProductQuery(text, 10), self.store)
+                self.assertEqual(sent, [text])
+
+    def test_singular_never_displaces_original_matches(self):
+        # CodeRabbit on #109: 'mora' also matches 'morada'; a full page for 'moras' is kept
+        # exactly as before and no singular request is made.
+        moras = [f'Moras {n}' for n in range(10)]
+        sent = self.search_by_name([f'Col morada {n}' for n in range(10)] + moras)
+        found = self.provider.search_products(ProductQuery('moras', 10), self.store)
+        self.assertEqual(([p.id for p in found], sent), (moras, ['moras']))
+
     def test_selection_country_currency_date_and_id_not_price(self):
         original = self.prices['items'][0]
         recent = dict(original, id=10, date='2026-10-24', price=2, price_is_discounted=True)
