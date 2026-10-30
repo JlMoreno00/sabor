@@ -7,6 +7,7 @@ import json
 import math
 from contextvars import copy_context
 import os
+import re
 from pathlib import Path
 import time
 import warnings
@@ -284,9 +285,12 @@ class MercadonaPricing:
         if not text:
             return []
         # Numbers of the name that the cost query dropped ('4' in '4 quesos') rank
-        # first; a leading amount the parser reads as one ('500 g', '2 huevos') does not.
-        numbers = (set() if parse_text(query.query).dimension else
-                   {w for w in words(query.query) if w[0].isdigit()} - words(text))
+        # first; a leading amount ('500 g', '2 huevos') never does. Only the leading
+        # prefix is parsed, so later name numbers ('85%') cannot hide its unit.
+        numbers = {w for w in words(query.query) if w[0].isdigit()} - words(text)
+        prefix = re.match(r'\s*\d+(?:[.,]\d+)?\s*[^\W\d_]*', query.query)
+        if prefix and parse_text(prefix.group(0)).dimension:
+            numbers -= words(prefix.group(0))
         catalog, observed, stale = self._snapshot()
         scored = []
         for pid, product in catalog.items():

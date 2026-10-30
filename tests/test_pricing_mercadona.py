@@ -68,6 +68,15 @@ class MercadonaTests(unittest.TestCase):
         self.assertEqual(search('500 g de quesos'), search('quesos'))
         self.assertNotIn('pizza4', search('quesos'))
 
+    def test_leading_amount_is_never_a_name_number(self):
+        # CodeRabbit on #107: later name numbers ('85%') must not turn the leading
+        # amount '500 g' into a name number that favours products carrying '500'.
+        self.products = [item('dark', 'Chocolate negro 85% Hacendado'),
+                         item('pack', 'Chocolate negro 85% pack 500 Hacendado')]
+        self.provider._refresh()
+        self.assertEqual([p.id for p in self.provider.search_products(
+            ProductQuery('500 g de chocolate negro 85%', 50), self.store)], ['dark', 'pack'])
+
     def test_query_numbers_must_match(self):
         # CodeRabbit on #105: the previous search required numeric tokens too.
         self.products = [item('70', 'Chocolate negro 70% Hacendado'), item('85', 'Chocolate negro 85% Hacendado')]
