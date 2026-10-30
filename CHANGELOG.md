@@ -3,6 +3,10 @@
 ## [Unreleased]
 
 ### Fixed
+- Open Prices search: when a one-word plural query (`guisantes`) returns fewer than
+  the limit, its singular (`guisante`) is searched too and fills the remaining room,
+  so singular product names (`Guisante fino`) are found. The original results are
+  kept first and never displaced; multi-word queries are sent unchanged.
 - `estimate_cost`: when a line has no structured quantity and its amount comes from
   the text itself, a leading number without a unit (`4 quesos`) may be the amount or
   part of the name; products carrying the number are preferred (`Pizza 4 quesos`),
