@@ -57,6 +57,8 @@ NUMERAL = r'\d+\s+\d+/\d+|\d+/\d+|\d+(?:[.,]\d+)?|[½¼¾⅓⅔⅛]'
 _NUMBER = r'(?:' + NUMERAL + '|' + '|'.join(word + r'\b' for word in _WORDS) + r')'
 _LEADING = re.compile(r'^(' + _NUMBER + r')(?=\s|[a-záéíóúñ]|$)', re.I)
 _PREFIX = re.compile(r'\s*(?:' + NUMERAL + r')\s*[^\W\d_]*')
+# A leading number followed by a space ('4 quesos'), the candidate amount of a name.
+LEADING_NUMBER = re.compile(r'\s*(' + NUMERAL + r')(?=\s)')
 
 
 def leading_prefix(text: str) -> str | None:

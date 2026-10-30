@@ -238,9 +238,11 @@ class EngineTests(unittest.TestCase):
                                      dict(name='2 1/2 kg de harina', quantity='2.5', unit='kg'),
                                      dict(name='1 1/2 kg de harina', quantity='1500', unit='g')),
                          ['Harina de trigo Hacendado'] * 2)
-        # A bare fraction equal to the quantity is that amount, as before.
+        # A bare fraction is that amount, as before, even when the structured quantity
+        # differs (CodeRabbit on #112: '1/2 queso' for 1 was kept as the name).
         self.assertEqual(self.basket({'Queso tierno Hacendado': '2'}, dict(name='1/2 queso', quantity='0.5'),
-                                     package_unit='unit'), ['Queso tierno Hacendado'])
+                                     dict(name='1/2 queso', quantity='1'), package_unit='unit'),
+                         ['Queso tierno Hacendado'] * 2)
         # A fraction is never a name number: '1/2 queso' from text does not prefer
         # products carrying '1' and '2'; the cheapest cheese wins, as before.
         self.assertEqual(self.basket({'Queso 1/2 curado Hacendado': '3', 'Queso tierno Hacendado': '2'},

@@ -89,6 +89,16 @@ class MercadonaTests(unittest.TestCase):
         # A whole leading number without a unit is still a name number.
         self.assertEqual(search('2 arroz'), ['two', 'round'])
 
+    def test_leading_amount_is_excluded_by_position(self):
+        # CodeRabbit on #112: only the prefix is the amount, so a later name number equal
+        # to one of its digits still ranks first ('4' in '1/4 kg de 4 quesos').
+        self.products = [item('plain', 'Quesos curados Hacendado'), item('pizza4', 'Pizza 4 quesos Hacendado')]
+        self.provider._refresh()
+        search = lambda text: [p.id for p in self.provider.search_products(ProductQuery(text, 50), self.store)]
+        self.assertEqual(search('quesos'), ['plain', 'pizza4'])
+        self.assertEqual(search('1/4 kg de 4 quesos'), ['pizza4', 'plain'])
+        self.assertEqual(search('500 g de 4 quesos'), ['pizza4', 'plain'])
+
     def test_query_numbers_must_match(self):
         # CodeRabbit on #105: the previous search required numeric tokens too.
         self.products = [item('70', 'Chocolate negro 70% Hacendado'), item('85', 'Chocolate negro 85% Hacendado')]

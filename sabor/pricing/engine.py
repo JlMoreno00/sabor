@@ -4,7 +4,7 @@ from dataclasses import dataclass, replace
 from datetime import date
 from decimal import Decimal, InvalidOperation, ROUND_CEILING
 from .provider import RetailContext, ProductQuery, PriceQuote
-from .quantities import NUMERAL, from_structured, ingredient_name, is_fraction, leading_prefix, parse_text, to_base
+from .quantities import LEADING_NUMBER, from_structured, ingredient_name, is_fraction, leading_prefix, parse_text, to_base
 from .matching import covers, processed
 from .pantry import match_pantry
 from sabor.store import DateRange
@@ -253,10 +253,12 @@ def estimate(source, store_ctx: RetailContext, recipe_store, pricing, product_ov
 def _match_name(row, q):
     """Name products must carry. A leading number is the line's amount when it equals
     the resolved quantity `q` ('2 huevos' for 2, '300 g de arroz' for 0.3 kg) or the
-    line has none; any other leading number is part of the name ('4 quesos' for 300 g)."""
+    line has none; any other leading number is part of the name ('4 quesos' for 300 g).
+    A fraction ('1/2 queso') is always an amount."""
     name = row['name']
-    lead = re.match(r'\s*(' + NUMERAL + r')(?=\s)', name)
-    if lead and q.amount is not None and not _is_amount(lead.group(1), name, row, q):
+    lead = LEADING_NUMBER.match(name)
+    if (lead and q.amount is not None and not is_fraction(lead.group(1))
+            and not _is_amount(lead.group(1), name, row, q)):
         return name
     return ingredient_name(name) or name
 
@@ -281,7 +283,7 @@ def _is_amount(number, name, row, q):
         return False
     # Otherwise the bare number must be the raw quantity or the resolved amount.
     try:
-        value = parse_text(number).amount if is_fraction(number) else Decimal(number.replace(',', '.'))
+        value = Decimal(number.replace(',', '.'))
         raw = Decimal(str(row['quantity'])) if row.get('quantity') is not None else None
     except InvalidOperation:
         return False

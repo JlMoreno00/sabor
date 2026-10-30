@@ -7,7 +7,8 @@
   the whole leading amount with the `parse_text` grammar (`1/2 kg`, `1 1/2 kg`,
   `½ kg`). `2 1/2 kg de harina` for 2.5 kg now matches `Harina` instead of keeping
   the name, and the `2` of `1/2 kg de arroz` no longer ranks `Arroz 2 kg` first. A
-  fraction is always an amount, never a name number.
+  fraction is always an amount, never a name number. Search excludes the amount by
+  position, so the `4` of `1/4 kg de 4 quesos` still ranks `Pizza 4 quesos` first.
 - `search_pricing_products`: a product without a quote in the requested country
   (Open Prices has no local observation) is left out of the results instead of
   turning the whole search into `not_found`. `get_product_price` on that product

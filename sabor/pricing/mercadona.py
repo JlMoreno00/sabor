@@ -287,10 +287,13 @@ class MercadonaPricing:
         # first; a leading amount ('500 g', '2 huevos') never does. Only the leading
         # prefix is parsed, so later name numbers ('85%') cannot hide its unit, and a
         # fraction ('1/2 kg', '½') is always an amount.
-        numbers = {w for w in words(query.query) if w[0].isdigit()} - words(text)
-        prefix = leading_prefix(query.query)
+        # The amount is excluded by position, so a later name number equal to one of its
+        # digits still counts ('4' in '1/4 kg de 4 quesos').
+        named = query.query
+        prefix = leading_prefix(named)
         if prefix and (is_fraction(prefix) or parse_text(prefix).dimension):
-            numbers -= words(prefix)
+            named = named[len(prefix):]
+        numbers = {w for w in words(named) if w[0].isdigit()} - words(text)
         catalog, observed, stale = self._snapshot()
         scored = []
         for pid, product in catalog.items():
