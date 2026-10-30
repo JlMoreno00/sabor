@@ -64,9 +64,26 @@ class MercadonaTests(unittest.TestCase):
         self.provider._refresh()
         search = lambda text: [p.id for p in self.provider.search_products(ProductQuery(text, 50), self.store)]
         self.assertEqual(search('4 quesos')[0], 'pizza4')
+        # CodeRabbit on #117: a caller that says the 4 is an amount gets no number ranking.
+        self.assertEqual([p.id for p in self.provider.search_products(
+            ProductQuery('4 quesos', 50, lead_is_amount=True), self.store)], search('quesos'))
         # A leading amount with a unit is not a name number: ranking is unchanged.
         self.assertEqual(search('500 g de quesos'), search('quesos'))
         self.assertNotIn('pizza4', search('quesos'))
+
+    def test_caller_decides_whether_the_leading_number_is_an_amount(self):
+        # #49 follow-up (CodeRabbit on #107): '4 tomates' reads as four tomatoes, but the
+        # estimate engine may decide the 4 belongs to the name (300 g of '4 tomates');
+        # ProductQuery.lead_is_amount carries that decision instead of re-parsing it.
+        letters = [a + b for a in 'abcdefg' for b in 'abcdefghij'][:55]
+        self.products = [item(f't{s}', f'Tomates rama {s}') for s in letters] + [
+            item('pack4', 'Pack 4 tomates rama Hacendado')]
+        self.provider._refresh()
+        search = lambda **kw: [p.id for p in self.provider.search_products(
+            ProductQuery('4 tomates', 50, **kw), self.store)]
+        self.assertNotIn('pack4', search())
+        self.assertEqual(search(lead_is_amount=False)[0], 'pack4')
+        self.assertEqual(search(lead_is_amount=True), search())
 
     def test_leading_amount_is_never_a_name_number(self):
         # CodeRabbit on #107: later name numbers ('85%') must not turn the leading

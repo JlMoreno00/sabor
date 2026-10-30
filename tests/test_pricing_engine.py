@@ -442,6 +442,20 @@ class EngineTests(unittest.TestCase):
         self.basket({'Pizza 4 quesos Hacendado': '1'}, dict(name='4 quesos', text='4 quesos'), package_unit='unit')
         self.assertEqual(queries, ['4 quesos'])
 
+    def test_provider_receives_the_engine_decision_on_the_leading_number(self):
+        # #49 follow-up (CodeRabbit on #107): the engine has already stripped every amount,
+        # so a leading number left in its query belongs to the name ('4 tomates' for
+        # 300 g); it says so instead of letting the provider re-parse it as four tomatoes.
+        flags = []
+        search = self.pricing.search_products
+
+        def record(query, store):
+            flags.append((query.query, query.lead_is_amount))
+            return search(query, store)
+        setattr(self.pricing, 'search_products', record)
+        self.basket({'Pack 4 tomates rama': '1'}, '4 tomates', dict(name='300 g de arroz', quantity='300', unit='g'))
+        self.assertEqual(flags, [('4 tomates', False), ('arroz', False)])
+
     def test_alphanumeric_words_stay_whole(self):
         # CodeRabbit on #105: B12 is neither B nor 12.
         self.assertEqual(self.basket({'Leche vitamina B6 12 unidades': '1', 'Leche vitamina B12': '2'},
