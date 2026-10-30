@@ -14,6 +14,10 @@ from .provider import PriceQuote, Product, RetailContext
 from .quantities import from_structured, to_base
 
 
+class _InvalidResponse(RuntimeError):
+    """An Open Prices response without a JSON object carrying an `items` list."""
+
+
 def _substring_query(text):
     """product_name__like is a substring filter: a one-word plural ('guisantes') drops
     its trailing 's' so a follow-up request also finds singular names ('Guisante fino').
@@ -69,7 +73,7 @@ class OpenPricesPricing:
                 if not isinstance(data, dict) or not isinstance(data.get('items'), list):
                     raise ValueError
             except (ValueError, TypeError):
-                raise RuntimeError('Open Prices response unavailable') from None
+                raise _InvalidResponse('Open Prices response unavailable') from None
             stamp = self.clock()
             self._cache[key] = (stamp, data['items'])
             self._cache.move_to_end(key)
@@ -90,7 +94,12 @@ class OpenPricesPricing:
             # The original matches stay first and are never displaced ('mora' also
             # matches 'morada'); the singular only fills the remaining room.
             seen = {p.id for p in products}
-            products += [p for p in self._products(singular, limit) if p.id not in seen]
+            try:
+                products += [p for p in self._products(singular, limit) if p.id not in seen]
+            except (StoreError, _InvalidResponse):
+                # The extra request never loses original matches; with none, it still fails.
+                if not products:
+                    raise
         return products[:limit]
 
     def _products(self, text, limit):
