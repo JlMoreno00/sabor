@@ -231,6 +231,78 @@ class EngineTests(unittest.TestCase):
         self.assertEqual(self.basket({'Leche entera Hacendado': '1'},
                                      dict(name='300 ml de leche', quantity='0.3', unit='kg')), [None])
 
+    def test_text_amount_with_a_bare_leading_number_prefers_products_carrying_it(self):
+        # #49 follow-up 2 (CodeRabbit on #105): without a structured quantity the amount
+        # comes from the text itself, so '4 quesos' may be 4 cheeses or a 4-cheese
+        # product. Products carrying the number win; otherwise the number is dropped.
+        quesos = {'Pizza 3 quesos Hacendado': '1', 'Pizza 4 quesos Hacendado': '2'}
+        self.assertEqual(self.basket(quesos, dict(name='4 quesos', text='4 quesos'), package_unit='unit'),
+                         ['Pizza 4 quesos Hacendado'])
+        self.assertEqual(self.basket({'Quesos variados Hacendado': '2'}, dict(name='4 quesos', text='4 quesos'),
+                                     package_unit='unit'), ['Quesos variados Hacendado'])
+        # A countable food the parser reads as pieces ('2 huevos') is plainly an amount.
+        self.assertEqual(self.basket({'Huevos frescos': '1', '2 huevos cocidos Hacendado': '3'},
+                                     dict(name='2 huevos', text='2 huevos'), package_unit='unit'),
+                         ['Huevos frescos'])
+
+    def test_candidate_without_a_local_quote_is_skipped(self):
+        # CodeRabbit on #108: Open Prices raises LookupError for a product with no
+        # observation in the country; that candidate is skipped, the estimate goes on.
+        self.basket({'Quesos sin precio local': '1', 'Quesos variados Hacendado': '2'}, 'quesos')
+        priced = self.pricing.get_quote
+
+        def quote(product_id, store):
+            if product_id == 'Quesos sin precio local':
+                raise LookupError('No Open Prices observation in requested country')
+            return priced(product_id, store)
+        setattr(self.pricing, 'get_quote', quote)
+        lines = self.run_estimate(items(dict(name='4 quesos', text='4 quesos'), dict(name='quesos', quantity='300', unit='g'))).lines
+        self.assertEqual([line.quote.product_id if line.quote else None for line in lines],
+                         [None, 'Quesos variados Hacendado'])
+
+    def test_missing_quote_is_cached_for_the_whole_estimate(self):
+        # CodeRabbit on #108: one snapshot per estimate, so a product without a local
+        # quote is asked once and stays missing for every row that meets it.
+        self.basket({'Quesos sin precio local': '1', 'Quesos variados Hacendado': '2'}, 'quesos')
+        priced, misses = self.pricing.get_quote, []
+
+        def quote(product_id, store):
+            if product_id == 'Quesos sin precio local':
+                misses.append(product_id)
+                raise LookupError('No Open Prices observation in requested country')
+            return priced(product_id, store)
+        setattr(self.pricing, 'get_quote', quote)
+        row = dict(name='quesos', quantity='300', unit='g')
+        lines = self.run_estimate(items(row, dict(row), dict(row))).lines
+        self.assertEqual([line.quote.product_id for line in lines if line.quote], ['Quesos variados Hacendado'] * 3)
+        self.assertEqual(misses, ['Quesos sin precio local'])
+
+    def test_ambiguous_number_falls_back_to_a_search_without_it(self):
+        # CodeRabbit on #108: a substring-filtering provider (Open Prices) returns nothing
+        # for '4 quesos' when no product carries the 4; the name without it is searched too.
+        queries = []
+
+        def substring_search(query, store):
+            queries.append(query.query)
+            return [p for p in self.pricing.products if query.query.casefold() in p.name.casefold()]
+        setattr(self.pricing, 'search_products', substring_search)
+        self.assertEqual(self.basket({'Quesos variados Hacendado': '2'}, dict(name='4 quesos', text='4 quesos'),
+                                     package_unit='unit'), ['Quesos variados Hacendado'])
+        self.assertEqual(queries, ['4 quesos', 'quesos'])
+        # CodeRabbit on #108: a '4 quesos' result that is not eligible (here non-food) must
+        # not block the fallback; it depends on eligible candidates, not raw results.
+        queries.clear()
+
+        def ineligible_carrier(query, store):
+            queries.append(query.query)
+            return [replace(p, food=False) if '4' in p.name else p for p in self.pricing.products
+                    if query.query.casefold() in p.name.casefold()]
+        setattr(self.pricing, 'search_products', ineligible_carrier)
+        self.assertEqual(self.basket({'Bolsa 4 quesos de tela': '1', 'Quesos variados Hacendado': '2'},
+                                     dict(name='4 quesos', text='4 quesos'), package_unit='unit'),
+                         ['Quesos variados Hacendado'])
+        self.assertEqual(queries, ['4 quesos', 'quesos'])
+
     def test_provider_search_uses_the_decided_name(self):
         # #49 follow-up 3: the provider is queried with the name the engine matches on,
         # so a stripped amount never narrows the search and a name number is kept.
@@ -243,6 +315,11 @@ class EngineTests(unittest.TestCase):
         setattr(self.pricing, 'search_products', record)
         self.basket({'Huevos': '1'}, dict(name='2 huevos', quantity='2', unit='g'), '4 quesos', 'arroz')
         self.assertEqual(queries, ['huevos', '4 quesos', 'arroz'])
+        # Text-only '4 quesos' is ambiguous: the number stays in the query so the
+        # provider can rank products carrying it first.
+        queries.clear()
+        self.basket({'Pizza 4 quesos Hacendado': '1'}, dict(name='4 quesos', text='4 quesos'), package_unit='unit')
+        self.assertEqual(queries, ['4 quesos'])
 
     def test_alphanumeric_words_stay_whole(self):
         # CodeRabbit on #105: B12 is neither B nor 12.

@@ -161,8 +161,15 @@ class _SnapshotPricing:
 
     def get_quote(self, product_id, store):
         if product_id not in self._quotes:
-            self._quotes[product_id] = self._pricing.get_quote(product_id, store)
-        return self._quotes[product_id]
+            try:
+                self._quotes[product_id] = self._pricing.get_quote(product_id, store)
+            except LookupError as missing:
+                # A missing quote is part of the snapshot too: every row sees the same answer.
+                self._quotes[product_id] = missing
+        cached = self._quotes[product_id]
+        if isinstance(cached, LookupError):
+            raise cached
+        return cached
 
 
 def estimate(source, store_ctx: RetailContext, recipe_store, pricing, product_overrides=None,
@@ -254,10 +261,22 @@ def _match_name(row, q):
     return ingredient_name(name) or name
 
 
-def _is_amount(number, name, row, q):
-    # Parse only the leading amount and its unit word, never later name numbers ('85%').
+def _leading_prefix(name):
+    # The leading amount and its unit word only, never later name numbers ('85%').
     prefix = re.match(r'\s*\d+(?:[.,]\d+)?\s*[^\W\d_]*', name)
-    named = to_base(parse_text(prefix.group(0) if prefix else name))
+    return prefix.group(0) if prefix else None
+
+
+def _bare_text_number(row, q):
+    """An amount taken from the text whose leading number has no unit ('4 quesos'):
+    it may be the amount or part of the name, so products carrying it are preferred."""
+    prefix = _leading_prefix(row['name'])
+    return q.source == 'text' and prefix is not None and parse_text(prefix).dimension is None
+
+
+def _is_amount(number, name, row, q):
+    prefix = _leading_prefix(name)
+    named = to_base(parse_text(prefix if prefix else name))
     # With a unit in the name, compare both in base units (300 g == 0.3 kg).
     if named.amount is not None and named.dimension is not None and named.dimension == q.dimension:
         return named.amount == q.amount
@@ -307,22 +326,43 @@ def _estimate(source, store_ctx, rows, pricing, product_overrides, match_policy,
                 candidates = [overrides[key]]
                 evidence.append('caller_override')
             else:
-                compound = {}
+                compound, carrying = {}, {}
                 wanted = _match_name(row, q)
-                # Query with the decided name: a stripped amount never narrows the search.
-                for product in pricing.search_products(ProductQuery(wanted, 50), store_ctx):
-                    if product.food is not False and covers(wanted, product.name):
-                        candidate_quote = pricing.get_quote(product.id, store_ctx)
+                ambiguous = wanted != row['name'] and _bare_text_number(row, q)
+                # Query with the decided name, so a stripped amount never narrows the search;
+                # an ambiguous '4 quesos' keeps its number so the provider ranks it first.
+                query = row['name'] if ambiguous else wanted
+                searches = [query] + ([wanted] if ambiguous else [])
+                seen = set()
+                for text in searches:
+                    if text != query and any(carrying[pid] for pid in candidates):
+                        break
+                    # A substring provider (Open Prices) finds nothing for '4 quesos' when no
+                    # product carries the 4: without an eligible carrier, search 'quesos' too.
+                    for product in pricing.search_products(ProductQuery(text, 50), store_ctx):
+                        if product.id in seen or product.food is False or not covers(wanted, product.name):
+                            continue
+                        seen.add(product.id)
+                        try:
+                            candidate_quote = pricing.get_quote(product.id, store_ctx)
+                        except LookupError:
+                            # No observation in the requested country (Open Prices): not eligible.
+                            continue
                         dimension_unit = {'kg': 'g', 'l': 'ml', 'unit': 'ud'}.get(candidate_quote.package_unit)
                         if candidate_quote.food is not False and dimension_unit in (None, q.unit):
                             candidates.append(product.id)
                             compound[product.id] = processed(product.name, wanted) > 0
+                            carrying[product.id] = covers(row['name'], product.name)
                             price = candidate_quote.normalized_unit_price
                             checkout = _checkout_cost(required, q.unit, candidate_quote)
                             if (dimension_unit == q.unit and checkout is not None and isinstance(price, Decimal)
                                     and price.is_finite() and price >= 0):
                                 comparable.append((checkout, price, product.name, product.id))
                 candidates = list(dict.fromkeys(candidates))
+                if ambiguous and any(carrying[pid] for pid in candidates):
+                    # '4 quesos' from text alone: prefer products carrying the 4.
+                    candidates = [pid for pid in candidates if carrying[pid]]
+                    comparable = [row for row in comparable if carrying[row[3]]]
                 basic = [pid for pid in candidates if not compound[pid]]
                 basic_comparable = [row for row in comparable if not compound[row[3]]]
                 if basic_comparable or (basic and not comparable):
