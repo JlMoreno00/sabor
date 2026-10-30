@@ -121,6 +121,15 @@ class MercadonaTests(unittest.TestCase):
         search = lambda text: [p.id for p in self.provider.search_products(ProductQuery(text, 50), self.store)]
         self.assertEqual(search('4 quesos'), ['pizza4', 'plain', 'pack'])
 
+    def test_name_number_inside_the_query_must_modify_the_food(self):
+        # CodeRabbit on #114: the 4 of 'pizza 4 quesos' stays in the cost query, so it must
+        # also be next to quesos; 'Pizza 3 quesos 4 unidades' no longer ranks first.
+        self.products = [item('pizza4', 'Pizza 4 quesos Hacendado familiar grande'),
+                         item('units', 'Pizza 3 quesos 4 unidades')]
+        self.provider._refresh()
+        self.assertEqual([p.id for p in self.provider.search_products(ProductQuery('pizza 4 quesos', 50), self.store)],
+                         ['pizza4', 'units'])
+
     def test_query_numbers_must_match(self):
         # CodeRabbit on #105: the previous search required numeric tokens too.
         self.products = [item('70', 'Chocolate negro 70% Hacendado'), item('85', 'Chocolate negro 85% Hacendado')]

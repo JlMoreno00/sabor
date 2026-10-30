@@ -294,7 +294,8 @@ class MercadonaPricing:
         prefix = leading_prefix(named)
         if prefix and (is_fraction(prefix) or parse_text(prefix).dimension):
             named = named[len(prefix):]
-        numbers = {w for w in words(named) if w[0].isdigit()} - words(text)
+        # Numbers the cost query keeps ('pizza 4 quesos') must modify the same word too.
+        numbers = {w for w in words(named) if w[0].isdigit()}
         catalog, observed, stale = self._snapshot()
         scored = []
         for pid, product in catalog.items():
