@@ -90,7 +90,12 @@ class OpenPricesPricing:
             # The original matches stay first and are never displaced ('mora' also
             # matches 'morada'); the singular only fills the remaining room.
             seen = {p.id for p in products}
-            products += [p for p in self._products(singular, limit) if p.id not in seen]
+            try:
+                products += [p for p in self._products(singular, limit) if p.id not in seen]
+            except StoreError:
+                # The extra request never loses original matches; with none, it still fails.
+                if not products:
+                    raise
         return products[:limit]
 
     def _products(self, text, limit):

@@ -17,6 +17,7 @@ from sabor.core.capabilities import describe
 from sabor.pricing.open_prices import OpenPricesPricing
 from sabor.pricing.provider import ProductQuery, RetailContext
 from sabor.server import register_tools
+from sabor.store import StoreError
 
 FIXTURES = Path(__file__).parent / 'fixtures' / 'open_prices'
 
@@ -118,6 +119,27 @@ class OpenPricesTests(unittest.TestCase):
         sent = self.search_by_name([f'Col morada {n}' for n in range(10)] + moras)
         found = self.provider.search_products(ProductQuery('moras', 10), self.store)
         self.assertEqual(([p.id for p in found], sent), (moras, ['moras']))
+
+    def test_failed_singular_request_keeps_original_results(self):
+        # CodeRabbit on #109: the extra singular request must not lose original matches;
+        # with none, the error still propagates.
+        item = self.products['items'][0]
+
+        def fetch(url, **kwargs):
+            if kwargs['params']['product_name__like'] in ('guisante', 'zanahoria'):
+                raise requests.Timeout()
+            response = Mock()
+            names = ['Guisantes extra'] if kwargs['params']['product_name__like'] == 'guisantes' else []
+            response.json.return_value = {'items': [dict(item, code=n, product_name=n, brands='') for n in names]}
+            return response
+        self.session.get.side_effect = fetch
+        found = self.provider.search_products(ProductQuery('guisantes', 10), self.store)
+        self.assertEqual([p.id for p in found], ['Guisantes extra'])
+        with self.assertRaises(StoreError):
+            self.provider.search_products(ProductQuery('zanahorias', 10), self.store)
+        self.session.get.side_effect = lambda url, **kw: (_ for _ in ()).throw(requests.Timeout())
+        with self.assertRaises(StoreError):
+            self.provider.search_products(ProductQuery('guisante', 10), self.store)
 
     def test_selection_country_currency_date_and_id_not_price(self):
         original = self.prices['items'][0]
