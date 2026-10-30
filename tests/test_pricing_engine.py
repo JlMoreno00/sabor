@@ -245,6 +245,21 @@ class EngineTests(unittest.TestCase):
                                      dict(name='2 huevos', text='2 huevos'), package_unit='unit'),
                          ['Huevos frescos'])
 
+    def test_candidate_without_a_local_quote_is_skipped(self):
+        # CodeRabbit on #108: Open Prices raises LookupError for a product with no
+        # observation in the country; that candidate is skipped, the estimate goes on.
+        self.basket({'Quesos sin precio local': '1', 'Quesos variados Hacendado': '2'}, 'quesos')
+        priced = self.pricing.get_quote
+
+        def quote(product_id, store):
+            if product_id == 'Quesos sin precio local':
+                raise LookupError('No Open Prices observation in requested country')
+            return priced(product_id, store)
+        setattr(self.pricing, 'get_quote', quote)
+        lines = self.run_estimate(items(dict(name='4 quesos', text='4 quesos'), dict(name='quesos', quantity='300', unit='g'))).lines
+        self.assertEqual([line.quote.product_id if line.quote else None for line in lines],
+                         [None, 'Quesos variados Hacendado'])
+
     def test_ambiguous_number_falls_back_to_a_search_without_it(self):
         # CodeRabbit on #108: a substring-filtering provider (Open Prices) returns nothing
         # for '4 quesos' when no product carries the 4; the name without it is searched too.

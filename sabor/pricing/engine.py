@@ -336,7 +336,11 @@ def _estimate(source, store_ctx, rows, pricing, product_overrides, match_policy,
                         if product.id in seen or product.food is False or not covers(wanted, product.name):
                             continue
                         seen.add(product.id)
-                        candidate_quote = pricing.get_quote(product.id, store_ctx)
+                        try:
+                            candidate_quote = pricing.get_quote(product.id, store_ctx)
+                        except LookupError:
+                            # No observation in the requested country (Open Prices): not eligible.
+                            continue
                         dimension_unit = {'kg': 'g', 'l': 'ml', 'unit': 'ud'}.get(candidate_quote.package_unit)
                         if candidate_quote.food is not False and dimension_unit in (None, q.unit):
                             candidates.append(product.id)
