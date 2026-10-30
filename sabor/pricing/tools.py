@@ -79,7 +79,11 @@ def _run(ctx, store, operation, argument, overrides=None, match_policy='cheapest
             data['quote_digest'] = _digest(_public(result.lines))
         elif operation == 'search_products':
             items = []
-            for product in pricing.search_products(argument, retail):
+            # Ask for the widest window so candidates without a local quote can be
+            # skipped and the requested limit still filled, in the provider's order.
+            for product in pricing.search_products(ProductQuery(argument.query, 50), retail):
+                if len(items) == argument.limit:
+                    break
                 try:
                     quote = pricing.get_quote(product.id, retail)
                 except LookupError:

@@ -101,6 +101,30 @@ class PricingToolTests(unittest.TestCase):
             result = self.call('search_pricing_products', query='rice')
         self.assertEqual((result['ok'], result['data']['items']), (True, []))
 
+    def test_search_fills_the_limit_past_products_without_a_local_quote(self):
+        # CodeRabbit on #111: with limit=1 and a first candidate without a local quote,
+        # the next quoted candidate is returned instead of an empty list. The provider is
+        # asked for its maximum window and the result is cut to the requested limit.
+        self.provider.products = [Product('missing', 'rice far away', 'fixture'), Product('rice', 'rice', 'fixture'),
+                                  Product('rice2', 'rice brown', 'fixture')]
+        priced, asked = self.provider.get_quote, []
+
+        def quote(product_id, store):
+            if product_id == 'missing':
+                raise LookupError('No Open Prices observation in requested country')
+            return priced(product_id, store)
+
+        def search(query, store):
+            asked.append(query.limit)
+            return self.provider.products[:query.limit]
+        with patch.object(self.provider, 'get_quote', side_effect=quote), \
+                patch.object(self.provider, 'search_products', side_effect=search):
+            result = self.call('search_pricing_products', query='rice', limit=1)
+            two = self.call('search_pricing_products', query='rice', limit=2)
+        self.assertEqual([item['id'] for item in result['data']['items']], ['rice'])
+        self.assertEqual([item['id'] for item in two['data']['items']], ['rice', 'rice2'])
+        self.assertEqual(asked, [50, 50])
+
     def test_limit_bounds(self):
         for limit in (0, 51):
             self.assertEqual(self.call('search_pricing_products', query='rice', limit=limit)['error']['code'], 'invalid_argument')
