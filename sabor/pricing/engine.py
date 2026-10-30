@@ -5,6 +5,7 @@ from datetime import date
 from decimal import Decimal, InvalidOperation, ROUND_CEILING
 from .provider import RetailContext, ProductQuery, PriceQuote
 from .quantities import from_structured, ingredient_name, to_base
+from .matching import covers, processed
 from .pantry import match_pantry
 from sabor.store import DateRange
 
@@ -276,19 +277,25 @@ def _estimate(source, store_ctx, rows, pricing, product_overrides, match_policy,
                 candidates = [overrides[key]]
                 evidence.append('caller_override')
             else:
-                words = _words(row['name'])
+                compound = {}
                 for product in pricing.search_products(ProductQuery(row['name'], 50), store_ctx):
-                    if product.food is not False and words and words <= _words(product.name):
+                    if product.food is not False and covers(row['name'], product.name):
                         candidate_quote = pricing.get_quote(product.id, store_ctx)
                         dimension_unit = {'kg': 'g', 'l': 'ml', 'unit': 'ud'}.get(candidate_quote.package_unit)
                         if candidate_quote.food is not False and dimension_unit in (None, q.unit):
                             candidates.append(product.id)
+                            compound[product.id] = processed(product.name, row['name']) > 0
                             price = candidate_quote.normalized_unit_price
                             checkout = _checkout_cost(required, q.unit, candidate_quote)
                             if (dimension_unit == q.unit and checkout is not None and isinstance(price, Decimal)
                                     and price.is_finite() and price >= 0):
                                 comparable.append((checkout, price, product.name, product.id))
                 candidates = list(dict.fromkeys(candidates))
+                if any(not compound[pid] for pid in candidates):
+                    # A basic ingredient prefers unprocessed products: croquetas or chewing
+                    # gum only when nothing else matches.
+                    candidates = [pid for pid in candidates if not compound[pid]]
+                    comparable = [row for row in comparable if not compound[row[3]]]
                 evidence.append('whole_word')
             if len(candidates) > 1 and match_policy == 'cheapest' and key not in overrides and comparable:
                 # Cheapest = lowest checkout cost for the required quantity (whole

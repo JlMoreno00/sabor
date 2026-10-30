@@ -42,6 +42,19 @@ class MercadonaTests(unittest.TestCase):
         self.assertEqual([p.id for p in self.provider.search_products(ProductQuery('leche condensada'), self.store)],
                          ['condensed'])
 
+    def test_basic_ingredients_find_plural_and_rank_processed_last(self):
+        # Paleta (29-oct): 'zanahoria' and 'puerro' found nothing; croquetas outranked fish.
+        self.products = [item('carrot', 'Zanahorias'), item('leek', 'Puerros'),
+                         item('croq', 'Croquetas de merluza Hacendado ultracongelados'),
+                         item('fillet', 'Filetes de merluza del Cabo sin piel Hacendado ultracongelados'),
+                         item('salsa', 'Salsa')]
+        self.provider._refresh()
+        search = lambda text: [p.id for p in self.provider.search_products(ProductQuery(text), self.store)]
+        self.assertEqual((search('zanahoria'), search('puerro')), (['carrot'], ['leek']))
+        self.assertEqual(search('merluza'), ['fillet', 'croq'])
+        self.assertEqual(search('croquetas de merluza'), ['croq'])
+        self.assertEqual(search('sal'), [])
+
     def test_plural_and_punctuated_derivatives(self):
         # Plural and punctuated derivative names are penalized too (#49).
         self.products = [item('cookies', 'Galletas leche Hacendado'), item('yogurt', 'Yogur, leche Hacendado'),

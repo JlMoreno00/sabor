@@ -7,7 +7,6 @@ import json
 import math
 from contextvars import copy_context
 import os
-import re
 from pathlib import Path
 import time
 import warnings
@@ -18,17 +17,10 @@ from typing import Any, Literal
 
 import requests
 
-from sabor.integrations.mercadona import (
-    _mercadona_cost_query, _mercadona_cost_score, _mercadona_normalize,
-)
+from sabor.integrations.mercadona import _mercadona_cost_query
+from sabor.pricing.matching import covers, processed, same_word, words
 from sabor.pricing.provider import PriceQuote, Product, ProductQuery, RetailContext
 from sabor.pricing.quantities import package_from_mercadona
-
-
-# Small explicit derivative vocabulary: prefer staples on equally close matches,
-# but never penalize requested modifiers. Milk fat variants remain neutral.
-_DERIVATIVE_TOKENS = frozenset('condensada condensado chocolate cacao batido sabor aroma polvo crema salsa caldo bebida postre galleta helado zumo mermelada yogur'.split()
-                               + 'condensadas condensados chocolates batidos sabores aromas cremas salsas caldos bebidas postres galletas helados zumos mermeladas yogures'.split())
 
 
 class CatalogWarming(RuntimeError):
@@ -297,14 +289,12 @@ class MercadonaPricing:
             name = product.get('display_name')
             if not isinstance(name, str):
                 continue
-            score = _mercadona_cost_score(_mercadona_normalize(name), text)
-            if score >= 0 and self._food(product) is not False:
+            if covers(text, name) and self._food(product) is not False:
                 quote = self._quote(pid, product, observed, stale)
-                extra = len(set(_mercadona_normalize(name).split()) - set(text.split()))
-                derivative = len((set(re.findall(r'\w+', _mercadona_normalize(name)))
-                                  - set(re.findall(r'\w+', text))) & _DERIVATIVE_TOKENS)
-                scored.append((extra, derivative, Product(pid, name, self._provenance, observed,
-                                               quote.uncertainty_reasons, quote.food)))
-        # Food-only browsing; closest name, derivative penalty, food, name and id.
+                wanted = words(text)
+                extra = sum(1 for word in words(name) if not any(same_word(word, w) for w in wanted))
+                scored.append((processed(name, text), extra, Product(pid, name, self._provenance, observed,
+                                                                     quote.uncertainty_reasons, quote.food)))
+        # Food-only browsing; unprocessed first, then closest name, food, name and id.
         scored.sort(key=lambda row: (row[0], row[1], row[2].food is not True, row[2].name, row[2].id))
         return [product for _, _, product in scored[:query.limit]]

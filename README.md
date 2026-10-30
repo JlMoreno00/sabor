@@ -171,18 +171,24 @@ uncertainty. `estimate_cost` reads only; it never modifies recipes or buys goods
 `legacy_pricing` now exposes only price drops and new arrivals.
 
 Mercadona search is food-only (non-food top categories 20, 21, 22, 23, 25,
-26 are excluded). Whole-word matches rank by the number of distinct normalized
-name tokens absent from the query (fewer is closer), then unrequested derivative
-modifiers, food metadata, name and ID. Staples beat equally close derivatives
-such as condensed milk; requested modifiers are not penalized, and entera,
-desnatada and semidesnatada stay neutral. This is lexical closeness, not semantic ingredient identity.
+26 are excluded). Matching is by whole words, tolerating one trailing `s`/`es`
+on either side (`zanahoria` finds `Zanahorias`; `sal` never finds `Salsa`).
+Matches rank first by unrequested processed or compound words (`croquetas`,
+`chicles`, `salsa`, `molido`, `a la jardinera`, condensed milk...), then by the
+number of normalized name words absent from the query (fewer is closer), food
+metadata, name and ID. Requested modifiers are not penalized (`croquetas de
+merluza` finds croquetas), and entera, desnatada and semidesnatada stay neutral.
+This is lexical closeness, not semantic ingredient identity.
 `estimate_cost(..., match_policy="cheapest")` defaults to the compatible food
 candidate (search window up to 50) with the lowest checkout cost for the
 required quantity, that is whole packages times package price, then the lowest
 unit price. For 200 g of flour this picks a 1 kg bag over a cheaper-per-kilo
 5 kg bag. Multiple candidates produce `estimated` / `auto_selected_cheapest`
 and up to five `alternatives` with names, normalized prices and
-`checkout_cost`. Show alternatives and
+`checkout_cost`. A basic ingredient ignores processed or compound candidates
+when an unprocessed one matches (`merluza` picks fillets over cheaper croquetas,
+`jengibre` fresh ginger over chewing gum); they are used only when nothing else
+matches. Show alternatives and
 offer to switch using `product_overrides`; overrides take precedence, but cannot
 price non-food. With at least two non-overridden lines sharing normalized name
 words and base unit, known quantities are also evaluated together. A common

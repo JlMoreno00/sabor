@@ -147,6 +147,43 @@ class EngineTests(unittest.TestCase):
         assert tied is not None
         self.assertEqual(tied.product_id, 'twin')
 
+    def basket(self, prices, *names):
+        # Real Mercadona names; processed products are the cheaper ones, as in the catalog.
+        self.pricing.products = [Product(name, name, 'fixture') for name in prices]
+        base = self.pricing.quote
+
+        def quote(product_id, store):
+            return replace(base, product_id=product_id, package_price=D(prices[product_id]),
+                           package_quantity=D(1), package_unit='kg', normalized_unit_price=D(prices[product_id]))
+        setattr(self.pricing, 'get_quote', quote)
+        lines = self.run_estimate(items(*(dict(name=n, quantity='300', unit='g') for n in names))).lines
+        return [line.quote.product_id if line.quote else None for line in lines]
+
+    def test_basic_ingredients_prefer_unprocessed_products(self):
+        # Paleta (29-oct): 'merluza' picked croquetas and 'jengibre' chewing gum.
+        prices = {'Croquetas de merluza Hacendado ultracongelados': '3', 'Filetes de merluza del Cabo': '9',
+                  'Chicles gragea jengibre sin azúcar Hacendado': '1', 'Jengibre': '5',
+                  'Sándwich atún y huevo Hacendado': '2', 'Atún claro al natural Hacendado': '8',
+                  'Alubias a la jardinera Hacendado': '1', 'Alubia blanca Hacendado': '2',
+                  'Caldo de pollo Hacendado': '1', 'Contramuslo de pollo': '4'}
+        self.assertEqual(self.basket(prices, 'merluza', 'jengibre', 'atún', 'alubias', 'caldo de pollo'),
+                         ['Filetes de merluza del Cabo', 'Jengibre', 'Atún claro al natural Hacendado',
+                          'Alubia blanca Hacendado', 'Caldo de pollo Hacendado'])
+        # A processed product is still used when it is the only match.
+        self.assertEqual(self.basket({'Croquetas de merluza Hacendado ultracongelados': '3'}, 'merluza'),
+                         ['Croquetas de merluza Hacendado ultracongelados'])
+        # A requested modifier is never penalized.
+        self.assertEqual(self.basket(prices, 'croquetas de merluza'),
+                         ['Croquetas de merluza Hacendado ultracongelados'])
+
+    def test_singular_and_plural_names_match(self):
+        # Paleta (29-oct): zanahoria and puerro found nothing, the catalog sells them in plural.
+        self.assertEqual(self.basket({'Zanahorias': '1', 'Puerros': '2', 'Guisante fino Hacendado': '3'},
+                                     'zanahoria', 'puerro', 'guisantes'),
+                         ['Zanahorias', 'Puerros', 'Guisante fino Hacendado'])
+        # Still whole words only: 'sal' never matches 'salsa'.
+        self.assertEqual(self.basket({'salsa': '1'}, 'sal'), [None])
+
     def test_whole_word_and_dimension(self):
         self.pricing.products = [Product('salsa', 'salsa', 'fixture')]
         self.assertIsNone(self.run_estimate(items(dict(name='sal', quantity='1', unit='g'))).consumption_subtotal)

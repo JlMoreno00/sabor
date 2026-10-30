@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+### Fixed
+- Pricing matching for basic ingredients: `estimate_cost` no longer picks a cheaper
+  processed or compound product when an unprocessed one matches (`merluza` gave
+  `Croquetas`/`Palitos de merluza`, `jengibre` gave `Chicles de jengibre`, `atún` a
+  sandwich), and whole-word matching tolerates one trailing `s`/`es` (`zanahoria`,
+  `puerro` and `cebolla` now find `Zanahorias`, `Puerros`, `Cebollas`). Processed
+  products are still used when nothing else matches or when the query asks for them.
+  Mercadona search ranks unprocessed products first. Applies to every pricing
+  provider; recipe stores are unaffected.
+
 ### Changed
 - Dependencies: `urllib3>=2.2` is now declared directly. Recipe image downloads read
   one socket read at a time (`HTTPResponse.read1`, added in urllib3 2.2.0) to keep their
