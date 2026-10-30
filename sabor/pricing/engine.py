@@ -354,7 +354,9 @@ def _estimate(source, store_ctx, rows, pricing, product_overrides, match_policy,
                 searches = [query] + ([wanted] if ambiguous else [])
                 seen = set()
                 for text in searches:
-                    if text != query and any(carrying[pid] for pid in candidates):
+                    # Only a carrier that can be valued makes the search without the number
+                    # unnecessary (#49): an unpriced '4 quesos' must not hide valued cheeses.
+                    if text != query and any(carrying[row[3]] for row in comparable):
                         break
                     # A substring provider (Open Prices) finds nothing for '4 quesos' when no
                     # product carries the 4: without an eligible carrier, search 'quesos' too.
@@ -381,10 +383,14 @@ def _estimate(source, store_ctx, rows, pricing, product_overrides, match_policy,
                                     and price.is_finite() and price >= 0):
                                 comparable.append((checkout, price, product.name, product.id))
                 candidates = list(dict.fromkeys(candidates))
-                if ambiguous and any(carrying[pid] for pid in candidates):
-                    # '4 quesos' from text alone: prefer products carrying the 4.
-                    candidates = [pid for pid in candidates if carrying[pid]]
-                    comparable = [row for row in comparable if carrying[row[3]]]
+                carriers = [pid for pid in candidates if carrying[pid]]
+                carriers_comparable = [row for row in comparable if carrying[row[3]]]
+                valued_basic = any(not compound[row[3]] for row in comparable)
+                if ambiguous and carriers and (carriers_comparable or not valued_basic):
+                    # '4 quesos' from text alone: prefer products carrying the 4, unless none
+                    # can be valued and an unprocessed candidate can (#49); a processed one
+                    # ('Pizza de quesos') never replaces them, as the basic rule below.
+                    candidates, comparable = carriers, carriers_comparable
                 basic = [pid for pid in candidates if not compound[pid]]
                 basic_comparable = [row for row in comparable if not compound[row[3]]]
                 if basic_comparable or (basic and not comparable):
