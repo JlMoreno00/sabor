@@ -276,6 +276,18 @@ class EngineTests(unittest.TestCase):
                                      dict(name='2 huevos', text='2 huevos'), package_unit='unit'),
                          ['Huevos frescos'])
 
+    def test_carried_number_must_modify_the_food(self):
+        # #49 follow-up (CodeRabbit on #108): the 4 of 'Pizza 3 quesos pack 4 unidades'
+        # counts units, not cheeses, so it does not carry '4 quesos'.
+        pack = 'Pizza 3 quesos pack 4 unidades'
+        self.assertEqual(self.basket({pack: '1', 'Pizza 4 quesos Hacendado': '2'},
+                                     dict(name='4 quesos', text='4 quesos'), package_unit='unit'),
+                         ['Pizza 4 quesos Hacendado'])
+        # Without a real carrier, nothing is preferred: the basic cheese wins as before.
+        self.assertEqual(self.basket({pack: '1', 'Quesos variados Hacendado': '2'},
+                                     dict(name='4 quesos', text='4 quesos'), package_unit='unit'),
+                         ['Quesos variados Hacendado'])
+
     def test_candidate_without_a_local_quote_is_skipped(self):
         # CodeRabbit on #108: Open Prices raises LookupError for a product with no
         # observation in the country; that candidate is skipped, the estimate goes on.

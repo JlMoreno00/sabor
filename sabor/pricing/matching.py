@@ -25,10 +25,16 @@ def words(text):
     decimal is one value, comma or point alike (``0,5`` is ``0.5``, never ``5``), and an
     alphanumeric word stays whole (``B12`` is neither ``B`` nor ``12``).
     """
+    return set(_tokens(text))
+
+
+def _tokens(text):
+    # The words of ``words`` in order, so a number can be read with the word after it.
     plain = ''.join(c for c in unicodedata.normalize('NFKD', text.casefold())
                     if not unicodedata.combining(c))
     tokens = re.findall(r'\d+(?:[.,]\d+)?(?![^\W_])|[^\W_]+', plain)
-    return {_number(t) if re.fullmatch(r'\d+(?:[.,]\d+)?', t) else t for t in tokens} - {'de', 'the', 'of'}
+    return [_number(t) if re.fullmatch(r'\d+(?:[.,]\d+)?', t) else t for t in tokens
+            if t not in ('de', 'the', 'of')]
 
 
 def _number(token):
@@ -53,6 +59,21 @@ def covers(query, name):
     product = words(name)
     wanted = words(query)
     return bool(wanted) and all(any(same_word(w, p) for p in product) for w in wanted)
+
+
+def carried(number, query, name):
+    """True when the product carries the query's number with the word it modifies.
+
+    ``4 quesos`` needs a 4 followed by quesos (``Pizza 4 quesos``), never the 4 of
+    ``Pizza 3 quesos pack 4 unidades``. A number with no word after it in the query
+    (``chocolate 85%``) only needs to appear.
+    """
+    wanted, product = _tokens(query), _tokens(name)
+    modified = {wanted[i + 1] for i, t in enumerate(wanted[:-1]) if t == number}
+    if not modified:
+        return number in product
+    return any(t == number and any(same_word(product[i + 1], w) for w in modified)
+               for i, t in enumerate(product[:-1]))
 
 
 def processed(name, query):

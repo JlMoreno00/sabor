@@ -86,8 +86,9 @@ class MercadonaTests(unittest.TestCase):
         self.assertEqual(search('arroz'), ['round', 'two'])
         for text in ('1/2 kg de arroz', '1 1/2 kg de arroz', '½ kg de arroz', '1/2 arroz'):
             self.assertEqual(search(text), ['round', 'two'], text)
-        # A whole leading number without a unit is still a name number.
-        self.assertEqual(search('2 arroz'), ['two', 'round'])
+        # A whole leading number without a unit is still a name number, but it must modify
+        # the food (#49, S3): the 2 of 'Arroz 2 kg' counts kilos, so it carries nothing.
+        self.assertEqual(search('2 arroz'), ['round', 'two'])
 
     def test_leading_amount_is_excluded_by_position(self):
         # CodeRabbit on #112: only the prefix is the amount, so a later name number equal
@@ -98,6 +99,15 @@ class MercadonaTests(unittest.TestCase):
         self.assertEqual(search('quesos'), ['plain', 'pizza4'])
         self.assertEqual(search('1/4 kg de 4 quesos'), ['pizza4', 'plain'])
         self.assertEqual(search('500 g de 4 quesos'), ['pizza4', 'plain'])
+
+    def test_name_number_must_modify_the_food(self):
+        # #49 follow-up (CodeRabbit on #108): a product carries '4 quesos' only when its 4
+        # is followed by quesos; the 4 of 'pack 4 unidades' counts units.
+        self.products = [item('plain', 'Quesos curados Hacendado'), item('pizza4', 'Pizza 4 quesos Hacendado'),
+                         item('pack', 'Pizza 3 quesos pack 4 unidades')]
+        self.provider._refresh()
+        search = lambda text: [p.id for p in self.provider.search_products(ProductQuery(text, 50), self.store)]
+        self.assertEqual(search('4 quesos'), ['pizza4', 'plain', 'pack'])
 
     def test_query_numbers_must_match(self):
         # CodeRabbit on #105: the previous search required numeric tokens too.

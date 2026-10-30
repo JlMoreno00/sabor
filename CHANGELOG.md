@@ -3,6 +3,11 @@
 ## [Unreleased]
 
 ### Fixed
+- Name numbers must modify the food: `estimate_cost` and Mercadona search prefer a
+  product for `4 quesos` only when its 4 is followed by quesos (`Pizza 4 quesos`),
+  never the 4 of `Pizza 3 quesos pack 4 unidades` or the 2 of `Arroz 2 kg` for
+  `2 arroz`. A number with no word after it (`chocolate 85%`) still only needs to
+  appear.
 - Leading fractions in ingredient names: `estimate_cost` and Mercadona search read
   the whole leading amount with the `parse_text` grammar (`1/2 kg`, `1 1/2 kg`,
   `½ kg`). `2 1/2 kg de harina` for 2.5 kg now matches `Harina` instead of keeping

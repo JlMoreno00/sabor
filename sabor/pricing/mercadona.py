@@ -18,7 +18,7 @@ from typing import Any, Literal
 import requests
 
 from sabor.integrations.mercadona import _mercadona_cost_query
-from sabor.pricing.matching import covers, processed, same_word, words
+from sabor.pricing.matching import carried, covers, processed, same_word, words
 from sabor.pricing.provider import PriceQuote, Product, ProductQuery, RetailContext
 from sabor.pricing.quantities import is_fraction, leading_prefix, package_from_mercadona, parse_text
 
@@ -304,7 +304,8 @@ class MercadonaPricing:
                 quote = self._quote(pid, product, observed, stale)
                 wanted = words(text)
                 extra = sum(1 for word in words(name) if not any(same_word(word, w) for w in wanted))
-                rank = (len(numbers - words(name)), processed(name, text), extra)
+                # A name number counts only next to the word it modifies ('4 quesos').
+                rank = (sum(1 for n in numbers if not carried(n, named, name)), processed(name, text), extra)
                 scored.append((rank, Product(pid, name, self._provenance, observed,
                                              quote.uncertainty_reasons, quote.food)))
         # Food-only browsing; name numbers, unprocessed, closest name, food, name and id.
