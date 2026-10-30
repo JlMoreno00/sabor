@@ -257,6 +257,19 @@ class EngineTests(unittest.TestCase):
         self.assertEqual(self.basket({'Quesos variados Hacendado': '2'}, dict(name='4 quesos', text='4 quesos'),
                                      package_unit='unit'), ['Quesos variados Hacendado'])
         self.assertEqual(queries, ['4 quesos', 'quesos'])
+        # CodeRabbit on #108: a '4 quesos' result that is not eligible (here non-food) must
+        # not block the fallback; it depends on eligible candidates, not raw results.
+        queries.clear()
+
+        def ineligible_carrier(query, store):
+            queries.append(query.query)
+            return [replace(p, food=False) if '4' in p.name else p for p in self.pricing.products
+                    if query.query.casefold() in p.name.casefold()]
+        setattr(self.pricing, 'search_products', ineligible_carrier)
+        self.assertEqual(self.basket({'Bolsa 4 quesos de tela': '1', 'Quesos variados Hacendado': '2'},
+                                     dict(name='4 quesos', text='4 quesos'), package_unit='unit'),
+                         ['Quesos variados Hacendado'])
+        self.assertEqual(queries, ['4 quesos', 'quesos'])
 
     def test_provider_search_uses_the_decided_name(self):
         # #49 follow-up 3: the provider is queried with the name the engine matches on,
