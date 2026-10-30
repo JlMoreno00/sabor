@@ -3,6 +3,12 @@
 ## [Unreleased]
 
 ### Fixed
+- Mercadona search (`search_pricing_products`): after a leading amount, the cost
+  query strips the same unit and connector words as `ingredient_name`, in Spanish and
+  English (#95). `2 kilos de arroz` searched `kilos arroz` and `300 grams of rice`
+  searched `grams of rice`, finding nothing; both now search the food. The article
+  `one` is stripped like `un`/`una`/`uno`. Unit words without a preceding amount are
+  kept (`pieza de pollo`).
 - `estimate_cost`: the preference for products carrying a text line's number
   (`4 quesos`) gives way when none of them can be valued and an unprocessed candidate
   can. An unpriced `Pizza 4 quesos` no longer leaves the line uncosted when
