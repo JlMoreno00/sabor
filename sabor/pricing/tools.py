@@ -78,8 +78,16 @@ def _run(ctx, store, operation, argument, overrides=None, match_policy='cheapest
             data['source_digest'] = _digest(source)
             data['quote_digest'] = _digest(_public(result.lines))
         elif operation == 'search_products':
-            data = {'items': [_public(p) | {'quote': _public(pricing.get_quote(p.id, retail))}
-                              for p in pricing.search_products(argument, retail)]}
+            items = []
+            for product in pricing.search_products(argument, retail):
+                try:
+                    quote = pricing.get_quote(product.id, retail)
+                except LookupError:
+                    # No quote here (e.g. no Open Prices observation in the country):
+                    # skip it rather than failing the whole search.
+                    continue
+                items.append(_public(product) | {'quote': _public(quote)})
+            data = {'items': items}
         else:
             data = _public(pricing.get_quote(argument, retail))
         return ok(data)

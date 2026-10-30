@@ -80,6 +80,27 @@ class PricingToolTests(unittest.TestCase):
         self.assertEqual(result['error']['code'], 'invalid_argument')
         self.assertEqual(self.provider.calls, 0)
 
+    def test_search_skips_products_without_a_local_quote(self):
+        # #49 follow-up (CodeRabbit on #109): one product with no observation in the
+        # country (Open Prices LookupError) no longer turns the whole search into
+        # not_found; the other results come back. A direct quote still reports not_found.
+        self.provider.products = [Product('missing', 'rice far away', 'fixture'), Product('rice', 'rice', 'fixture')]
+        priced = self.provider.get_quote
+
+        def quote(product_id, store):
+            if product_id == 'missing':
+                raise LookupError('No Open Prices observation in requested country')
+            return priced(product_id, store)
+        with patch.object(self.provider, 'get_quote', side_effect=quote):
+            result = self.call('search_pricing_products', query='rice')
+            self.assertTrue(result['ok'])
+            self.assertEqual([item['id'] for item in result['data']['items']], ['rice'])
+            self.assertEqual(self.call('get_product_price', product_id='missing')['error']['code'], 'not_found')
+        self.provider.products = [Product('missing', 'rice far away', 'fixture')]
+        with patch.object(self.provider, 'get_quote', side_effect=LookupError('none')):
+            result = self.call('search_pricing_products', query='rice')
+        self.assertEqual((result['ok'], result['data']['items']), (True, []))
+
     def test_limit_bounds(self):
         for limit in (0, 51):
             self.assertEqual(self.call('search_pricing_products', query='rice', limit=limit)['error']['code'], 'invalid_argument')
