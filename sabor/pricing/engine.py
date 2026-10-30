@@ -254,12 +254,14 @@ def _match_name(row, q):
     """Name products must carry. A leading number is the line's amount when it equals
     the resolved quantity `q` ('2 huevos' for 2, '300 g de arroz' for 0.3 kg) or the
     line has none; any other leading number is part of the name ('4 quesos' for 300 g).
-    A fraction ('1/2 queso') is always an amount."""
+    A fraction ('1/2 queso', '1/2 kg') is an amount unless its unit is a weight or
+    volume of another dimension ('2 1/2 l' for 0.5 kg)."""
     name = row['name']
     lead = LEADING_NUMBER.match(name)
-    if (lead and q.amount is not None and not is_fraction(lead.group(1))
-            and not _is_amount(lead.group(1), name, row, q)):
-        return name
+    if lead and q.amount is not None:
+        number = lead.group(1)
+        if _other_dimension(name, q) if is_fraction(number) else not _is_amount(number, name, row, q):
+            return name
     return ingredient_name(name) or name
 
 
@@ -270,6 +272,13 @@ def _bare_text_number(row, q):
     prefix = leading_prefix(row['name'])
     return (q.source == 'text' and prefix is not None and not is_fraction(prefix)
             and parse_text(prefix).dimension is None)
+
+
+def _other_dimension(name, q):
+    # A weight or volume of another dimension is never this line's amount (300 ml vs 0.3 kg).
+    prefix = leading_prefix(name)
+    dimension = parse_text(prefix if prefix else name).dimension
+    return dimension in ('mass', 'volume') and dimension != q.dimension
 
 
 def _is_amount(number, name, row, q):

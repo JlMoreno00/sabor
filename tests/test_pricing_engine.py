@@ -243,6 +243,13 @@ class EngineTests(unittest.TestCase):
         self.assertEqual(self.basket({'Queso tierno Hacendado': '2'}, dict(name='1/2 queso', quantity='0.5'),
                                      dict(name='1/2 queso', quantity='1'), package_unit='unit'),
                          ['Queso tierno Hacendado'] * 2)
+        # CodeRabbit on #112: a fraction with a weight or volume of another dimension is
+        # not the line's amount, like '300 ml' for 0.3 kg; the same dimension still is.
+        self.assertEqual(self.basket({'Harina de trigo Hacendado': '1'},
+                                     dict(name='2 1/2 l de harina', quantity='0.5', unit='kg'),
+                                     dict(name='½ l de harina', quantity='0.5', unit='kg'),
+                                     dict(name='1/2 kg de harina', quantity='300', unit='g')),
+                         [None, None, 'Harina de trigo Hacendado'])
         # A fraction is never a name number: '1/2 queso' from text does not prefer
         # products carrying '1' and '2'; the cheapest cheese wins, as before.
         self.assertEqual(self.basket({'Queso 1/2 curado Hacendado': '3', 'Queso tierno Hacendado': '2'},
