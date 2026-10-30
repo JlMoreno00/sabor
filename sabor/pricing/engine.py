@@ -4,7 +4,8 @@ from dataclasses import dataclass, replace
 from datetime import date
 from decimal import Decimal, InvalidOperation, ROUND_CEILING
 from .provider import RetailContext, ProductQuery, PriceQuote
-from .quantities import LEADING_NUMBER, from_structured, ingredient_name, is_fraction, leading_prefix, parse_text, to_base
+from .quantities import (LEADING_NUMBER, from_structured, ingredient_name, is_fraction, leading_prefix,
+                         parse_text, to_base, written_digits)
 from .matching import covers, processed
 from .pantry import match_pantry
 from sabor.store import DateRange
@@ -335,11 +336,14 @@ def _estimate(source, store_ctx, rows, pricing, product_overrides, match_policy,
                 evidence.append('caller_override')
             else:
                 compound, carrying = {}, {}
-                wanted = _match_name(row, q)
-                ambiguous = wanted != row['name'] and _bare_text_number(row, q)
+                # A written numeral follows the digit rule ('cuatro quesos' as '4 quesos');
+                # the line keeps its written name.
+                matched = dict(row, name=written_digits(row['name']))
+                wanted = _match_name(matched, q)
+                ambiguous = wanted != matched['name'] and _bare_text_number(matched, q)
                 # Query with the decided name, so a stripped amount never narrows the search;
                 # an ambiguous '4 quesos' keeps its number so the provider ranks it first.
-                query = row['name'] if ambiguous else wanted
+                query = matched['name'] if ambiguous else wanted
                 searches = [query] + ([wanted] if ambiguous else [])
                 seen = set()
                 for text in searches:
@@ -360,7 +364,7 @@ def _estimate(source, store_ctx, rows, pricing, product_overrides, match_policy,
                         if candidate_quote.food is not False and dimension_unit in (None, q.unit):
                             candidates.append(product.id)
                             compound[product.id] = processed(product.name, wanted) > 0
-                            carrying[product.id] = covers(row['name'], product.name)
+                            carrying[product.id] = covers(matched['name'], product.name)
                             price = candidate_quote.normalized_unit_price
                             checkout = _checkout_cost(required, q.unit, candidate_quote)
                             if (dimension_unit == q.unit and checkout is not None and isinstance(price, Decimal)

@@ -175,7 +175,8 @@ Mercadona search is food-only (non-food top categories 20, 21, 22, 23, 25,
 on either side (`zanahoria` finds `Zanahorias`; `sal` never finds `Salsa`).
 A number that is part of the name (`4 quesos`, not an amount such as `500 g`,
 `2 huevos` or a fraction such as `1/2 kg`) ranks products carrying it first, so they stay inside the 50-result
-window. Then matches rank by unrequested processed or compound words (`croquetas`,
+window. A written numeral from two up counts as its digits (`cuatro quesos` as
+`4 quesos`); an article (`un queso`) is always an amount. Then matches rank by unrequested processed or compound words (`croquetas`,
 `chicles`, `salsa`, `molido`, `a la jardinera`, condensed milk...), then by the
 number of normalized name words absent from the query (fewer is closer), food
 metadata, name and ID. Requested modifiers are not penalized (`croquetas de
