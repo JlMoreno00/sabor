@@ -219,7 +219,11 @@ is an ISO alpha-2 code (default ES), currency defaults to EUR. Open Prices is
 universal crowd observations, not a current catalog: Spanish coverage is sparse
 and old. The latest matching country observation wins (ties: latest ID), never
 the cheapest. Missing locations/country observations return `not_found`, not zero.
-Search returns up to ten products with observations; some may lack a local quote.
+Search returns up to ten products with observations; `search_pricing_products`
+leaves out those without a quote in the requested country instead of failing the
+whole search, and tries to fill the requested limit with the next quoted candidates
+within the window the provider returns (Open Prices examines at most ten), so fewer
+results can come back (`get_product_price` on such a product still returns `not_found`).
 Its name filter is a substring match, so a one-word plural query that returns fewer
 than ten also searches its singular to fill the remaining room (`guisantes` also
 finds `Guisante fino`); original results always come first, and multi-word queries

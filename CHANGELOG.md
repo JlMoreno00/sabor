@@ -3,6 +3,10 @@
 ## [Unreleased]
 
 ### Fixed
+- `search_pricing_products`: a product without a quote in the requested country
+  (Open Prices has no local observation) is left out of the results instead of
+  turning the whole search into `not_found`. `get_product_price` on that product
+  still returns `not_found`.
 - Open Prices search: when a one-word plural query (`guisantes`) returns fewer than
   the limit, its singular (`guisante`) is searched too and fills the remaining room,
   so singular product names (`Guisante fino`) are found. The original results are

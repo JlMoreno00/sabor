@@ -80,6 +80,87 @@ class PricingToolTests(unittest.TestCase):
         self.assertEqual(result['error']['code'], 'invalid_argument')
         self.assertEqual(self.provider.calls, 0)
 
+    def test_search_skips_products_without_a_local_quote(self):
+        # #49 follow-up (CodeRabbit on #109): one product with no observation in the
+        # country (Open Prices LookupError) no longer turns the whole search into
+        # not_found; the other results come back. A direct quote still reports not_found.
+        self.provider.products = [Product('missing', 'rice far away', 'fixture'), Product('rice', 'rice', 'fixture')]
+        priced = self.provider.get_quote
+
+        def quote(product_id, store):
+            if product_id == 'missing':
+                raise LookupError('No Open Prices observation in requested country')
+            return priced(product_id, store)
+        with patch.object(self.provider, 'get_quote', side_effect=quote):
+            result = self.call('search_pricing_products', query='rice')
+            self.assertTrue(result['ok'])
+            self.assertEqual([item['id'] for item in result['data']['items']], ['rice'])
+            self.assertEqual(self.call('get_product_price', product_id='missing')['error']['code'], 'not_found')
+        self.provider.products = [Product('missing', 'rice far away', 'fixture')]
+        with patch.object(self.provider, 'get_quote', side_effect=LookupError('none')):
+            result = self.call('search_pricing_products', query='rice')
+        self.assertEqual((result['ok'], result['data']['items']), (True, []))
+
+    def test_search_fills_the_limit_past_products_without_a_local_quote(self):
+        # CodeRabbit on #111: with limit=1 and a first candidate without a local quote,
+        # the next quoted candidate is returned instead of an empty list. The provider is
+        # first asked for the requested limit and widened only after a skipped candidate
+        # (CodeRabbit on b2239ad: a fully quoted first window sends exactly the old query).
+        self.provider.products = [Product('missing', 'rice far away', 'fixture'), Product('rice', 'rice', 'fixture'),
+                                  Product('rice2', 'rice brown', 'fixture')]
+        priced, asked = self.provider.get_quote, []
+
+        def quote(product_id, store):
+            if product_id == 'missing':
+                raise LookupError('No Open Prices observation in requested country')
+            return priced(product_id, store)
+
+        def search(query, store):
+            asked.append(query.limit)
+            return self.provider.products[:query.limit]
+        with patch.object(self.provider, 'get_quote', side_effect=quote), \
+                patch.object(self.provider, 'search_products', side_effect=search):
+            result = self.call('search_pricing_products', query='rice', limit=1)
+            two = self.call('search_pricing_products', query='rice', limit=2)
+            self.assertEqual([item['id'] for item in result['data']['items']], ['rice'])
+            self.assertEqual([item['id'] for item in two['data']['items']], ['rice', 'rice2'])
+            self.assertEqual(asked, [1, 50, 2, 50])
+            # Nothing skipped: one request with the requested limit, as before.
+            asked.clear()
+            self.provider.products = self.provider.products[1:]
+            self.assertEqual([item['id'] for item in self.call('search_pricing_products', query='rice', limit=1)
+                              ['data']['items']], ['rice'])
+            self.assertEqual(asked, [1])
+            # CodeRabbit on #111: with limit=50 the first window is already the widest one.
+            asked.clear()
+            self.provider.products = [Product('missing', 'rice far away', 'fixture')] + self.provider.products
+            self.assertEqual([item['id'] for item in self.call('search_pricing_products', query='rice', limit=50)
+                              ['data']['items']], ['rice', 'rice2'])
+            self.assertEqual(asked, [50])
+
+    def test_failed_widened_search_keeps_quoted_results(self):
+        # CodeRabbit on #111: if the widened window fails, the products already quoted
+        # are returned; with none, the provider error is kept.
+        from sabor.store import StoreError
+        self.provider.products = [Product('missing', 'rice far away', 'fixture'), Product('rice', 'rice', 'fixture')]
+        priced = self.provider.get_quote
+
+        def quote(product_id, store):
+            if product_id == 'missing':
+                raise LookupError('No Open Prices observation in requested country')
+            return priced(product_id, store)
+
+        def search(query, store):
+            if query.limit == 50:
+                raise StoreError('timeout', 'fake')
+            return self.provider.products[:query.limit]
+        with patch.object(self.provider, 'get_quote', side_effect=quote), \
+                patch.object(self.provider, 'search_products', side_effect=search):
+            result = self.call('search_pricing_products', query='rice', limit=3)
+            self.assertEqual([item['id'] for item in result['data']['items']], ['rice'])
+            self.provider.products = self.provider.products[:1]
+            self.assertEqual(self.call('search_pricing_products', query='rice', limit=3)['error']['code'], 'timeout')
+
     def test_limit_bounds(self):
         for limit in (0, 51):
             self.assertEqual(self.call('search_pricing_products', query='rice', limit=limit)['error']['code'], 'invalid_argument')
