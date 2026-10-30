@@ -176,8 +176,10 @@ on either side (`zanahoria` finds `Zanahorias`; `sal` never finds `Salsa`).
 A number that is part of the name (`4 quesos`, not an amount such as `500 g`,
 `2 huevos` or a fraction such as `1/2 kg`) ranks products carrying it first, so they stay inside the 50-result
 window. A written numeral from two up counts as its digits (`cuatro quesos` as
-`4 quesos`); an article (`un queso`) is always an amount. The number must modify
-the same word: `Pizza 4 quesos` carries `4 quesos`, `Pizza 3 quesos pack 4 unidades`
+`4 quesos`); an article (`un queso`) is always an amount. Free-text shopping items
+typed in a built-in store are matched on their original text, so `4 quesos` keeps its
+number; items from Mealie keep their previous selection (Beta A). The number must
+modify the same word: `Pizza 4 quesos` carries `4 quesos`, `Pizza 3 quesos pack 4 unidades`
 does not, and `estimate_cost` applies the same rule. Then matches rank by unrequested processed or compound words (`croquetas`,
 `chicles`, `salsa`, `molido`, `a la jardinera`, condensed milk...), then by the
 number of normalized name words absent from the query (fewer is closer), food

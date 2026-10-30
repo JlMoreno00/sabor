@@ -3,6 +3,11 @@
 ## [Unreleased]
 
 ### Fixed
+- `estimate_cost` on free-text shopping items (built-in stores): the stored name has
+  its amount stripped (`quesos`), so `4 quesos` could never prefer `Pizza 4 quesos`.
+  Rows now carry an explicit origin and free-text rows are matched on their original
+  text; the line keeps its stripped name. Items from Mealie keep their previous
+  selection (Beta A, #41).
 - Name numbers must modify the food: `estimate_cost` and Mercadona search prefer a
   product for `4 quesos` only when its 4 is followed by quesos (`Pizza 4 quesos`),
   never the 4 of `Pizza 3 quesos pack 4 unidades` or the 2 of `Arroz 2 kg` for
