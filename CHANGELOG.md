@@ -7,6 +7,11 @@
   the limit, its singular (`guisante`) is searched too and fills the remaining room,
   so singular product names (`Guisante fino`) are found. The original results are
   kept first and never displaced; multi-word queries are sent unchanged.
+- `estimate_cost`: when a line has no structured quantity and its amount comes from
+  the text itself, a leading number without a unit (`4 quesos`) may be the amount or
+  part of the name; products carrying the number are preferred (`Pizza 4 quesos`),
+  falling back to the name without it. Countable foods the parser reads as pieces
+  (`2 huevos`) and amounts with a unit (`300 g`) are unchanged.
 - `estimate_cost`: a leading number in an item name counts as the line's own amount
   when it equals the resolved quantity in base units (`300 g de arroz` with `0.3 kg`,
   or a zero placeholder whose text gives `2 huevos`), so the product no longer has
