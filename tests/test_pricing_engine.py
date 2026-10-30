@@ -231,6 +231,37 @@ class EngineTests(unittest.TestCase):
         self.assertEqual(self.basket({'Leche entera Hacendado': '1'},
                                      dict(name='300 ml de leche', quantity='0.3', unit='kg')), [None])
 
+    def test_leading_fraction_is_the_whole_amount(self):
+        # #49 follow-up (CodeRabbit on #107): the leading amount is read with the
+        # parse_text grammar, so a mixed number '2 1/2 kg' is the line's amount, not '2'.
+        self.assertEqual(self.basket({'Harina de trigo Hacendado': '1'},
+                                     dict(name='2 1/2 kg de harina', quantity='2.5', unit='kg'),
+                                     dict(name='1 1/2 kg de harina', quantity='1500', unit='g')),
+                         ['Harina de trigo Hacendado'] * 2)
+        # A bare fraction is that amount, as before, even when the structured quantity
+        # differs (CodeRabbit on #112: '1/2 queso' for 1 was kept as the name).
+        self.assertEqual(self.basket({'Queso tierno Hacendado': '2'}, dict(name='1/2 queso', quantity='0.5'),
+                                     dict(name='1/2 queso', quantity='1'), package_unit='unit'),
+                         ['Queso tierno Hacendado'] * 2)
+        # CodeRabbit on #112: a fraction with a weight or volume of another dimension is
+        # not the line's amount, like '300 ml' for 0.3 kg; the same dimension still is.
+        self.assertEqual(self.basket({'Harina de trigo Hacendado': '1'},
+                                     dict(name='2 1/2 l de harina', quantity='0.5', unit='kg'),
+                                     dict(name='½ l de harina', quantity='0.5', unit='kg'),
+                                     dict(name='1/2 kg de harina', quantity='300', unit='g')),
+                         [None, None, 'Harina de trigo Hacendado'])
+        # CodeRabbit on #112: the same holds with the unit attached to the number.
+        self.assertEqual(self.basket({'Harina de trigo Hacendado': '1'},
+                                     dict(name='1/2l de harina', quantity='0.5', unit='kg'),
+                                     dict(name='300ml de harina', quantity='0.3', unit='kg'),
+                                     dict(name='300g de harina', quantity='0.3', unit='kg')),
+                         [None, None, 'Harina de trigo Hacendado'])
+        # A fraction is never a name number: '1/2 queso' from text does not prefer
+        # products carrying '1' and '2'; the cheapest cheese wins, as before.
+        self.assertEqual(self.basket({'Queso 1/2 curado Hacendado': '3', 'Queso tierno Hacendado': '2'},
+                                     dict(name='1/2 queso', text='1/2 queso'), package_unit='unit'),
+                         ['Queso tierno Hacendado'])
+
     def test_text_amount_with_a_bare_leading_number_prefers_products_carrying_it(self):
         # #49 follow-up 2 (CodeRabbit on #105): without a structured quantity the amount
         # comes from the text itself, so '4 quesos' may be 4 cheeses or a 4-cheese

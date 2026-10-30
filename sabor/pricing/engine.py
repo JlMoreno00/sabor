@@ -4,7 +4,7 @@ from dataclasses import dataclass, replace
 from datetime import date
 from decimal import Decimal, InvalidOperation, ROUND_CEILING
 from .provider import RetailContext, ProductQuery, PriceQuote
-from .quantities import from_structured, ingredient_name, parse_text, to_base
+from .quantities import LEADING_NUMBER, from_structured, ingredient_name, is_fraction, leading_prefix, parse_text, to_base
 from .matching import covers, processed
 from .pantry import match_pantry
 from sabor.store import DateRange
@@ -253,29 +253,37 @@ def estimate(source, store_ctx: RetailContext, recipe_store, pricing, product_ov
 def _match_name(row, q):
     """Name products must carry. A leading number is the line's amount when it equals
     the resolved quantity `q` ('2 huevos' for 2, '300 g de arroz' for 0.3 kg) or the
-    line has none; any other leading number is part of the name ('4 quesos' for 300 g)."""
+    line has none; any other leading number is part of the name ('4 quesos' for 300 g).
+    A fraction ('1/2 queso', '1/2 kg') is an amount unless its unit is a weight or
+    volume of another dimension ('2 1/2 l' for 0.5 kg), with or without a space ('1/2l')."""
     name = row['name']
-    lead = re.match(r'\s*(\d+(?:[.,]\d+)?)(?=\s)', name)
-    if lead and q.amount is not None and not _is_amount(lead.group(1), name, row, q):
-        return name
+    if q.amount is not None and leading_prefix(name):
+        if _other_dimension(name, q):
+            return name
+        lead = LEADING_NUMBER.match(name)
+        if lead and not is_fraction(lead.group(1)) and not _is_amount(lead.group(1), name, row, q):
+            return name
     return ingredient_name(name) or name
 
 
-def _leading_prefix(name):
-    # The leading amount and its unit word only, never later name numbers ('85%').
-    prefix = re.match(r'\s*\d+(?:[.,]\d+)?\s*[^\W\d_]*', name)
-    return prefix.group(0) if prefix else None
-
-
 def _bare_text_number(row, q):
-    """An amount taken from the text whose leading number has no unit ('4 quesos'):
-    it may be the amount or part of the name, so products carrying it are preferred."""
-    prefix = _leading_prefix(row['name'])
-    return q.source == 'text' and prefix is not None and parse_text(prefix).dimension is None
+    """An amount taken from the text whose leading whole number has no unit ('4 quesos'):
+    it may be the amount or part of the name, so products carrying it are preferred.
+    A fraction ('1/2 queso') is always the amount."""
+    prefix = leading_prefix(row['name'])
+    return (q.source == 'text' and prefix is not None and not is_fraction(prefix)
+            and parse_text(prefix).dimension is None)
+
+
+def _other_dimension(name, q):
+    # A weight or volume of another dimension is never this line's amount (300 ml vs 0.3 kg).
+    prefix = leading_prefix(name)
+    dimension = parse_text(prefix if prefix else name).dimension
+    return dimension in ('mass', 'volume') and dimension != q.dimension
 
 
 def _is_amount(number, name, row, q):
-    prefix = _leading_prefix(name)
+    prefix = leading_prefix(name)
     named = to_base(parse_text(prefix if prefix else name))
     # With a unit in the name, compare both in base units (300 g == 0.3 kg).
     if named.amount is not None and named.dimension is not None and named.dimension == q.dimension:

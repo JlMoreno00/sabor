@@ -3,6 +3,14 @@
 ## [Unreleased]
 
 ### Fixed
+- Leading fractions in ingredient names: `estimate_cost` and Mercadona search read
+  the whole leading amount with the `parse_text` grammar (`1/2 kg`, `1 1/2 kg`,
+  `½ kg`). `2 1/2 kg de harina` for 2.5 kg now matches `Harina` instead of keeping
+  the name, and the `2` of `1/2 kg de arroz` no longer ranks `Arroz 2 kg` first. A
+  fraction is always an amount, never a name number, unless its unit is a weight or
+  volume of another dimension (`2 1/2 l de harina` for 0.5 kg keeps the name, like
+  `300 ml` for 0.3 kg), with or without a space (`1/2l`, `300ml`). Search excludes the amount by
+  position, so the `4` of `1/4 kg de 4 quesos` still ranks `Pizza 4 quesos` first.
 - `search_pricing_products`: a product without a quote in the requested country
   (Open Prices has no local observation) is left out of the results instead of
   turning the whole search into `not_found`. `get_product_price` on that product

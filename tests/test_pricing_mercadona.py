@@ -77,6 +77,28 @@ class MercadonaTests(unittest.TestCase):
         self.assertEqual([p.id for p in self.provider.search_products(
             ProductQuery('500 g de chocolate negro 85%', 50), self.store)], ['dark', 'pack'])
 
+    def test_leading_fraction_is_never_a_name_number(self):
+        # #49 follow-up (CodeRabbit on #107): '1/2 kg de arroz' is one amount; its '2'
+        # must not move 'Arroz 2 kg' ahead of the ranking plain 'arroz' gets.
+        self.products = [item('two', 'Arroz 2 kg Hacendado'), item('round', 'Arroz redondo Hacendado')]
+        self.provider._refresh()
+        search = lambda text: [p.id for p in self.provider.search_products(ProductQuery(text, 50), self.store)]
+        self.assertEqual(search('arroz'), ['round', 'two'])
+        for text in ('1/2 kg de arroz', '1 1/2 kg de arroz', '½ kg de arroz', '1/2 arroz'):
+            self.assertEqual(search(text), ['round', 'two'], text)
+        # A whole leading number without a unit is still a name number.
+        self.assertEqual(search('2 arroz'), ['two', 'round'])
+
+    def test_leading_amount_is_excluded_by_position(self):
+        # CodeRabbit on #112: only the prefix is the amount, so a later name number equal
+        # to one of its digits still ranks first ('4' in '1/4 kg de 4 quesos').
+        self.products = [item('plain', 'Quesos curados Hacendado'), item('pizza4', 'Pizza 4 quesos Hacendado')]
+        self.provider._refresh()
+        search = lambda text: [p.id for p in self.provider.search_products(ProductQuery(text, 50), self.store)]
+        self.assertEqual(search('quesos'), ['plain', 'pizza4'])
+        self.assertEqual(search('1/4 kg de 4 quesos'), ['pizza4', 'plain'])
+        self.assertEqual(search('500 g de 4 quesos'), ['pizza4', 'plain'])
+
     def test_query_numbers_must_match(self):
         # CodeRabbit on #105: the previous search required numeric tokens too.
         self.products = [item('70', 'Chocolate negro 70% Hacendado'), item('85', 'Chocolate negro 85% Hacendado')]
