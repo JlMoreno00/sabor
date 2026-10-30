@@ -131,6 +131,12 @@ class PricingToolTests(unittest.TestCase):
             self.assertEqual([item['id'] for item in self.call('search_pricing_products', query='rice', limit=1)
                               ['data']['items']], ['rice'])
             self.assertEqual(asked, [1])
+            # CodeRabbit on #111: with limit=50 the first window is already the widest one.
+            asked.clear()
+            self.provider.products = [Product('missing', 'rice far away', 'fixture')] + self.provider.products
+            self.assertEqual([item['id'] for item in self.call('search_pricing_products', query='rice', limit=50)
+                              ['data']['items']], ['rice', 'rice2'])
+            self.assertEqual(asked, [50])
 
     def test_limit_bounds(self):
         for limit in (0, 51):

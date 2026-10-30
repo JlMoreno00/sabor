@@ -81,7 +81,8 @@ def _run(ctx, store, operation, argument, overrides=None, match_policy='cheapest
             items, seen, skipped = [], set(), False
             # First the requested window, exactly as before; only after skipping a
             # candidate without a local quote is the window widened to fill the limit.
-            for window in (argument.limit, 50):
+            windows = (argument.limit,) if argument.limit >= 50 else (argument.limit, 50)
+            for window in windows:
                 if window != argument.limit and (not skipped or len(items) == argument.limit):
                     break
                 for product in pricing.search_products(ProductQuery(argument.query, window), retail):
