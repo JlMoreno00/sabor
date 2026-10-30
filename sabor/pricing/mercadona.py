@@ -18,7 +18,7 @@ from typing import Any, Literal
 import requests
 
 from sabor.integrations.mercadona import _mercadona_cost_query
-from sabor.pricing.matching import covers, processed, same_word, words
+from sabor.pricing.matching import carries, covers, modifiers, processed, same_word, tokens, words
 from sabor.pricing.provider import PriceQuote, Product, ProductQuery, RetailContext
 from sabor.pricing.quantities import is_fraction, leading_prefix, package_from_mercadona, parse_text, written_digits
 
@@ -294,7 +294,9 @@ class MercadonaPricing:
         prefix = leading_prefix(named)
         if prefix and (is_fraction(prefix) or parse_text(prefix).dimension):
             named = named[len(prefix):]
-        numbers = {w for w in words(named) if w[0].isdigit()} - words(text)
+        # Numbers the cost query keeps ('pizza 4 quesos') must modify the same word too.
+        numbers = {w for w in words(named) if w[0].isdigit()}
+        modified = modifiers(named)
         catalog, observed, stale = self._snapshot()
         scored = []
         for pid, product in catalog.items():
@@ -305,7 +307,10 @@ class MercadonaPricing:
                 quote = self._quote(pid, product, observed, stale)
                 wanted = words(text)
                 extra = sum(1 for word in words(name) if not any(same_word(word, w) for w in wanted))
-                rank = (len(numbers - words(name)), processed(name, text), extra)
+                # A name number counts only next to the word it modifies ('4 quesos').
+                product_words = tokens(name)
+                rank = (sum(1 for n in numbers if not carries(n, modified.get(n, set()), product_words)),
+                        processed(name, text), extra)
                 scored.append((rank, Product(pid, name, self._provenance, observed,
                                              quote.uncertainty_reasons, quote.food)))
         # Food-only browsing; name numbers, unprocessed, closest name, food, name and id.
