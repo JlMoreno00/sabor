@@ -296,6 +296,31 @@ class EngineTests(unittest.TestCase):
                                      dict(name='2 huevos', text='2 huevos'), package_unit='unit'),
                          ['Huevos frescos'])
 
+    def test_number_preference_applies_only_to_valued_candidates(self):
+        # #49 follow-up (CodeRabbit on #108): a carrier without a usable price must not
+        # leave the line uncosted when another candidate can be valued.
+        row = dict(name='4 quesos', text='4 quesos')
+        self.assertEqual(self.basket({'Pizza 4 quesos Hacendado': None, 'Quesos variados Hacendado': '2'}, row,
+                                     package_unit='unit'), ['Quesos variados Hacendado'])
+        # CodeRabbit on #116: only a valued basic candidate replaces an unpriced carrier; a
+        # processed one ('Pizza de quesos') is never priced as cheese, as before.
+        self.assertEqual(self.basket({'4 quesos Hacendado': None, 'Pizza de quesos': '2'}, row, package_unit='unit'),
+                         ['4 quesos Hacendado'])
+        # A valued carrier still wins, as before.
+        self.assertEqual(self.basket({'Pizza 4 quesos Hacendado': '3', 'Quesos variados Hacendado': '2'}, row,
+                                     package_unit='unit'), ['Pizza 4 quesos Hacendado'])
+        # A substring provider (Open Prices) also searches the name without the number
+        # when its only carriers cannot be valued.
+        queries = []
+
+        def substring_search(query, store):
+            queries.append(query.query)
+            return [p for p in self.pricing.products if query.query.casefold() in p.name.casefold()]
+        setattr(self.pricing, 'search_products', substring_search)
+        self.assertEqual(self.basket({'Pizza 4 quesos Hacendado': None, 'Quesos variados Hacendado': '2'}, row,
+                                     package_unit='unit'), ['Quesos variados Hacendado'])
+        self.assertEqual(queries, ['4 quesos', 'quesos'])
+
     def test_carried_number_must_modify_the_food(self):
         # #49 follow-up (CodeRabbit on #108): the 4 of 'Pizza 3 quesos pack 4 unidades'
         # counts units, not cheeses, so it does not carry '4 quesos'.
