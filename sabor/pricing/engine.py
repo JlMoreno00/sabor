@@ -322,7 +322,10 @@ def _estimate(source, store_ctx, rows, pricing, product_overrides, match_policy,
                 compound, carrying = {}, {}
                 wanted = _match_name(row, q)
                 ambiguous = wanted != row['name'] and _bare_text_number(row, q)
-                for product in pricing.search_products(ProductQuery(row['name'], 50), store_ctx):
+                # Query with the decided name, so a stripped amount never narrows the search;
+                # an ambiguous '4 quesos' keeps its number so the provider ranks it first.
+                query = row['name'] if ambiguous else wanted
+                for product in pricing.search_products(ProductQuery(query, 50), store_ctx):
                     if product.food is not False and covers(wanted, product.name):
                         candidate_quote = pricing.get_quote(product.id, store_ctx)
                         dimension_unit = {'kg': 'g', 'l': 'ml', 'unit': 'ud'}.get(candidate_quote.package_unit)

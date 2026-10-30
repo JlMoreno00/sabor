@@ -245,6 +245,24 @@ class EngineTests(unittest.TestCase):
                                      dict(name='2 huevos', text='2 huevos'), package_unit='unit'),
                          ['Huevos frescos'])
 
+    def test_provider_search_uses_the_decided_name(self):
+        # #49 follow-up 3: the provider is queried with the name the engine matches on,
+        # so a stripped amount never narrows the search and a name number is kept.
+        queries = []
+        search = self.pricing.search_products
+
+        def record(query, store):
+            queries.append(query.query)
+            return search(query, store)
+        setattr(self.pricing, 'search_products', record)
+        self.basket({'Huevos': '1'}, dict(name='2 huevos', quantity='2', unit='g'), '4 quesos', 'arroz')
+        self.assertEqual(queries, ['huevos', '4 quesos', 'arroz'])
+        # Text-only '4 quesos' is ambiguous: the number stays in the query so the
+        # provider can rank products carrying it first.
+        queries.clear()
+        self.basket({'Pizza 4 quesos Hacendado': '1'}, dict(name='4 quesos', text='4 quesos'), package_unit='unit')
+        self.assertEqual(queries, ['4 quesos'])
+
     def test_alphanumeric_words_stay_whole(self):
         # CodeRabbit on #105: B12 is neither B nor 12.
         self.assertEqual(self.basket({'Leche vitamina B6 12 unidades': '1', 'Leche vitamina B12': '2'},

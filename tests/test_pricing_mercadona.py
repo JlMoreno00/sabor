@@ -55,6 +55,28 @@ class MercadonaTests(unittest.TestCase):
         self.assertEqual(search('croquetas de merluza'), ['croq'])
         self.assertEqual(search('sal'), [])
 
+    def test_name_number_ranks_first_within_the_search_window(self):
+        # #49 follow-up 3 (CodeRabbit on #105): the cost query drops a leading '4', so
+        # with 50+ cheese matches 'Pizza 4 quesos' fell outside the 50-result window.
+        letters = [a + b for a in 'abcdefg' for b in 'abcdefghij'][:55]
+        self.products = [item(f'q{s}', f'Quesos curados {s}') for s in letters] + [
+            item('pizza4', 'Pizza 4 quesos Hacendado'), item('lot', 'Quesos lote 500')]
+        self.provider._refresh()
+        search = lambda text: [p.id for p in self.provider.search_products(ProductQuery(text, 50), self.store)]
+        self.assertEqual(search('4 quesos')[0], 'pizza4')
+        # A leading amount with a unit is not a name number: ranking is unchanged.
+        self.assertEqual(search('500 g de quesos'), search('quesos'))
+        self.assertNotIn('pizza4', search('quesos'))
+
+    def test_leading_amount_is_never_a_name_number(self):
+        # CodeRabbit on #107: later name numbers ('85%') must not turn the leading
+        # amount '500 g' into a name number that favours products carrying '500'.
+        self.products = [item('dark', 'Chocolate negro 85% Hacendado'),
+                         item('pack', 'Chocolate negro 85% pack 500 Hacendado')]
+        self.provider._refresh()
+        self.assertEqual([p.id for p in self.provider.search_products(
+            ProductQuery('500 g de chocolate negro 85%', 50), self.store)], ['dark', 'pack'])
+
     def test_query_numbers_must_match(self):
         # CodeRabbit on #105: the previous search required numeric tokens too.
         self.products = [item('70', 'Chocolate negro 70% Hacendado'), item('85', 'Chocolate negro 85% Hacendado')]
