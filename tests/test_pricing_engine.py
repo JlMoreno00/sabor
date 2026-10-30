@@ -221,6 +221,15 @@ class EngineTests(unittest.TestCase):
         self.assertEqual(self.basket({'Pizza 3 quesos Hacendado': '1', 'Pizza 4 quesos Hacendado': '2'},
                                      dict(name='4 quesos', quantity='0.3', unit='kg')),
                          ['Pizza 4 quesos Hacendado'])
+        # CodeRabbit on #106: only the leading prefix is parsed, so later name numbers
+        # ('85%') do not hide the unit of '500 g'.
+        self.assertEqual(self.basket({'Chocolate negro 85% Hacendado': '2'},
+                                     dict(name='0,5 kg de chocolate negro 85%', quantity='500', unit='g')),
+                         ['Chocolate negro 85% Hacendado'])
+        # A weight or volume of another dimension is not the line's amount: '300 ml' is
+        # kept for 0.3 kg instead of being stripped down to 'leche'.
+        self.assertEqual(self.basket({'Leche entera Hacendado': '1'},
+                                     dict(name='300 ml de leche', quantity='0.3', unit='kg')), [None])
 
     def test_alphanumeric_words_stay_whole(self):
         # CodeRabbit on #105: B12 is neither B nor 12.

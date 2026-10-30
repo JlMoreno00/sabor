@@ -255,10 +255,15 @@ def _match_name(row, q):
 
 
 def _is_amount(number, name, row, q):
+    # Parse only the leading amount and its unit word, never later name numbers ('85%').
+    prefix = re.match(r'\s*\d+(?:[.,]\d+)?\s*[^\W\d_]*', name)
+    named = to_base(parse_text(prefix.group(0) if prefix else name))
     # With a unit in the name, compare both in base units (300 g == 0.3 kg).
-    named = to_base(parse_text(name))
     if named.amount is not None and named.dimension is not None and named.dimension == q.dimension:
         return named.amount == q.amount
+    # A weight or volume of another dimension is not this line's amount (300 ml vs 0.3 kg).
+    if named.dimension in ('mass', 'volume'):
+        return False
     # Otherwise the bare number must be the raw quantity or the resolved amount.
     try:
         value = Decimal(number.replace(',', '.'))
