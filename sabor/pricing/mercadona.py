@@ -291,8 +291,11 @@ class MercadonaPricing:
         # fraction ('1/2 kg', '½') is always an amount.
         # The amount is excluded by position, so a later name number equal to one of its
         # digits still counts ('4' in '1/4 kg de 4 quesos').
+        # A caller that already decided (ProductQuery.lead_is_amount) is not second-guessed:
+        # the estimate engine keeps '4 tomates' for 300 g as a name number.
         prefix = leading_prefix(named)
-        if prefix and (is_fraction(prefix) or parse_text(prefix).dimension):
+        if prefix and query.lead_is_amount is not False and (
+                query.lead_is_amount or is_fraction(prefix) or parse_text(prefix).dimension):
             named = named[len(prefix):]
         # Numbers the cost query keeps ('pizza 4 quesos') must modify the same word too.
         numbers = {w for w in words(named) if w[0].isdigit()}
