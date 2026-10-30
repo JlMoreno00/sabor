@@ -262,6 +262,26 @@ class EngineTests(unittest.TestCase):
                                      dict(name='1/2 queso', text='1/2 queso'), package_unit='unit'),
                          ['Queso tierno Hacendado'])
 
+    def test_written_numerals_follow_the_digit_rule(self):
+        # #49 follow-up (CodeRabbit on #108): 'cuatro quesos' is read like '4 quesos'.
+        quesos = {'Pizza 3 quesos Hacendado': '1', 'Pizza 4 quesos Hacendado': '2'}
+        self.assertEqual(self.basket(quesos, dict(name='cuatro quesos', quantity='0.3', unit='kg')),
+                         ['Pizza 4 quesos Hacendado'])
+        self.assertEqual(self.basket(quesos, dict(name='Cuatro quesos', text='Cuatro quesos'), package_unit='unit'),
+                         ['Pizza 4 quesos Hacendado'])
+        # The line keeps its written name.
+        self.assertEqual(self.run_estimate(items(dict(name='cuatro quesos', quantity='0.3', unit='kg'))).lines[0].name,
+                         'cuatro quesos')
+        # A numeral equal to the amount, or a countable food, is that amount.
+        self.assertEqual(self.basket(quesos, dict(name='Dos quesos', quantity='2'), package_unit='unit'),
+                         ['Pizza 3 quesos Hacendado'])
+        self.assertEqual(self.basket({'Huevos frescos': '1', '2 huevos cocidos Hacendado': '3'},
+                                     dict(name='dos huevos', text='dos huevos'), package_unit='unit'), ['Huevos frescos'])
+        # An article ('un queso') is always the amount, as before.
+        self.assertEqual(self.basket({'Queso 1 año Hacendado': '3', 'Queso tierno Hacendado': '2'},
+                                     dict(name='un queso', text='un queso'), package_unit='unit'),
+                         ['Queso tierno Hacendado'])
+
     def test_text_amount_with_a_bare_leading_number_prefers_products_carrying_it(self):
         # #49 follow-up 2 (CodeRabbit on #105): without a structured quantity the amount
         # comes from the text itself, so '4 quesos' may be 4 cheeses or a 4-cheese

@@ -363,7 +363,8 @@ the unofficial API provides no availability guarantee.
 
 Search is food-only; whole-word names (one trailing `s`/`es` tolerated) rank
 products carrying the query's name numbers first (`4 quesos`; amounts such as
-`500 g` and fractions such as `1/2 kg` or `1 1/2 kg` do not count), then unprocessed products, fewer extra normalized name
+`500 g` and fractions such as `1/2 kg` or `1 1/2 kg` do not count; `cuatro quesos`
+reads as `4 quesos`, while `un queso` is an amount), then unprocessed products, fewer extra normalized name
 words and food/name/ID. `estimate_cost` searches with the name it matches on,
 so a leading amount (`2 huevos`) never narrows the query. `estimate_cost` defaults to
 `match_policy="cheapest"` among up to 50 candidates: compatible food with the

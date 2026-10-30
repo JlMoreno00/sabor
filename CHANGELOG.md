@@ -3,6 +3,12 @@
 ## [Unreleased]
 
 ### Fixed
+- Written leading numerals in ingredient names: `estimate_cost` and Mercadona search
+  read `cuatro quesos` like `4 quesos` (the same amount or name-number rule as
+  digits). Mercadona search for `cuatro quesos` returned nothing because its cost
+  query kept `cuatro`. Articles are never name numbers (`un queso` is not
+  `1 queso`), the line keeps its written name, and `cuatro quesos` and `4 quesos`
+  group together for the combined purchase.
 - Leading fractions in ingredient names: `estimate_cost` and Mercadona search read
   the whole leading amount with the `parse_text` grammar (`1/2 kg`, `1 1/2 kg`,
   `½ kg`). `2 1/2 kg de harina` for 2.5 kg now matches `Harina` instead of keeping
