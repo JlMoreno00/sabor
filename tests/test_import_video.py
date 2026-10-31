@@ -93,15 +93,15 @@ class VideoTests(unittest.TestCase):
     def test_youtube_dash_streams_are_merged(self):
         # #102 PR 1 (Paleta, 29-oct): YouTube serves some videos only as separate DASH video
         # and audio streams, so a single muxed 'best[...][ext=mp4]' file is unavailable.
-        # CodeRabbit on #119: yt-dlp would merge them with an unbounded ffmpeg call, so it keeps
-        # the streams and Sabor merges them itself within the 180 s budget.
+        # CodeRabbit on #119: yt-dlp would merge them with an unbounded ffmpeg call, so it
+        # downloads them as separate formats and Sabor merges them within the 180 s budget.
         from sabor.importing import video as v
         def extract(*args, **kwargs):
             opts = factory.call_args.args[0]
-            self.assertEqual(opts['format'], 'bv*[height<=720][ext=mp4]+ba[ext=m4a]/bv*[height<=720]+ba/b[height<=720]')
-            self.assertFalse(Path(opts['ffmpeg_location']).exists())
-            Path(opts['outtmpl'].replace('%(ext)s', 'f137.mp4')).write_bytes(b'video')
-            Path(opts['outtmpl'].replace('%(ext)s', 'f140.m4a')).write_bytes(b'audio')
+            self.assertEqual(opts['format'], v.FORMAT)
+            self.assertNotIn('merge_output_format', opts)
+            for name in ('137.mp4', '140.m4a'):
+                Path(opts['outtmpl'].replace('%(format_id)s.%(ext)s', name)).write_bytes(b'stream')
             return {'duration': 10}
         factory = Mock(return_value=Mock(__enter__=Mock(return_value=Mock(extract_info=extract)),
                                          __exit__=Mock(return_value=False)))
@@ -116,14 +116,33 @@ class VideoTests(unittest.TestCase):
         self.assertEqual(run.call_args.args[0][0], 'ffmpeg')
         self.assertTrue(0 < run.call_args.kwargs['timeout'] <= 180)
 
+    def test_real_yt_dlp_selects_streams_without_requesting_a_merge(self):
+        # CodeRabbit on #119: with '+' and no ffmpeg, yt-dlp aborts with DownloadError before
+        # downloading anything. Checked with the real format selector (no network): separate
+        # streams are picked as independent downloads, with a muxed file as the fallback.
+        import yt_dlp
+        from sabor.importing import video as v
+        select = yt_dlp.YoutubeDL({'quiet': True}).build_format_selector(v.FORMAT)
+        def fmt(fid, ext, height=None, vcodec='none', acodec='none'):
+            return dict(format_id=fid, ext=ext, height=height, vcodec=vcodec, acodec=acodec,
+                        url='https://example.invalid/' + fid, protocol='https', tbr=height or 128)
+        cases = {('137', '140'): [fmt('137', 'mp4', 720, 'avc1'), fmt('248', 'webm', 720, 'vp9'),
+                                  fmt('140', 'm4a', acodec='mp4a')],
+                 ('248', '251'): [fmt('248', 'webm', 720, 'vp9'), fmt('251', 'webm', acodec='opus')],
+                 ('18',): [fmt('18', 'mp4', 360, 'avc1', 'mp4a')]}
+        for expected, formats in cases.items():
+            picked = list(select({'formats': formats, 'has_merged_format': False, 'incomplete_formats': False}))
+            self.assertEqual(tuple(f['format_id'] for f in picked), expected)
+            self.assertFalse(any('requested_formats' in f for f in picked), expected)
+
     def test_stream_merge_is_bounded_and_streams_count_together(self):
         # CodeRabbit on #119: a hung merge times out instead of keeping the import alive, and
         # the size limit applies to the streams together, not to each one.
         from sabor.importing import video as v
         def extract(*args, **kwargs):
             opts = factory.call_args.args[0]
-            Path(opts['outtmpl'].replace('%(ext)s', 'f137.mp4')).write_bytes(b'v' * 6)
-            Path(opts['outtmpl'].replace('%(ext)s', 'f140.m4a')).write_bytes(b'a' * 6)
+            for name in ('137.mp4', '140.m4a'):
+                Path(opts['outtmpl'].replace('%(format_id)s.%(ext)s', name)).write_bytes(b's' * 6)
             return {'duration': 10}
         factory = Mock(return_value=Mock(__enter__=Mock(return_value=Mock(extract_info=extract)),
                                          __exit__=Mock(return_value=False)))

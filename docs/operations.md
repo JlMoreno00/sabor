@@ -143,9 +143,10 @@ them. Missing binaries produce `provider_unconfigured` with installation guidanc
 yt-dlp downloads the best video and audio streams up to 720p, since YouTube may
 serve some videos only as separate streams; Sabor merges them with ffmpeg within the
 same 180 s download budget (a hung merge returns `timeout`), and the 100 MB limit
-covers the streams together. A failed download returns `upstream_error` from
-`yt_dlp` with the redacted reason in `data.reason` (for example `Requested format is
-not available`; URLs become `[url]`).
+covers the streams together. When yt-dlp itself reports the download error
+(`DownloadError`), the result is `upstream_error` from `yt_dlp` with the redacted
+reason in `data.reason` (for example `Requested format is not available`; URLs
+become `[url]`); other unexpected failures keep the generic error with no reason.
 Core recipes, planning and shopping do not need ffmpeg or Mealie.
 
 ## Structured preferences migration

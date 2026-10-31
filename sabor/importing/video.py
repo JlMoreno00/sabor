@@ -15,6 +15,11 @@ from sabor.importing.tools import OpenAIImportProvider, ImportErrorResult, rejec
 MAX_BYTES = 100 * 1024 * 1024
 MAX_SECONDS = 600
 FRAME_COUNT = 8
+# YouTube may serve only separate DASH video and audio streams (#102): take the best of
+# each up to 720p (mp4 + m4a first), else one muxed file. ',' makes them independent
+# downloads: '+' would ask yt-dlp for an unbounded ffmpeg merge, and without ffmpeg it
+# aborts before downloading. Sabor merges them in merge() within the time budget.
+FORMAT = '(bv[height<=720][ext=mp4],ba[ext=m4a])/(bv[height<=720],ba)/b[height<=720]'
 
 
 class VideoExtractor(Protocol):
@@ -44,13 +49,9 @@ def download(source, root):
         if progress.get('downloaded_bytes', 0) > MAX_BYTES or time.monotonic() - started > 180:
             raise ValueError('Media download budget exceeded')
 
-    # YouTube may serve only separate DASH video and audio streams: take the best of each
-    # up to 720p (mp4 + m4a first), else one muxed file (#102). yt-dlp would merge them
-    # with an unbounded ffmpeg call, so it gets no ffmpeg and keeps the streams; they are
-    # merged below within the same time budget.
-    opts: Any = dict(format='bv*[height<=720][ext=mp4]+ba[ext=m4a]/bv*[height<=720]+ba/b[height<=720]',
-        ffmpeg_location=str(root / 'no-ffmpeg'),
-        outtmpl=str(root / 'video.%(ext)s'), noplaylist=True, quiet=True,
+    # One file per downloaded format, so separate streams never overwrite each other.
+    opts: Any = dict(format=FORMAT,
+        outtmpl=str(root / 'video.%(format_id)s.%(ext)s'), noplaylist=True, quiet=True,
         max_filesize=MAX_BYTES, match_filter=duration_filter,
         writesubtitles=True, writeautomaticsubtitles=True,
         subtitleslangs=['en', 'es'], subtitlesformat='vtt',
