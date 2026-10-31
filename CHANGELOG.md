@@ -6,8 +6,10 @@
 - Video import from YouTube: videos served only as separate DASH video and audio
   streams failed with `Requested format is not available`, because Sabor asked yt-dlp
   for a single muxed mp4. It now downloads the best video and audio streams up to
-  720p (mp4 + m4a preferred) as separate downloads and merges them with its own
-  ffmpeg call, bounded by the same 180 s budget (a hung merge returns `timeout`); the
+  720p (mp4 + m4a preferred, each with its own fallback) as separate downloads and
+  merges them with its own ffmpeg call; a selection that still lacks video or audio is
+  retried as one muxed file, and rejected if there is none. The merge is bounded by
+  the same 180 s budget (a hung merge returns `timeout`); the
   100 MB limit covers the streams together. A yt-dlp download error (`DownloadError`)
   reports `upstream_error` from `yt_dlp` with the redacted reason in `data.reason`
   (URLs replaced by `[url]`), instead of a generic error attributed to the video

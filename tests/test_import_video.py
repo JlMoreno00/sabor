@@ -129,11 +129,44 @@ class VideoTests(unittest.TestCase):
         cases = {('137', '140'): [fmt('137', 'mp4', 720, 'avc1'), fmt('248', 'webm', 720, 'vp9'),
                                   fmt('140', 'm4a', acodec='mp4a')],
                  ('248', '251'): [fmt('248', 'webm', 720, 'vp9'), fmt('251', 'webm', acodec='opus')],
+                 # CodeRabbit on #119: each stream falls back on its own, so mp4 video with
+                 # only WebM audio still gets both instead of a silent video.
+                 ('137', '251'): [fmt('137', 'mp4', 720, 'avc1'), fmt('251', 'webm', acodec='opus')],
                  ('18',): [fmt('18', 'mp4', 360, 'avc1', 'mp4a')]}
         for expected, formats in cases.items():
             picked = list(select({'formats': formats, 'has_merged_format': False, 'incomplete_formats': False}))
             self.assertEqual(tuple(f['format_id'] for f in picked), expected)
             self.assertFalse(any('requested_formats' in f for f in picked), expected)
+
+    def test_partial_stream_selection_falls_back_to_a_complete_file(self):
+        # CodeRabbit on #119: a group can still yield one stream only (audio-only formats next
+        # to muxed ones); the download is retried as one muxed file, never kept partial.
+        from sabor.importing import video as v
+        calls = []
+        def extract(*args, **kwargs):
+            opts = factory.call_args.args[0]
+            calls.append(opts['format'])
+            name, picked = (('140.m4a', [{'vcodec': 'none', 'acodec': 'mp4a'}]) if opts['format'] == v.FORMAT
+                            else ('18.mp4', [{'vcodec': 'avc1', 'acodec': 'mp4a'}]))
+            Path(opts['outtmpl'].replace('%(format_id)s.%(ext)s', name)).write_bytes(b'stream')
+            return {'duration': 10, 'requested_downloads': picked}
+        factory = Mock(return_value=Mock(__enter__=Mock(return_value=Mock(extract_info=extract)),
+                                         __exit__=Mock(return_value=False)))
+        with patch.dict(sys.modules, yt_dlp=SimpleNamespace(YoutubeDL=factory)), v.TemporaryDirectory() as root:
+            media, _ = v.download('https://youtu.be/a', Path(root))
+            self.assertEqual(media.name, 'video.18.mp4')
+            self.assertFalse((Path(root) / 'video.140.m4a').exists())
+        self.assertEqual(calls, [v.FORMAT, v.MUXED])
+        # With no complete file either, the import is rejected instead of keeping one stream.
+        def video_only(*args, **kwargs):
+            opts = factory.call_args.args[0]
+            Path(opts['outtmpl'].replace('%(format_id)s.%(ext)s', '137.mp4')).write_bytes(b'stream')
+            return {'duration': 10, 'requested_downloads': [{'vcodec': 'avc1', 'acodec': 'none'}]}
+        factory.return_value.__enter__.return_value.extract_info = video_only
+        with patch.dict(sys.modules, yt_dlp=SimpleNamespace(YoutubeDL=factory)), v.TemporaryDirectory() as root:
+            with self.assertRaises(t.ImportErrorResult) as ctx:
+                v.download('https://youtu.be/a', Path(root))
+        self.assertEqual(ctx.exception.result['error']['code'], 'unsupported_operation')
 
     def test_stream_merge_is_bounded_and_streams_count_together(self):
         # CodeRabbit on #119: a hung merge times out instead of keeping the import alive, and

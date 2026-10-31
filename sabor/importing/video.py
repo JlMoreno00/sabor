@@ -18,8 +18,18 @@ FRAME_COUNT = 8
 # YouTube may serve only separate DASH video and audio streams (#102): take the best of
 # each up to 720p (mp4 + m4a first), else one muxed file. ',' makes them independent
 # downloads: '+' would ask yt-dlp for an unbounded ffmpeg merge, and without ffmpeg it
-# aborts before downloading. Sabor merges them in merge() within the time budget.
-FORMAT = '(bv[height<=720][ext=mp4],ba[ext=m4a])/(bv[height<=720],ba)/b[height<=720]'
+# aborts before downloading. Sabor merges them in merge() within the time budget. Each
+# stream falls back on its own (mp4 video with WebM audio still gets both); a selection
+# that still lacks video or audio is retried as one muxed file (MUXED), never kept.
+FORMAT = '(bv[height<=720][ext=mp4]/bv[height<=720],ba[ext=m4a]/ba)/b[height<=720]'
+MUXED = 'b[height<=720]'
+
+
+def _complete(info):
+    """True when the downloaded formats carry video and audio together. A missing or
+    unknown codec ('none' means absent) is not taken as a missing stream."""
+    picked = info.get('requested_downloads') or [info]
+    return all(any(f.get(kind) != 'none' for f in picked) for kind in ('vcodec', 'acodec'))
 
 
 class VideoExtractor(Protocol):
@@ -49,23 +59,32 @@ def download(source, root):
         if progress.get('downloaded_bytes', 0) > MAX_BYTES or time.monotonic() - started > 180:
             raise ValueError('Media download budget exceeded')
 
-    # One file per downloaded format, so separate streams never overwrite each other.
-    opts: Any = dict(format=FORMAT,
-        outtmpl=str(root / 'video.%(format_id)s.%(ext)s'), noplaylist=True, quiet=True,
-        max_filesize=MAX_BYTES, match_filter=duration_filter,
-        writesubtitles=True, writeautomaticsubtitles=True,
-        subtitleslangs=['en', 'es'], subtitlesformat='vtt',
-        socket_timeout=20, retries=1, fragment_retries=1, progress_hooks=[budget])
-    try:
-        with yt_dlp.YoutubeDL(opts) as ydl:
-            info = ydl.extract_info(source, download=True)
-    except getattr(yt_dlp, 'DownloadError', ()) as exc:
-        # The real reason, redacted by the error envelope (no URL query, token or email),
-        # from yt_dlp instead of a generic failure of the video provider (#102).
-        reason = re.sub(r'https?://\S+', '[url]', re.sub(r'^ERROR:\s*', '', str(exc)).strip())[:300]
-        reject('upstream_error', 'Video download failed.', 'yt_dlp', data={'reason': reason})
-    if not isinstance(info, dict) or duration_filter(info):
-        reject('unsupported_operation', 'Video exceeds media limits or has no bounded duration.')
+    info: Any = None
+    for spec in (FORMAT, MUXED):
+        # One file per downloaded format, so separate streams never overwrite each other.
+        opts: Any = dict(format=spec,
+            outtmpl=str(root / 'video.%(format_id)s.%(ext)s'), noplaylist=True, quiet=True,
+            max_filesize=MAX_BYTES, match_filter=duration_filter,
+            writesubtitles=True, writeautomaticsubtitles=True,
+            subtitleslangs=['en', 'es'], subtitlesformat='vtt',
+            socket_timeout=20, retries=1, fragment_retries=1, progress_hooks=[budget])
+        try:
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                info = ydl.extract_info(source, download=True)
+        except getattr(yt_dlp, 'DownloadError', ()) as exc:
+            # The real reason, redacted by the error envelope (no URL query, token or email),
+            # from yt_dlp instead of a generic failure of the video provider (#102).
+            reason = re.sub(r'https?://\S+', '[url]', re.sub(r'^ERROR:\s*', '', str(exc)).strip())[:300]
+            reject('upstream_error', 'Video download failed.', 'yt_dlp', data={'reason': reason})
+        if not isinstance(info, dict) or duration_filter(info):
+            reject('unsupported_operation', 'Video exceeds media limits or has no bounded duration.')
+        if _complete(info):
+            break
+        # Video without audio (or the reverse): drop it and try one muxed file.
+        for partial in root.glob('video.*'):
+            partial.unlink()
+    else:
+        reject('unsupported_operation', 'Video has no downloadable file with both video and audio.')
     media = sorted(p for p in root.glob('video.*') if p.suffix.lower() in ('.mp4', '.webm', '.mov', '.mkv', '.m4a'))
     # The size limit covers the streams together, not each one.
     if not media or sum(p.stat().st_size for p in media) > MAX_BYTES:
