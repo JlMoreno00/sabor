@@ -93,18 +93,50 @@ class VideoTests(unittest.TestCase):
     def test_youtube_dash_streams_are_merged(self):
         # #102 PR 1 (Paleta, 29-oct): YouTube serves some videos only as separate DASH video
         # and audio streams, so a single muxed 'best[...][ext=mp4]' file is unavailable.
+        # CodeRabbit on #119: yt-dlp would merge them with an unbounded ffmpeg call, so it keeps
+        # the streams and Sabor merges them itself within the 180 s budget.
         from sabor.importing import video as v
         def extract(*args, **kwargs):
             opts = factory.call_args.args[0]
-            self.assertEqual(opts['format'], 'bv*[height<=720]+ba/b[height<=720]')
-            self.assertEqual(opts['merge_output_format'], 'mp4')
-            Path(opts['outtmpl'].replace('%(ext)s', 'mp4')).write_bytes(b'video')
+            self.assertEqual(opts['format'], 'bv*[height<=720][ext=mp4]+ba[ext=m4a]/bv*[height<=720]+ba/b[height<=720]')
+            self.assertFalse(Path(opts['ffmpeg_location']).exists())
+            Path(opts['outtmpl'].replace('%(ext)s', 'f137.mp4')).write_bytes(b'video')
+            Path(opts['outtmpl'].replace('%(ext)s', 'f140.m4a')).write_bytes(b'audio')
             return {'duration': 10}
         factory = Mock(return_value=Mock(__enter__=Mock(return_value=Mock(extract_info=extract)),
                                          __exit__=Mock(return_value=False)))
-        with patch.dict(sys.modules, yt_dlp=SimpleNamespace(YoutubeDL=factory)), v.TemporaryDirectory() as root:
+        def merge(args, **kwargs):
+            Path(args[-1]).write_bytes(b'merged')
+            return Mock(returncode=0)
+        with patch.dict(sys.modules, yt_dlp=SimpleNamespace(YoutubeDL=factory)), \
+                patch.object(v.shutil, 'which', return_value='/bin/ffmpeg'), \
+                patch.object(v.subprocess, 'run', side_effect=merge) as run, v.TemporaryDirectory() as root:
             media, _ = v.download('https://youtu.be/a', Path(root))
-            self.assertEqual(media.suffix, '.mp4')
+            self.assertEqual((media.name, media.read_bytes()), ('merged.mp4', b'merged'))
+        self.assertEqual(run.call_args.args[0][0], 'ffmpeg')
+        self.assertTrue(0 < run.call_args.kwargs['timeout'] <= 180)
+
+    def test_stream_merge_is_bounded_and_streams_count_together(self):
+        # CodeRabbit on #119: a hung merge times out instead of keeping the import alive, and
+        # the size limit applies to the streams together, not to each one.
+        from sabor.importing import video as v
+        def extract(*args, **kwargs):
+            opts = factory.call_args.args[0]
+            Path(opts['outtmpl'].replace('%(ext)s', 'f137.mp4')).write_bytes(b'v' * 6)
+            Path(opts['outtmpl'].replace('%(ext)s', 'f140.m4a')).write_bytes(b'a' * 6)
+            return {'duration': 10}
+        factory = Mock(return_value=Mock(__enter__=Mock(return_value=Mock(extract_info=extract)),
+                                         __exit__=Mock(return_value=False)))
+        hung = v.subprocess.TimeoutExpired(['ffmpeg'], 1)
+        with patch.dict(sys.modules, yt_dlp=SimpleNamespace(YoutubeDL=factory)), \
+                patch.object(v.shutil, 'which', return_value='/bin/ffmpeg'), \
+                patch.object(v.subprocess, 'run', side_effect=hung), v.TemporaryDirectory() as root:
+            with self.assertRaises(t.ImportErrorResult) as ctx:
+                v.download('https://youtu.be/a', Path(root))
+            self.assertEqual(ctx.exception.result['error']['code'], 'timeout')
+            with patch.object(v, 'MAX_BYTES', 10), self.assertRaises(t.ImportErrorResult) as ctx:
+                v.download('https://youtu.be/a', Path(root))
+            self.assertEqual(ctx.exception.result['error']['code'], 'unsupported_operation')
 
     def test_download_errors_carry_the_real_redacted_reason(self):
         # #102 PR 1: the yt-dlp reason was lost in a generic upstream_error attributed to the
@@ -122,6 +154,8 @@ class VideoTests(unittest.TestCase):
         self.assertIn('Requested format is not available', result['data']['reason'])
         self.assertNotIn('SECRET', str(result))
         self.assertNotIn('cook@example.com', str(result))
+        # CodeRabbit on #119: whole URLs are redacted from the reason, not only their query.
+        self.assertNotIn('example.com/x', str(result))
 
     def test_duplicate_before_commit_and_tag(self):
         from sabor.importing import video as v

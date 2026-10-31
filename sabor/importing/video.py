@@ -45,8 +45,11 @@ def download(source, root):
             raise ValueError('Media download budget exceeded')
 
     # YouTube may serve only separate DASH video and audio streams: take the best of each
-    # up to 720p and merge them into mp4 with ffmpeg, else one muxed file (#102).
-    opts: Any = dict(format='bv*[height<=720]+ba/b[height<=720]', merge_output_format='mp4',
+    # up to 720p (mp4 + m4a first), else one muxed file (#102). yt-dlp would merge them
+    # with an unbounded ffmpeg call, so it gets no ffmpeg and keeps the streams; they are
+    # merged below within the same time budget.
+    opts: Any = dict(format='bv*[height<=720][ext=mp4]+ba[ext=m4a]/bv*[height<=720]+ba/b[height<=720]',
+        ffmpeg_location=str(root / 'no-ffmpeg'),
         outtmpl=str(root / 'video.%(ext)s'), noplaylist=True, quiet=True,
         max_filesize=MAX_BYTES, match_filter=duration_filter,
         writesubtitles=True, writeautomaticsubtitles=True,
@@ -58,19 +61,47 @@ def download(source, root):
     except getattr(yt_dlp, 'DownloadError', ()) as exc:
         # The real reason, redacted by the error envelope (no URL query, token or email),
         # from yt_dlp instead of a generic failure of the video provider (#102).
-        reason = re.sub(r'^ERROR:\s*', '', str(exc)).strip()[:300]
+        reason = re.sub(r'https?://\S+', '[url]', re.sub(r'^ERROR:\s*', '', str(exc)).strip())[:300]
         reject('upstream_error', 'Video download failed.', 'yt_dlp', data={'reason': reason})
     if not isinstance(info, dict) or duration_filter(info):
         reject('unsupported_operation', 'Video exceeds media limits or has no bounded duration.')
-    media = [p for p in root.glob('video.*') if p.suffix.lower() in ('.mp4', '.webm', '.mov', '.mkv')]
-    if not media or media[0].stat().st_size > MAX_BYTES:
+    media = sorted(p for p in root.glob('video.*') if p.suffix.lower() in ('.mp4', '.webm', '.mov', '.mkv', '.m4a'))
+    # The size limit covers the streams together, not each one.
+    if not media or sum(p.stat().st_size for p in media) > MAX_BYTES:
         reject('unsupported_operation', 'Video unavailable or exceeds media limits.')
+    if len(media) > 1:
+        media = [merge(media, root, 180 - (time.monotonic() - started))]
     captions = []
     for subtitle in sorted(root.glob('*.vtt'))[:2]:
         raw = subtitle.read_bytes()[:100000].decode('utf-8', errors='replace')
         captions.extend(re.sub('<[^>]+>', '', line).strip() for line in raw.splitlines()
             if line.strip() and '-->' not in line and not line.startswith(('WEBVTT', 'NOTE', 'Kind:', 'Language:')))
     return media[0], '\n'.join(dict.fromkeys(captions))[:20000]
+
+
+def merge(streams, root, remaining):
+    """Merge separate video and audio streams within the download's remaining budget."""
+    if not shutil.which('ffmpeg'):
+        reject('provider_unconfigured', 'Merging video and audio streams requires ffmpeg installed on the system.')
+    if remaining <= 0:
+        reject('timeout', 'Video download exceeded its time budget.', 'yt_dlp')
+    mp4 = {p.suffix.lower() for p in streams} <= {'.mp4', '.m4a'}
+    output = root / ('merged.mp4' if mp4 else 'merged.mkv')
+    args = ['ffmpeg', '-nostdin', '-y']
+    for stream in streams:
+        args += ['-i', str(stream)]
+    for index in range(len(streams)):
+        args += ['-map', str(index)]
+    try:
+        # subprocess.run kills ffmpeg when the timeout expires; the caller's temporary
+        # directory removes every partial file.
+        result = subprocess.run(args + ['-c', 'copy', str(output)], capture_output=True,
+                                timeout=remaining, check=False)
+    except subprocess.TimeoutExpired:
+        reject('timeout', 'Merging video and audio streams timed out.', 'ffmpeg')
+    if result.returncode or not output.exists() or output.stat().st_size > MAX_BYTES:
+        reject('upstream_error', 'Merging video and audio streams failed.', 'ffmpeg')
+    return output
 
 
 def frames(path):

@@ -5,10 +5,12 @@
 ### Fixed
 - Video import from YouTube: videos served only as separate DASH video and audio
   streams failed with `Requested format is not available`, because Sabor asked yt-dlp
-  for a single muxed mp4. It now downloads `bv*[height<=720]+ba/b[height<=720]` and
-  merges to mp4 with ffmpeg (limits unchanged: 100 MB, 10 min, 180 s). A failed
-  download reports `upstream_error` from `yt_dlp` with the redacted reason in
-  `data.reason`, instead of a generic error attributed to the video provider (#102).
+  for a single muxed mp4. It now downloads the best video and audio streams up to
+  720p (mp4 + m4a preferred) and merges them with its own ffmpeg call, bounded by the
+  same 180 s budget (a hung merge returns `timeout`); the 100 MB limit covers the
+  streams together. A failed download reports `upstream_error` from `yt_dlp` with the
+  redacted reason in `data.reason` (URLs replaced by `[url]`), instead of a generic
+  error attributed to the video provider (#102).
 - Mercadona search (`search_pricing_products`): after a leading amount, the cost
   query strips the same unit and connector words as `ingredient_name`, in Spanish and
   English (#95). `2 kilos de arroz` searched `kilos arroz` and `300 grams of rice`
