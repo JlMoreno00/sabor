@@ -144,8 +144,10 @@ class LocalVideoTests(unittest.TestCase):
 
 class MediaRootsSettingTests(unittest.TestCase):
     def test_comma_separated_absolute_roots(self):
-        settings = load_settings({'SABOR_MEDIA_ROOTS': '/a/videos, /b'})
-        self.assertEqual(settings.media_roots, ('/a/videos', '/b'))
+        # CodeRabbit on #123: roots that are absolute on the running platform.
+        roots = (r'C:\a\videos', r'D:\b') if os.name == 'nt' else ('/a/videos', '/b')
+        settings = load_settings({'SABOR_MEDIA_ROOTS': f'{roots[0]}, {roots[1]}'})
+        self.assertEqual(settings.media_roots, roots)
         self.assertEqual(load_settings({}).media_roots, ())
         self.assertFalse(load_settings({}).local_media)
         with self.assertRaises(ConfigError) as ctx:
