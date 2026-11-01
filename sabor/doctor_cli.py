@@ -101,7 +101,8 @@ def main(argv=None):
             removed = [*settings.removed_settings, *sorted(set(refs) & REMOVED_SECRET_NAMES)]
             if removed:
                 result['warnings'].append('removed in 0.4.0, the agent does extraction: ' + ', '.join(removed))
-            if 'keyring' in refs.values():
+            # Only secrets still in use need the keyring; removed references are ignored.
+            if any(backend == 'keyring' for name, backend in refs.items() if name in SECRET_NAMES):
                 import keyring
                 from keyring.errors import KeyringError
                 try:

@@ -212,5 +212,9 @@ class DoctorTests(unittest.TestCase):
         removed = [w for w in result['warnings'] if 'removed in 0.4.0' in w]
         self.assertEqual(len(removed), 1, result['warnings'])
         self.assertIn('llm_api_key', removed[0])
+        # CodeRabbit on #121: a removed keyring reference needs no keyring.
+        FakeKeyring.available = 0
+        self.assertNotIn('Keyring is unavailable', self.run_cli('doctor', '--json')[1]['warnings'])
+        FakeKeyring.available = 1
         self.path.write_text('[store]\nbackend = "sqlite"\n')
         self.assertFalse(any('removed in 0.4.0' in w for w in self.run_cli('doctor', '--json')[1]['warnings']))
