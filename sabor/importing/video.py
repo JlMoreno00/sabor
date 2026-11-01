@@ -28,6 +28,9 @@ MUXED = 'b[height<=720]'
 # would request any URL, private addresses included, outside the import SSRF guard.
 PLATFORMS = ('youtube.com', 'youtu.be', 'vimeo.com', 'instagram.com')
 VIDEO_EXTENSIONS = ('.mp4', '.mov', '.webm', '.mkv', '.m4v')
+# Only the containers sabor accepts are decoded: playlist or concat demuxers would let a
+# file named .mp4 make ffmpeg read other files.
+DEMUXERS = ['-format_whitelist', 'mov,matroska']
 OUTSIDE_ROOTS = ('A local video must be a regular video file (.mp4, .mov, .webm, .mkv or .m4v) under '
                  'SABOR_MEDIA_ROOTS, which defaults to your home directory.')
 
@@ -222,7 +225,7 @@ def merge(streams, root, remaining):
     output = root / ('merged.mp4' if mp4 else 'merged.mkv')
     args = ['ffmpeg', '-nostdin', '-y']
     for stream in streams:
-        args += ['-i', str(stream)]
+        args += DEMUXERS + ['-i', str(stream)]
     for index in range(len(streams)):
         args += ['-map', str(index)]
     try:
@@ -240,7 +243,7 @@ def merge(streams, root, remaining):
 def duration(path):
     """Seconds of a bounded video (0 < s ≤ MAX_SECONDS) according to ffprobe, else None."""
     try:
-        probe = subprocess.run(['ffprobe', '-v', 'error', '-show_entries', 'format=duration',
+        probe = subprocess.run(['ffprobe', '-v', 'error', *DEMUXERS, '-show_entries', 'format=duration',
             '-of', 'default=noprint_wrappers=1:nokey=1', str(path)],
             capture_output=True, timeout=15, check=False)
         seconds = float(probe.stdout)
@@ -262,7 +265,7 @@ def frames(path, seconds=None):
             output = Path(tmp) / f'frame-{index}.jpg'
             at = length * (index + .5) / FRAME_COUNT
             try:
-                result = subprocess.run(['ffmpeg', '-nostdin', '-y', '-ss', str(at), '-i', str(path),
+                result = subprocess.run(['ffmpeg', '-nostdin', '-y', '-ss', str(at), *DEMUXERS, '-i', str(path),
                     '-an', '-vf', 'scale=640:640:force_original_aspect_ratio=decrease',
                     '-frames:v', '1', str(output)], capture_output=True, timeout=15, check=False)
                 if result.returncode == 0 and output.exists() and output.stat().st_size <= 1024 * 1024:

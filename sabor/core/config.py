@@ -94,7 +94,10 @@ def load_settings(env: Mapping[str, str]) -> Settings:
         except ValueError:
             raise ConfigError('SABOR_DATABASE_URL requires a Postgres URL') from None
     media_roots = tuple(x.strip() for x in get('SABOR_MEDIA_ROOTS').split(',') if x.strip())
-    if any(not os.path.isabs(root) for root in media_roots):
+    # On Windows a root also needs its drive or share: '\\Videos' would depend on the
+    # process's current drive.
+    if any(not os.path.isabs(root) or (os.path.sep != '/' and not os.path.splitdrive(root)[0])
+           for root in media_roots):
         raise ConfigError('SABOR_MEDIA_ROOTS requires absolute directory paths')
     legacy = load_legacy_config(env)
     return Settings(requested, mealie, get('MEALIE_API_TOKEN'),
