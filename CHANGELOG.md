@@ -12,8 +12,14 @@
   `unsupported_operation`: the agent reads the source itself and saves the recipe
   with `create_recipe`. LLM or Gemini settings no longer enable the `import` toolset,
   which needs a recipe store, and `sabor_capabilities` no longer lists AI import
-  adapters. Video downloads stay in place for the agent media bundle that comes next
-  in 0.4.0.
+  adapters.
+- **Breaking (0.4.0, #102):** a video URL in `import_recipe` returns a media bundle
+  for the agent instead of candidates: `metadata` (title, uploader, duration, upload
+  date, source URL, platform, description), `transcript` from the platform subtitles
+  (original language first), 8 frames of 640 px at most as MCP `ImageContent`,
+  `limitations` and `next_step`. It writes nothing, so `dry_run` has no effect.
+  Without ffmpeg and ffprobe, metadata and subtitles still come, with a `no_frames`
+  limitation.
 - **Breaking (0.4.0, #102):** the AI settings are removed: `SABOR_LLM_BASE_URL`,
   `SABOR_LLM_MODEL`, `SABOR_LLM_API_KEY`, `GEMINI_API_KEY`, `VIDEO_RECIPE_GEMINI_MODEL`,
   `SABOR_VIDEO_PROVIDER`, the `[llm]` section, `[import] video_provider` and

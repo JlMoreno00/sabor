@@ -31,8 +31,9 @@ class NoAIProviderTests(unittest.TestCase):
         return t._import_recipe(ctx, source, kind, kwargs.get('dry_run', True), 'en', 8, .55)
 
     def test_text_image_and_video_point_the_agent_to_create_recipe(self):
+        # A video URL returns the media bundle (#102 PR 3, tests/test_video_bundle.py).
         for source, kind in (('Soup with salt and water, boiled', 'auto'), ('https://example.org/a.jpg', 'image'),
-                             ('https://youtu.be/a', 'auto'), ('Soup', 'text')):
+                             ('Soup', 'video'), ('Soup', 'text')):
             for dry_run in (True, False):
                 result = self.run_import(source, kind, dry_run=dry_run)
                 self.assertEqual(result['error']['code'], 'unsupported_operation', (source, kind))

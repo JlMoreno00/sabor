@@ -68,12 +68,19 @@ class ImportTests(unittest.TestCase):
     @patch('yt_dlp.YoutubeDL')
     def test_video_and_image_point_to_create_recipe(self, youtube_dl):
         # #102: nothing is downloaded or sent anywhere; the agent extracts them itself.
-        for source, kind in [('https://youtu.be/a', 'auto'), ('x', 'video'), ('https://x.org/a.png', 'image')]:
+        for source, kind in [('x', 'video'), ('https://x.org/a.png', 'image')]:
             for dry_run in (True, False):
                 result = t.import_recipe(source, kind, dry_run)
                 self.assertEqual(result['error']['code'], 'unsupported_operation')
                 self.assertIn('create_recipe', result['error']['message'])
         youtube_dl.assert_not_called()
+        # A video URL returns the media bundle instead (#102 PR 3), for either dry_run.
+        with patch('sabor.importing.video.bundle', return_value={'next_step': 'create_recipe'}) as bundle, \
+                patch.object(t.requests, 'post', side_effect=AssertionError('Unexpected write')):
+            for dry_run in (True, False):
+                result = t.import_recipe('https://youtu.be/a', 'auto', dry_run)
+                self.assertEqual((result['data']['kind'], result['data']['created']), ('video', []))
+        self.assertEqual(bundle.call_count, 2)
 
     def fetch_image(self, url):
         # The SSRF guard behind recipe pages and recipe images (#94), at the 10 MB image limit.

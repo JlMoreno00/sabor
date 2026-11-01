@@ -23,7 +23,7 @@ BASELINE_CONTRACT = {
     "get_shopping_sync_targets": "091ac0b4400db55cd0204d8decd6a76746f9456269ab69b14bedd4dd791bf7d0",
     "sync_shopping_list": "65fcaf2b6adc81d6d16ee672e163d62dfb660b2e6575dc0b3482b0ab70fd1178",
     # 0.4.0 (#102, approved): same signature; the docstring no longer mentions LLM costs.
-    "import_recipe": "a7456d20f089bfa0559c2406d2c39a9c0308a5230e287db32afed0bf96c0c8fd",
+    "import_recipe": "37d9bb75049f22b918af75393c19949a635537b9a246d7970caa38cd886aed06",
     "add_to_shopping_list": "3efe414918d389283ef0b3394126399f907c51e5116752ca4f8b4aef5d87ca1c",
     "check_shopping_list_items": "e3f57862d4c913fa3b448c4f5ebf0354b2c90e1bb28ea414efa8b99039597d99",
     "get_shopping_list_items": "6394c56a022f72ddc4a7b49a8fa1103a7eda6be90c23c3a68e53cd9243bd3931",

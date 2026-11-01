@@ -33,8 +33,8 @@ class VideoTests(unittest.TestCase):
         ydl.extract_info.side_effect = extract
         factory = Mock(return_value=Mock(__enter__=Mock(return_value=ydl), __exit__=Mock(return_value=False)))
         with patch.dict(sys.modules, yt_dlp=SimpleNamespace(YoutubeDL=factory)), v.TemporaryDirectory() as root:
-            media, captions = v.download('https://youtu.be/a', Path(root))
-            self.assertTrue(media.exists())
+            media, _, _ = v.download('https://youtu.be/a', Path(root))
+            self.assertTrue(media is not None and media.exists())
 
     def test_youtube_dash_streams_are_merged(self):
         # #102 PR 1 (Paleta, 29-oct): YouTube serves some videos only as separate DASH video
@@ -57,7 +57,8 @@ class VideoTests(unittest.TestCase):
         with patch.dict(sys.modules, yt_dlp=SimpleNamespace(YoutubeDL=factory)), \
                 patch.object(v.shutil, 'which', return_value='/bin/ffmpeg'), \
                 patch.object(v.subprocess, 'run', side_effect=merge) as run, v.TemporaryDirectory() as root:
-            media, _ = v.download('https://youtu.be/a', Path(root))
+            media, _, _ = v.download('https://youtu.be/a', Path(root))
+            assert media is not None
             self.assertEqual((media.name, media.read_bytes()), ('merged.mp4', b'merged'))
         self.assertEqual(run.call_args.args[0][0], 'ffmpeg')
         self.assertTrue(0 < run.call_args.kwargs['timeout'] <= 180)
@@ -99,7 +100,8 @@ class VideoTests(unittest.TestCase):
         factory = Mock(return_value=Mock(__enter__=Mock(return_value=Mock(extract_info=extract)),
                                          __exit__=Mock(return_value=False)))
         with patch.dict(sys.modules, yt_dlp=SimpleNamespace(YoutubeDL=factory)), v.TemporaryDirectory() as root:
-            media, _ = v.download('https://youtu.be/a', Path(root))
+            media, _, _ = v.download('https://youtu.be/a', Path(root))
+            assert media is not None
             self.assertEqual(media.name, 'video.18.mp4')
             self.assertFalse((Path(root) / 'video.140.m4a').exists())
         self.assertEqual(calls, [v.FORMAT, v.MUXED])
@@ -188,5 +190,5 @@ class VideoTests(unittest.TestCase):
         ydl = Mock(extract_info=extract)
         factory = Mock(return_value=Mock(__enter__=Mock(return_value=ydl), __exit__=Mock(return_value=False)))
         with patch.dict(sys.modules, yt_dlp=SimpleNamespace(YoutubeDL=factory)), v.TemporaryDirectory() as root:
-            media, captions = v.download('https://youtu.be/a', Path(root))
-            self.assertEqual(captions, '200 g salt')
+            _, transcript, _ = v.download('https://youtu.be/a', Path(root))
+            self.assertEqual(transcript, {'source': 'subtitles', 'language': 'en', 'text': '200 g salt'})

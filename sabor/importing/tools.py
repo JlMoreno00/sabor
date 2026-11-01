@@ -1,4 +1,4 @@
-"""Import orchestration: recipe web pages only; the client agent extracts text, images and video."""
+"""Import orchestration: recipe web pages, and video media bundles; the client agent extracts the recipe."""
 import ipaddress
 import json
 import os
@@ -297,7 +297,9 @@ def import_recipe(source: str, kind: str = 'auto', dry_run: bool = True,
                   min_confidence: float = 0.55) -> dict:
     """Preview or import a recipe from a web page URL; Sabor uses no AI provider.
 
-    For text, images or video, read the recipe yourself and save it with create_recipe.
+    A video URL returns its metadata, subtitles and frames, and writes nothing: read the
+    recipe from them, then save it with create_recipe. For text or images, read the recipe
+    yourself and save it with create_recipe.
     """
     return _import_recipe(current_context(), source, kind, dry_run, language, max_recipes, min_confidence)
 
@@ -315,9 +317,16 @@ def _import_recipe(ctx, source, kind, dry_run, language, max_recipes, min_confid
             reject('invalid_argument', 'Invalid import arguments.')
         detected = detect(source)
         kind = detected if kind == 'auto' else kind
+        if kind == 'video' and urlsplit(source).scheme in ('http', 'https'):
+            # A media bundle for the client agent (#102): nothing is extracted or written,
+            # so dry_run has no effect.
+            http_url(source)
+            from .video import bundle
+            return ok(dict(preview=True, kind='video', provider='sabor', candidates=[], dropped=0,
+                           created=[], skips=[]) | bundle(source, language))
         if kind != 'url':
-            # Sabor has no AI provider (#102): the client agent reads text, images and
-            # video itself and saves the recipe it extracts with create_recipe.
+            # Sabor has no AI provider (#102): the client agent reads text and images
+            # itself and saves the recipe it extracts with create_recipe.
             reject('unsupported_operation', f'Sabor does not extract recipes from {kind}: read the '
                    'recipe yourself and save it with create_recipe, adding the source to the description.')
         native = kind in getattr(ctx.store, 'native_import_kinds', frozenset())

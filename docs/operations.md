@@ -135,8 +135,15 @@ Default recipe, memory, nutrition and catalog cache files derive from it;
 per-file overrides win. Directories are created lazily. Persist and back up the
 selected directory, not only the container filesystem.
 
-Local video import requires system ffmpeg and ffprobe on PATH; Docker includes
-them. Missing binaries produce `provider_unconfigured` with installation guidance.
+A video URL returns a media bundle (#102): `metadata` (title, uploader, duration,
+upload date, source URL, platform, description), `transcript` (platform subtitles,
+original-language track first, then the `language` argument, Spanish and English;
+`{source, language, text}` or `null`), `frames` (8 evenly spaced JPEG frames of 640 px
+at most, each with its `time`; on MCP they are `ImageContent` blocks and the JSON keeps
+only their times), `limitations` (`no_frames`, `no_transcript`) and `next_step`.
+Nothing is written. Frames need system ffmpeg and ffprobe on PATH (Docker includes
+them); without them only metadata and subtitles are fetched, with a `no_frames`
+limitation.
 yt-dlp downloads the best video and audio streams up to 720p, since YouTube may
 serve some videos only as separate streams; Sabor merges them with ffmpeg within the
 same 180 s download budget (a hung merge returns `timeout`), and the 100 MB limit
@@ -253,8 +260,8 @@ The executable runtime, `.env.example`, and `mcp-manifest.json` all use
 SQLite, Mealie and optional Postgres are shipped RecipeStores. Without a Mealie URL, SQLite enables
 recipes, meal plans, shopping lists and import locally. URL import uses offline
 recipe-scrapers with JSON-LD fallback and needs no AI. Sabor contains no AI provider
-(#102): `import_recipe` returns `unsupported_operation` for text, image and video,
-and the agent saves what it extracts with `create_recipe`. Mealie's native URL import,
+(#102): `import_recipe` returns `unsupported_operation` for text and image, and a
+media bundle for a video URL; the agent saves what it extracts with `create_recipe`. Mealie's native URL import,
 the Spanish catalog and legacy nutrition still require Mealie.
 HTML downloads accept only text/html or application/xhtml+xml up to 5 MB; recipe image
 downloads accept JPEG, PNG, WebP or GIF up to 5 MB. Both pin validated public IPs,
