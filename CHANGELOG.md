@@ -8,9 +8,9 @@
   (text and image), Gemini and OpenAI-compatible video extraction
   (`sabor/importing/gemini_client.py`), and Mealie's image import, which needed
   Mealie's own OpenAI configuration. `import_recipe` now imports recipe web pages
-  only (`kind='url'`, unchanged). For `text`, `image` and `video` it returns
-  `unsupported_operation`: the agent reads the source itself and saves the recipe
-  with `create_recipe`. LLM or Gemini settings no longer enable the `import` toolset,
+  only (`kind='url'`, unchanged). For `text`, `image` and a `video` that is not a URL
+  it returns `unsupported_operation`: the agent reads the source itself and saves the
+  recipe with `create_recipe`. A video URL returns a media bundle (below). LLM or Gemini settings no longer enable the `import` toolset,
   which needs a recipe store, and `sabor_capabilities` no longer lists AI import
   adapters.
 - **Breaking (0.4.0, #102):** a video URL in `import_recipe` returns a media bundle

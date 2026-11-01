@@ -103,6 +103,30 @@ class VideoBundleTests(unittest.TestCase):
             self.assertEqual(result['error']['code'], 'unsupported_operation')
             self.assertIn('create_recipe', result['error']['message'])
 
+    def test_only_video_platforms_are_fetched(self):
+        # CodeRabbit on #122: yt-dlp's generic extractor would fetch any URL, private ones
+        # included, outside the SSRF guard; only platform extractors run, on platform hosts.
+        for source, kind in (('https://10.0.0.1/a.mp4', 'auto'), ('https://example.org/clip.mp4', 'auto'),
+                             ('http://169.254.169.254/latest', 'video'), ('https://youtube.com.evil.test/v', 'video')):
+            fake, seen = fake_yt_dlp(INFO, ())
+            store = FakeRecipeStore()
+            ctx = build_context(load_settings({'SABOR_STORE': 'sqlite'}), store_factory=lambda s: store)
+            with patch.dict(sys.modules, yt_dlp=fake):
+                result = t._import_recipe(ctx, source, kind, True, 'es', 8, .55)
+            self.assertEqual(result['error']['code'], 'unsupported_operation', source)
+            self.assertIn('create_recipe', result['error']['message'])
+            fake.YoutubeDL.assert_not_called()
+        self.run_import(source='https://www.youtube.com/watch?v=V0ySydoCNXM')
+        self.assertEqual(self.opts['allowed_extractors'], ['default', '-generic'])
+        # yt-dlp's progress bar never reaches the server's output (stdio is the MCP channel).
+        self.assertTrue(self.opts['noprogress'])
+
+    def test_language_is_a_literal_subtitle_name(self):
+        # CodeRabbit on #122: the language is escaped, not read as a regex.
+        result = self.run_import(language='[')
+        self.assertTrue(result['ok'], result)
+        self.assertEqual(self.opts['subtitleslangs'][:2], ['.*-orig', r'\['])
+
     def test_frames_are_described_with_their_time(self):
         def ffmpeg(args, **kwargs):
             if args[0] == 'ffprobe':

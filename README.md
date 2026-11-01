@@ -423,9 +423,9 @@ directory (Docker), otherwise the OS user data directory:
 SQLite, memory, nutrition and catalog cache paths derive from it; explicit
 per-file overrides still win. Persist the Docker volume and back up local data.
 
-Video downloads (for the agent media bundle in 0.4.0) need system **ffmpeg /
-ffprobe** (included in Docker); install ffmpeg separately for uvx. Missing binaries return a clear
-`provider_unconfigured` error rather than disabling core tools.
+Video frames in the agent media bundle need system **ffmpeg / ffprobe** (included
+in Docker); install ffmpeg separately for uvx. Without them `import_recipe` still
+returns the video's metadata and subtitles, with a `no_frames` limitation.
 
 ## Quickstart: Docker — Sabor + Mealie
 

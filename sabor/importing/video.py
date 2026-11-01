@@ -22,6 +22,9 @@ FRAME_COUNT = 8
 # that still lacks video or audio is retried as one muxed file (MUXED), never kept.
 FORMAT = '(bv[height<=720][ext=mp4]/bv[height<=720],ba[ext=m4a]/ba)/b[height<=720]'
 MUXED = 'b[height<=720]'
+# Only video platforms are fetched, by their own extractors: yt-dlp's generic extractor
+# would request any URL, private addresses included, outside the import SSRF guard.
+PLATFORMS = ('youtube.com', 'youtu.be', 'vimeo.com', 'instagram.com')
 
 
 def _complete(info):
@@ -41,6 +44,9 @@ def download(source, root, language='en', media=True):
                'del vídeo y guarda la receta con create_recipe.')
     if urlsplit(source).scheme not in ('http', 'https'):
         reject('unsupported_operation', 'Upload guidance: local media paths are not enabled.')
+    if not any(host == name or host.endswith('.' + name) for name in PLATFORMS):
+        reject('unsupported_operation', 'Sabor fetches videos from YouTube, Vimeo and Instagram only. '
+               'For other videos, read the recipe yourself and save it with create_recipe.')
     import yt_dlp
 
     def duration_filter(info, *, incomplete=False):
@@ -56,12 +62,13 @@ def download(source, root, language='en', media=True):
             raise ValueError('Media download budget exceeded')
 
     # Original-language captions first (YouTube labels them '<lang>-orig'), then the user's.
-    languages = list(dict.fromkeys(['.*-orig', language, 'es', 'en']))
+    languages = list(dict.fromkeys(['.*-orig', re.escape(language), 'es', 'en']))
     info: Any = None
     for spec in (FORMAT, MUXED) if media else (None,):
         # One file per downloaded format, so separate streams never overwrite each other.
         opts: Any = dict(format=spec, skip_download=not media,
-            outtmpl=str(root / 'video.%(format_id)s.%(ext)s'), noplaylist=True, quiet=True,
+            outtmpl=str(root / 'video.%(format_id)s.%(ext)s'), noplaylist=True, quiet=True, noprogress=True,
+            allowed_extractors=['default', '-generic'],
             max_filesize=MAX_BYTES, match_filter=duration_filter,
             writesubtitles=True, writeautomaticsubtitles=True,
             subtitleslangs=languages, subtitlesformat='vtt',

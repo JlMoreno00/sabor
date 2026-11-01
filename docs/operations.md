@@ -141,7 +141,10 @@ original-language track first, then the `language` argument, Spanish and English
 `{source, language, text}` or `null`), `frames` (8 evenly spaced JPEG frames of 640 px
 at most, each with its `time`; on MCP they are `ImageContent` blocks and the JSON keeps
 only their times), `limitations` (`no_frames`, `no_transcript`) and `next_step`.
-Nothing is written. Frames need system ffmpeg and ffprobe on PATH (Docker includes
+Nothing is written. Videos are fetched from YouTube, Vimeo and Instagram only, by
+their own yt-dlp extractors (the generic extractor is disabled, so no other URL is
+requested outside the SSRF guard); other video URLs return `unsupported_operation`.
+Frames need system ffmpeg and ffprobe on PATH (Docker includes
 them); without them only metadata and subtitles are fetched, with a `no_frames`
 limitation.
 yt-dlp downloads the best video and audio streams up to 720p, since YouTube may
