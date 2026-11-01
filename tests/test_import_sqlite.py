@@ -53,7 +53,9 @@ def test_no_recipe(importer):
 @pytest.mark.parametrize('kind', ['text', 'image', 'video'])
 def test_agent_extracts_text_image_and_video(importer, kind):
     # #102: no AI provider; the agent reads the source and saves it with create_recipe.
-    source = 'recipe text' if kind == 'text' else 'https://example.org/recipe'
+    # A video URL gets the media bundle (tests/test_video_bundle.py); a video kind with
+    # text is still pointed to create_recipe.
+    source = 'https://example.org/recipe' if kind == 'image' else 'recipe text'
     with patch.object(t.requests, 'post', side_effect=AssertionError('Unexpected network')):
         for dry_run in (True, False):
             result = importer['import_recipe'](source, kind=kind, dry_run=dry_run)

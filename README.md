@@ -60,7 +60,8 @@ not automatic retries or an assumed cross-system rollback.
 |---|---|---|
 | Recipes, meal plans, shopping lists | Built-in SQLite; no account or token | Mealie URL + API token |
 | URL import | Offline recipe-scrapers / JSON-LD | Native Mealie scraper |
-| Text / image / video | The client agent extracts the recipe and calls `create_recipe` (no AI provider in Sabor) | Same |
+| Text / image | The client agent extracts the recipe and calls `create_recipe` (no AI provider in Sabor) | Same |
+| Video URL | `import_recipe` returns a media bundle (metadata, subtitles, 8 frames); the agent extracts the recipe and calls `create_recipe` | Same |
 | Bring! sync / Mercadona estimates | Optional credentials / pricing opt-in | Same optional integrations |
 | Spanish catalog / legacy nutrition | Not supported | Mealie adapter required |
 | Cookbooks | Not supported | Mealie cookbooks (`search_recipes(cookbook_id=...)`, nutrition cookbook tools) |
@@ -96,13 +97,18 @@ configuration/reconciliation failure, 2 for invalid arguments. Review nested
 |---|---|---|
 | Core | Built-in SQLite, or Mealie URL + token | Recipes, suggestions, planning, shopping items and history; API baseline Mealie 3.22.0 |
 | Import: URL | SQLite: offline recipe-scrapers + schema.org JSON-LD; Mealie: native scraper | Read-only preview; pages without a recipe return `not_found`; no paid-provider fallback |
-| Import: text, image, video | None: Sabor contains no AI provider | `import_recipe` returns `unsupported_operation`; the agent reads the source and saves it with `create_recipe` |
+| Import: text, image | None: Sabor contains no AI provider | `import_recipe` returns `unsupported_operation`; the agent reads the source and saves it with `create_recipe` |
+| Import: video URL | A recipe store; `ffmpeg` and `ffprobe` for frames | Media bundle for the agent: metadata, platform subtitles and 8 frames as images; writes nothing |
 | Shopping sync | Bring! email + password **and a recipe store** | Only unchecked source items; does not check off Mealie items |
 | Pricing | `pricing` toolset + `SABOR_MERCADONA_ENABLED=true` or `SABOR_OPEN_PRICES_ENABLED=true` | Read-only quantity-aware estimates; Mercadona catalog or Open Prices observations |
 | Legacy | Explicit toolset selection plus provider configuration | Promotions, memory, nutrition and Spanish catalog |
 
 Since 0.4.0 Sabor contains no AI provider client (#102): the client agent reads
-text, images and video itself and saves the recipe with `create_recipe`. The
+text, images and video itself and saves the recipe with `create_recipe`. For a video
+URL, `import_recipe` hands it the video's title, uploader, duration, date, platform
+and description, the platform subtitles (original language first) and 8 frames of
+640 px at most, sent as MCP images; without ffmpeg it sends the rest and a
+`limitations` entry. It never writes a recipe, so `dry_run` has no effect. The
 `SABOR_LLM_*`, `GEMINI_API_KEY`, `VIDEO_RECIPE_GEMINI_MODEL` and `SABOR_VIDEO_PROVIDER`
 settings were removed: an old configuration keeps starting, they are ignored, and
 `sabor-mcp doctor` warns once naming them.
@@ -417,9 +423,9 @@ directory (Docker), otherwise the OS user data directory:
 SQLite, memory, nutrition and catalog cache paths derive from it; explicit
 per-file overrides still win. Persist the Docker volume and back up local data.
 
-Video downloads (for the agent media bundle in 0.4.0) need system **ffmpeg /
-ffprobe** (included in Docker); install ffmpeg separately for uvx. Missing binaries return a clear
-`provider_unconfigured` error rather than disabling core tools.
+Video frames in the agent media bundle need system **ffmpeg / ffprobe** (included
+in Docker); install ffmpeg separately for uvx. Without them `import_recipe` still
+returns the video's metadata and subtitles, with a `no_frames` limitation.
 
 ## Quickstart: Docker — Sabor + Mealie
 

@@ -48,10 +48,28 @@ def bind_context(fn, context):
     @wraps(fn)
     def bound(*args, **kwargs):
         with use_context(context):
-            return implementation(*args, **kwargs)
+            return media_result(implementation(*args, **kwargs))
 
     setattr(bound, "__signature__", signature(fn))
     return bound
+
+
+def media_result(result):
+    """On MCP, video frames travel as ImageContent; the JSON keeps only their times (#102)."""
+    data = result.get("data") if isinstance(result, dict) else None
+    if not isinstance(data, dict):
+        return result
+    frames = data.get("frames")
+    if not (isinstance(frames, list) and frames
+            and all(isinstance(f, dict) and isinstance(f.get("data"), str) for f in frames)):
+        return result
+    import pydantic_core
+    from mcp.types import CallToolResult, ImageContent, TextContent
+    plain = {**result, "data": {**data, "frames": [{k: v for k, v in f.items() if k != "data"} for f in frames]}}
+    text = pydantic_core.to_json(plain, fallback=str, indent=2).decode()
+    return CallToolResult(content=[TextContent(type="text", text=text), *(
+        ImageContent(type="image", data=f["data"], mimeType=f.get("mime_type", "image/jpeg")) for f in frames)],
+        structuredContent=plain)
 
 
 def tool(toolset: str, requires: Callable[[Settings], bool] | None = None,

@@ -1,4 +1,4 @@
-"""Bounded URL video download and frames; no AI provider ever sees the media (#102)."""
+"""Bounded URL video download and the media bundle the client agent reads (#102); no AI provider sees it."""
 import base64
 import re
 import shutil
@@ -22,6 +22,9 @@ FRAME_COUNT = 8
 # that still lacks video or audio is retried as one muxed file (MUXED), never kept.
 FORMAT = '(bv[height<=720][ext=mp4]/bv[height<=720],ba[ext=m4a]/ba)/b[height<=720]'
 MUXED = 'b[height<=720]'
+# Only video platforms are fetched, by their own extractors: yt-dlp's generic extractor
+# would request any URL, private addresses included, outside the import SSRF guard.
+PLATFORMS = ('youtube.com', 'youtu.be', 'vimeo.com', 'instagram.com')
 
 
 def _complete(info):
@@ -32,13 +35,18 @@ def _complete(info):
 
 
 
-def download(source, root):
+def download(source, root, language='en', media=True):
+    """Return (media path or None, transcript or None, yt-dlp info). With media=False only
+    metadata and subtitles are fetched."""
     host = (urlsplit(source).hostname or '').lower()
     if host == 'tiktok.com' or host.endswith('.tiktok.com'):
         reject('unsupported_operation', 'TikTok bloquea descargas. Lee el caption o la transcripción '
                'del vídeo y guarda la receta con create_recipe.')
     if urlsplit(source).scheme not in ('http', 'https'):
         reject('unsupported_operation', 'Upload guidance: local media paths are not enabled.')
+    if not any(host == name or host.endswith('.' + name) for name in PLATFORMS):
+        reject('unsupported_operation', 'Sabor fetches videos from YouTube, Vimeo and Instagram only. '
+               'For other videos, read the recipe yourself and save it with create_recipe.')
     import yt_dlp
 
     def duration_filter(info, *, incomplete=False):
@@ -53,14 +61,17 @@ def download(source, root):
         if progress.get('downloaded_bytes', 0) > MAX_BYTES or time.monotonic() - started > 180:
             raise ValueError('Media download budget exceeded')
 
+    # Original-language captions first (YouTube labels them '<lang>-orig'), then the user's.
+    languages = list(dict.fromkeys(['.*-orig', re.escape(language), 'es', 'en']))
     info: Any = None
-    for spec in (FORMAT, MUXED):
+    for spec in (FORMAT, MUXED) if media else (None,):
         # One file per downloaded format, so separate streams never overwrite each other.
-        opts: Any = dict(format=spec,
-            outtmpl=str(root / 'video.%(format_id)s.%(ext)s'), noplaylist=True, quiet=True,
+        opts: Any = dict(format=spec, skip_download=not media,
+            outtmpl=str(root / 'video.%(format_id)s.%(ext)s'), noplaylist=True, quiet=True, noprogress=True,
+            allowed_extractors=['default', '-generic'],
             max_filesize=MAX_BYTES, match_filter=duration_filter,
             writesubtitles=True, writeautomaticsubtitles=True,
-            subtitleslangs=['en', 'es'], subtitlesformat='vtt',
+            subtitleslangs=languages, subtitlesformat='vtt',
             socket_timeout=20, retries=1, fragment_retries=1, progress_hooks=[budget])
         try:
             with yt_dlp.YoutubeDL(opts) as ydl:
@@ -72,25 +83,61 @@ def download(source, root):
             reject('upstream_error', 'Video download failed.', 'yt_dlp', data={'reason': reason})
         if not isinstance(info, dict) or duration_filter(info):
             reject('unsupported_operation', 'Video exceeds media limits or has no bounded duration.')
-        if _complete(info):
+        if not media or _complete(info):
             break
         # Video without audio (or the reverse): drop it and try one muxed file.
         for partial in root.glob('video.*'):
             partial.unlink()
     else:
         reject('unsupported_operation', 'Video has no downloadable file with both video and audio.')
-    media = sorted(p for p in root.glob('video.*') if p.suffix.lower() in ('.mp4', '.webm', '.mov', '.mkv', '.m4a'))
-    # The size limit covers the streams together, not each one.
-    if not media or sum(p.stat().st_size for p in media) > MAX_BYTES:
-        reject('unsupported_operation', 'Video unavailable or exceeds media limits.')
-    if len(media) > 1:
-        media = [merge(media, root, 180 - (time.monotonic() - started))]
-    captions = []
-    for subtitle in sorted(root.glob('*.vtt'))[:2]:
-        raw = subtitle.read_bytes()[:100000].decode('utf-8', errors='replace')
-        captions.extend(re.sub('<[^>]+>', '', line).strip() for line in raw.splitlines()
-            if line.strip() and '-->' not in line and not line.startswith(('WEBVTT', 'NOTE', 'Kind:', 'Language:')))
-    return media[0], '\n'.join(dict.fromkeys(captions))[:20000]
+    path = None
+    if media:
+        streams = sorted(p for p in root.glob('video.*') if p.suffix.lower() in ('.mp4', '.webm', '.mov', '.mkv', '.m4a'))
+        # The size limit covers the streams together, not each one.
+        if not streams or sum(p.stat().st_size for p in streams) > MAX_BYTES:
+            reject('unsupported_operation', 'Video unavailable or exceeds media limits.')
+        path = streams[0] if len(streams) == 1 else merge(streams, root, 180 - (time.monotonic() - started))
+    return path, transcript(root, languages), info
+
+
+def transcript(root, languages):
+    """The first downloaded subtitle track in priority order, as plain text."""
+    tracks = {p.name.split('.')[-2]: p for p in root.glob('*.vtt') if p.name.count('.') >= 2}
+    for pattern in languages:
+        for lang in sorted(lang for lang in tracks if re.fullmatch(pattern, lang)):
+            raw = tracks[lang].read_bytes()[:100000].decode('utf-8', errors='replace')
+            lines = (re.sub('<[^>]+>', '', line).strip() for line in raw.splitlines()
+                if line.strip() and '-->' not in line and not line.startswith(('WEBVTT', 'NOTE', 'Kind:', 'Language:')))
+            text = '\n'.join(dict.fromkeys(line for line in lines if line))[:20000]
+            if text:
+                return {'source': 'subtitles', 'language': lang.removesuffix('-orig'), 'text': text}
+    return None
+
+
+def bundle(source, language):
+    """Metadata, transcript and frames for the agent, which extracts the recipe itself."""
+    media = all(shutil.which(name) for name in ('ffmpeg', 'ffprobe'))
+    with TemporaryDirectory() as tmp:
+        path, text, info = download(source, Path(tmp), language, media)
+        images = frames(path) if path else []
+    date = str(info.get('upload_date') or '')
+    metadata = {
+        'title': info.get('title'), 'uploader': info.get('uploader') or info.get('channel'),
+        'duration': info.get('duration'),
+        'upload_date': f'{date[:4]}-{date[4:6]}-{date[6:]}' if re.fullmatch(r'\d{8}', date) else None,
+        'source_url': info.get('webpage_url') or source,
+        'platform': str(info.get('extractor_key') or info.get('extractor') or '').lower() or None,
+        'description': (info.get('description') or '')[:5000]}
+    limitations = []
+    if not images:
+        limitations.append({'code': 'no_frames', 'message': 'No video frames: frame extraction needs ffmpeg and '
+                            'ffprobe installed on the system.' if not media else 'No video frames could be extracted.'})
+    if text is None:
+        limitations.append({'code': 'no_transcript', 'message': 'The video has no platform subtitles.'})
+    return dict(metadata=metadata, transcript=text, frames=images, limitations=limitations,
+                next_step=(f'Extract the recipe from the description, transcript and frames in language '
+                           f'{language!r}, show it to the user as a preview, save it with create_recipe adding '
+                           f"'Source: {metadata['source_url']}' to the description, then tag it video-import."))
 
 
 def merge(streams, root, remaining):
@@ -119,7 +166,7 @@ def merge(streams, root, remaining):
 
 
 def frames(path):
-    """Eight evenly spaced samples over the bounded stream; no audio is decoded."""
+    """Eight evenly spaced JPEG samples (≤640 px) with their time; no audio is decoded."""
     if not all(shutil.which(name) for name in ("ffmpeg", "ffprobe")):
         reject("provider_unconfigured", "Video frame extraction requires ffmpeg and ffprobe installed on the system.")
     images = []
@@ -135,12 +182,14 @@ def frames(path):
     with TemporaryDirectory() as tmp:
         for index in range(FRAME_COUNT):
             output = Path(tmp) / f'frame-{index}.jpg'
+            at = duration * (index + .5) / FRAME_COUNT
             try:
-                result = subprocess.run(['ffmpeg', '-nostdin', '-y', '-ss', str(duration * (index + .5) / FRAME_COUNT), '-i', str(path),
+                result = subprocess.run(['ffmpeg', '-nostdin', '-y', '-ss', str(at), '-i', str(path),
                     '-an', '-vf', 'scale=640:640:force_original_aspect_ratio=decrease',
                     '-frames:v', '1', str(output)], capture_output=True, timeout=15, check=False)
                 if result.returncode == 0 and output.exists() and output.stat().st_size <= 1024 * 1024:
-                    images.append('data:image/jpeg;base64,' + base64.b64encode(output.read_bytes()).decode())
+                    images.append({'index': index, 'time': round(at, 1), 'mime_type': 'image/jpeg',
+                                   'data': base64.b64encode(output.read_bytes()).decode()})
             except (OSError, subprocess.TimeoutExpired):
                 continue
     return images
