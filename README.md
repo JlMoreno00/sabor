@@ -147,7 +147,7 @@ Direct Python compatibility calls are not equivalent to registered app contexts.
 
 Discovery exposes `data.capabilities.recipe_store` and `pricing` with adapter IDs
 and operations; `data.mealie.configured` remains a deprecated compatibility field.
-Native import discovery includes `url` (preview/commit) and `image` (commit only).
+Native import discovery includes `url` (preview/commit) only.
 Configured means locally configured, never authenticated or healthy.
 
 ## Quantity-aware pricing
@@ -317,7 +317,9 @@ MCP schema validation can reject a call before a tool runs.
 - `confirm=False` previews recipe updates, shopping item removal, clear/delete
   lists, clear calendar ranges and both sync modes. Show preview → ask → confirm.
 - Import defaults to `dry_run=True`; preview fetches the recipe page but does not
-  create recipes. Sabor sends no content to any AI provider.
+  create recipes. Sabor itself calls no AI provider. With Mealie, a committed import
+  runs Mealie's ingredient parser (`SABOR_INGREDIENT_PARSER`, default `openai`), which
+  may send ingredient text to the AI provider configured in Mealie.
 - Other writes require client-side approval even without a server flag.
   Legacy `apply`, `publish` and `execute` gates retain their separate meanings.
 - Sync accepts optional `preview_digest`. Supplying the approved preview's digest
@@ -374,7 +376,7 @@ code --add-mcp '{"name":"sabor","command":"uvx","args":["sabor-mcp"]}'
 ```
 
 Without a `config.toml`, Sabor starts with local SQLite in the OS data directory;
-run `sabor-mcp setup` later to add Mealie, prices, an import model or Bring!.
+run `sabor-mcp setup` later to add Mealie, prices or Bring!.
 
 ### 3. Docker or Mealie (advanced)
 

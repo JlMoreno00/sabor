@@ -143,8 +143,8 @@ FastMCP is configured as stateless HTTP. This means MCP session state is not
 stored in the process, but instance provider caches, the legacy Mercadona cache
 and the local data files are still operational state.
 
-Sabor contains no AI provider client (#102): no recipe content, image or video is
-uploaded to any AI service.
+Sabor contains no AI provider client (#102) and uploads no recipe content, image or
+video to any AI service. With Mealie, a committed import runs Mealie's ingredient parser (`SABOR_INGREDIENT_PARSER`, default `openai`), which may use the AI provider configured in Mealie.
 
 ## Capability registry and public envelopes (0.3)
 
@@ -160,8 +160,8 @@ store; text, images and video are extracted by the client agent, which calls
 advertised with preview/commit. Non-native stores use offline
 `recipe_scrapers.scrape_html` with JSON-LD fallback and create RecipeDrafts through
 the store, retaining source URL provenance in the description. Shared pinned-IP fetching rejects private addresses
-at every redirect, bypasses proxies and bounds streamed HTML to 5 MB and images
-to 10 MB, with explicit content-type allowlists. Scraped content is untrusted data.
+at every redirect, bypasses proxies and bounds streamed HTML and recipe images
+to 5 MB, with explicit content-type allowlists. Scraped content is untrusted data.
 Normalization uses the store's optional hook; nutrition runs only with Mealie.
 Sync adapters implement
 targets/plan/apply; the orchestrator reads the recipe store, resolves a unique target,

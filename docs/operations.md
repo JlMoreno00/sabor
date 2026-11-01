@@ -262,7 +262,7 @@ recipe-scrapers with JSON-LD fallback and needs no AI. Sabor contains no AI prov
 and the agent saves what it extracts with `create_recipe`. Mealie's native URL import,
 the Spanish catalog and legacy nutrition still require Mealie.
 HTML downloads accept only text/html or application/xhtml+xml up to 5 MB; recipe image
-downloads accept JPEG, PNG, WebP or GIF up to 10 MB. Both pin validated public IPs,
+downloads accept JPEG, PNG, WebP or GIF up to 5 MB. Both pin validated public IPs,
 revalidate redirects and ignore proxy settings. Registered tools use an AppContext with
 instance-owned Mealie session, Mercadona catalog cache and Bring transport/auth
 state. Discovery's `capabilities.recipe_store` lists operations; the old
@@ -475,8 +475,8 @@ configuration.
 | `SABOR_MERCADONA_ENABLED` | `false` | Explicit readiness for Mercadona pricing and selected legacy pricing |
 | `SABOR_OPEN_PRICES_ENABLED` | `false` | Enable Open Prices observations; accepts true/false, case-insensitive; select pricing toolset |
 
-Sabor calls no AI provider: the client agent extracts recipes from text, images
-and video and saves them with `create_recipe`.
+Sabor itself calls no AI provider: the client agent extracts recipes from text,
+images and video and saves them with `create_recipe`. With Mealie, a committed import runs Mealie's ingredient parser (`SABOR_INGREDIENT_PARSER`, default `openai`), which may use the AI provider configured in Mealie.
 
 For Spanish catalog setup, prefer the CLI; the MCP tools will be retired in a future major version.
 The existing `spanish_catalog_status` and `apply_spanish_catalog` MCP tools remain
