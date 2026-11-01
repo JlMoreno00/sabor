@@ -143,7 +143,8 @@ class ConfigFileTests(unittest.TestCase):
                     mock.patch.object(server, 'register_tools') as register, \
                     mock.patch.object(server, 'start_runtime_services'), mock.patch.object(server.mcp, 'run'):
                 server.cli([])
-                register.assert_called_once_with(config_source='file')
+                # The stdio command (default transport) may read local video files (#102).
+                register.assert_called_once_with(config_source='file', local_media=True)
                 self.assertEqual(os.environ['SABOR_TOOLSETS'], 'core')
             from mcp.server.fastmcp import FastMCP
             instance = FastMCP('test')

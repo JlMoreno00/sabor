@@ -80,6 +80,7 @@ Transport variables remain env-only.
 | `[store] sqlite_path` | `SABOR_STORE_DB` |
 | `[mealie] base_url` | `MEALIE_BASE_URL` |
 | `[import] video_workdir` | `VIDEO_RECIPE_WORKDIR` |
+| `[import] media_roots` | `SABOR_MEDIA_ROOTS` |
 | `[import] normalize` | `SABOR_NORMALIZE_IMPORTS` |
 | `[import] ingredient_parser` | `SABOR_INGREDIENT_PARSER` |
 | `[import] normalize_confidence` | `SABOR_NORMALIZE_CONFIDENCE` |
@@ -144,6 +145,19 @@ only their times), `limitations` (`no_frames`, `no_transcript`) and `next_step`.
 Nothing is written. Videos are fetched from YouTube, Vimeo and Instagram only, by
 their own yt-dlp extractors (the generic extractor is disabled, so no other URL is
 requested outside the SSRF guard); other video URLs return `unsupported_operation`.
+A local video file (an absolute path) gets the same bundle with `metadata.platform`
+`local`, its `source_path` and no transcript. It is read only by the stdio command,
+where the server runs on the user's machine; over HTTP (Docker, hosted) and from
+direct Python calls it returns `unsupported_operation` with a URL hint. The file must
+be a regular `.mp4`, `.mov`, `.webm`, `.mkv` or `.m4v` file of at most 100 MB and
+10 minutes, under `SABOR_MEDIA_ROOTS` (comma-separated absolute directories, `[import]
+media_roots` in `config.toml`; empty means the user's home). A path with `..`, a
+symlink whose target leaves the roots, a directory or another extension returns
+`invalid_argument` without reading it. Sabor opens the validated file without
+following links, checks it is the same file, and processes a private copy. Local
+files need ffmpeg and ffprobe (`provider_unconfigured` otherwise). An explicit
+`kind='text'` or `kind='image'` with a local path returns the `create_recipe`
+guidance.
 Frames need system ffmpeg and ffprobe on PATH (Docker includes
 them); without them only metadata and subtitles are fetched, with a `no_frames`
 limitation.
@@ -252,6 +266,7 @@ The executable runtime, `.env.example`, and `mcp-manifest.json` all use
 | `MEALIE_API_TOKEN` | Empty | Optional Mealie adapter only | Bearer token; secret |
 | `SPOONACULAR_API_KEY` | Empty | Spoonacular tools and nutrition profile fetches | Secret |
 | `VIDEO_RECIPE_WORKDIR` | `/tmp/video-recipe-mcp` | Video URL processing | Temporary downloaded media |
+| `SABOR_MEDIA_ROOTS` | Empty (home) | Local video files, stdio only | Comma-separated absolute directories local videos may come from |
 | `BRING_EMAIL` | Empty | Bring! tools | Account identifier; treat as sensitive |
 | `BRING_PASSWORD` | Empty | Bring! tools | Secret |
 | `BRING_CATALOG_DIR` | Empty | Optional Bring! catalog override | Directory searched before installed package data |

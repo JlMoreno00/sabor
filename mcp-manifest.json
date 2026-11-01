@@ -103,6 +103,12 @@
       "default": "/tmp/video-recipe-mcp"
     },
     {
+      "name": "SABOR_MEDIA_ROOTS",
+      "description": "Comma-separated absolute directories that local video files may come from (stdio only); empty means the user's home directory.",
+      "required": false,
+      "secret": false
+    },
+    {
       "name": "BRING_EMAIL",
       "description": "Optional Bring! account email for the shopping_sync toolset; set together with BRING_PASSWORD.",
       "required": false,
