@@ -64,8 +64,9 @@ Otherwise Sabor uses:
 
 A missing default file is harmless. Invalid TOML, unknown sections/keys, invalid
 types, unreadable files and secret keys fail startup without echoing values.
-Keep secrets in environment variables or setup-managed keyring/file references: `MEALIE_API_TOKEN`, `SABOR_LLM_API_KEY`,
-`GEMINI_API_KEY`, `BRING_EMAIL`, `BRING_PASSWORD`, `SPOONACULAR_API_KEY`.
+Keep secrets in environment variables or setup-managed keyring/file references: `MEALIE_API_TOKEN`,
+`BRING_EMAIL`, `BRING_PASSWORD`, `SPOONACULAR_API_KEY`, `SABOR_DATABASE_URL`.
+Removed in 0.4.0 (#102), when Sabor dropped every AI provider: `SABOR_LLM_BASE_URL`, `SABOR_LLM_MODEL`, `SABOR_LLM_API_KEY`, `GEMINI_API_KEY`, `VIDEO_RECIPE_GEMINI_MODEL`, `SABOR_VIDEO_PROVIDER`, the `[llm]` section, `[import] video_provider` / `gemini_model` and the `llm_api_key` / `gemini_api_key` secrets. A configuration that still sets them keeps starting: they are ignored, and `sabor-mcp doctor` gives one warning naming them.
 A non-empty environment value takes precedence over a stored secret.
 Transport variables remain env-only.
 
@@ -78,10 +79,6 @@ Transport variables remain env-only.
 | `[store] backend` | `SABOR_STORE` |
 | `[store] sqlite_path` | `SABOR_STORE_DB` |
 | `[mealie] base_url` | `MEALIE_BASE_URL` |
-| `[llm] base_url` | `SABOR_LLM_BASE_URL` |
-| `[llm] model` | `SABOR_LLM_MODEL` |
-| `[import] video_provider` | `SABOR_VIDEO_PROVIDER` |
-| `[import] gemini_model` | `VIDEO_RECIPE_GEMINI_MODEL` |
 | `[import] video_workdir` | `VIDEO_RECIPE_WORKDIR` |
 | `[import] normalize` | `SABOR_NORMALIZE_IMPORTS` |
 | `[import] ingredient_parser` | `SABOR_INGREDIENT_PARSER` |
@@ -244,8 +241,6 @@ The executable runtime, `.env.example`, and `mcp-manifest.json` all use
 | `SABOR_DATABASE_URL` | Empty | Required for Postgres backend | Secret Postgres URL; environment or setup-managed secret reference, never `[store] database_url` |
 | `MEALIE_API_TOKEN` | Empty | Optional Mealie adapter only | Bearer token; secret |
 | `SPOONACULAR_API_KEY` | Empty | Spoonacular tools and nutrition profile fetches | Secret |
-| `GEMINI_API_KEY` | Empty | No effect since 0.4.0 (#102); removed in a later 0.4.0 change | Secret |
-| `VIDEO_RECIPE_GEMINI_MODEL` | `gemini-2.5-flash-lite` | No effect since 0.4.0 (#102); removed in a later 0.4.0 change | |
 | `VIDEO_RECIPE_WORKDIR` | `/tmp/video-recipe-mcp` | Video URL processing | Temporary downloaded media |
 | `BRING_EMAIL` | Empty | Bring! tools | Account identifier; treat as sensitive |
 | `BRING_PASSWORD` | Empty | Bring! tools | Secret |
@@ -468,10 +463,6 @@ configuration.
 | Variable | Default | Meaning |
 |---|---|---|
 | `SABOR_TOOLSETS` | `core,import,shopping_sync` | Comma-separated allowlist; empty = discovery only; unknown names fail startup |
-| `SABOR_LLM_BASE_URL` | Empty | No effect since 0.4.0 (#102); removed in a later 0.4.0 change |
-| `SABOR_LLM_MODEL` | Empty | No effect since 0.4.0 (#102); removed in a later 0.4.0 change |
-| `SABOR_LLM_API_KEY` | Empty | No effect since 0.4.0 (#102); removed in a later 0.4.0 change |
-| `SABOR_VIDEO_PROVIDER` | Empty | No effect since 0.4.0 (#102); removed in a later 0.4.0 change |
 | `SABOR_MERCADONA_ENABLED` | `false` | Explicit readiness for Mercadona pricing and selected legacy pricing |
 | `SABOR_OPEN_PRICES_ENABLED` | `false` | Enable Open Prices observations; accepts true/false, case-insensitive; select pricing toolset |
 
@@ -941,7 +932,7 @@ After rollback, rerun transport health checks and read-only integration checks.
 
 Run `sabor-mcp setup` in a terminal for English/español prompts, or
 `sabor-mcp setup --non-interactive --json --store sqlite --lang es` for automation.
-Use `--help` for pricing, Mealie, LLM and Bring options. Omitted flags retain existing
+Use `--help` for pricing, Mealie and Bring options. Omitted flags retain existing
 file values and never add keys: without `--store`, the store the runtime would pick
 is kept (`SABOR_STORE`, then `[store] backend`, then Mealie when a Mealie URL is set,
 otherwise SQLite).
@@ -952,7 +943,7 @@ never rewritten, and without config.toml the runtime default is unchanged. `SABO
 values override file settings at runtime. `SABOR_LANGUAGE` accepts `es` or `en`.
 
 Store credentials with `sabor-mcp setup secret mealie_api_token` in an interactive
-terminal. Supported names: `mealie_api_token`, `llm_api_key`, `gemini_api_key`,
+terminal. Supported names: `mealie_api_token`,
 `bring_email`, `bring_password`, `spoonacular_api_key`, `database_url`. Values never appear in
 output or config.toml: only `keyring`/`file` references do. The system keyring
 (service `sabor`) is preferred; an unavailable backend falls back to owner-only

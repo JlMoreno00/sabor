@@ -41,7 +41,7 @@ def test_legacy_configuration_parity(env):
     env = dict(env, SABOR_DATA_DIR='/data')
     # Evaluate the original compatibility module in an isolated process/environment.
     script = ('import json, sabor.config as c; print(json.dumps({k: str(v) for k,v '
-              'in vars(c).items() if k.isupper() or k.startswith("_GEMINI")}))')
+              'in vars(c).items() if k.isupper()}))')
     expected = json.loads(subprocess.check_output([sys.executable, '-c', script],
                                                 env={**env, 'PATH': os.defpath}, text=True))
     cfg = load_settings(env).legacy_config
@@ -249,9 +249,7 @@ def test_default_context_assembles_providers_and_stable_direct_sync_scope(tmp_pa
     from sabor.sync.tools import _direct_context
 
     env = environment(tmp_path, 'direct')
-    monkeypatch.setenv('SABOR_LLM_BASE_URL', env['SABOR_LLM_BASE_URL'])
-    monkeypatch.setenv('SABOR_LLM_MODEL', env['SABOR_LLM_MODEL'])
-    for key in ('MEALIE_BASE_URL', 'MEALIE_API_TOKEN', 'GEMINI_API_KEY',
+    for key in ('MEALIE_BASE_URL', 'MEALIE_API_TOKEN',
                 'BRING_EMAIL', 'BRING_PASSWORD', 'SPOONACULAR_API_KEY'):
         monkeypatch.setattr(config, key, env[key])
     direct = default_context()

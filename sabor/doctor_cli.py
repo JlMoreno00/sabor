@@ -97,6 +97,10 @@ def main(argv=None):
                 for name, capability in metadata['capabilities'].items()}
             result['missing_secrets'] = missing
             result['next_steps'] = ['sabor-mcp setup secret ' + name for name in missing]
+            if settings.removed_settings:
+                # Names only, never values: these settings no longer do anything (#102).
+                result['warnings'].append('removed in 0.4.0, the agent does extraction: '
+                                          + ', '.join(settings.removed_settings))
             if 'keyring' in refs.values():
                 import keyring
                 from keyring.errors import KeyringError

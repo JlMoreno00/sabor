@@ -142,10 +142,12 @@ class ManifestEnvironmentContractTests(unittest.TestCase):
         self.env_vars = {item["name"]: item for item in manifest["env_vars"]}
 
     def test_names_match_the_configuration_readers(self):
-        from sabor.core.config import load_settings
+        from sabor.core.config import REMOVED_SETTINGS, load_settings
         recorder = _RecordingEnv()
         load_settings(recorder)
-        runtime = recorder.read | set(_getenv_defaults()) | set(_compose_defaults()) | {"SABOR_CONFIG"}
+        # Removed settings (#102) are read only to report them; they are not configuration.
+        runtime = ((recorder.read - set(REMOVED_SETTINGS)) | set(_getenv_defaults())
+                   | set(_compose_defaults()) | {"SABOR_CONFIG"})
         self.assertEqual(set(self.env_vars), runtime)
 
     def test_file_keys_match_manifest(self):

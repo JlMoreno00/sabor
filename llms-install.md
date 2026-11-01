@@ -42,8 +42,10 @@
    host is not local (`localhost`, `127.0.0.1`, `host.docker.internal` or a Docker service name), warn
    that the token would travel unencrypted and recommend `https://`.
 3. Supermarket prices? [none] | Mercadona | Open Prices (Open Food Facts, crowd-sourced, sparse in Spain).
-4. Import recipes from text or video with an AI model? [no] | OpenAI-compatible | Gemini | Ollama (local).
-5. Sync the shopping list with Bring!? [no] | yes.
+4. Sync the shopping list with Bring!? [no] | yes.
+
+Sabor needs no AI model or key: you, the agent, read recipes from text, images or video and save
+them with `create_recipe`.
 
 ## 3. Configure Sabor
 
@@ -54,20 +56,17 @@ SABOR setup --non-interactive --json --lang LANG --store sqlite
 #   --store mealie --mealie-url MEALIE_URL      (the URL the user gave in question 2)
 #   Supabase/Postgres: the user runs `SABOR setup supabase --create-role` (docs/supabase-agentes.md)
 #   --pricing mercadona [--mercadona-warehouse mad1]   (repeat --pricing to add open_prices)
-#   --llm openai --llm-base-url https://api.openai.com/v1 --llm-model MODEL
-#   --llm ollama --llm-model MODEL      (no key; default URL http://localhost:11434/v1)
-#   --llm gemini [--gemini-model MODEL]
 #   --bring
 ```
 
 Read the single JSON line: `ok`, `changed`, `config_path`, `store`, `missing_secrets`, `next_steps`.
 Exit codes: 0 ok, 2 invalid configuration (fix the flags), 3 store not reachable.
 
-For every name in `missing_secrets` (`mealie_api_token`, `llm_api_key`, `gemini_api_key`,
-`bring_email`, `bring_password`), the secret must be typed by the user in a terminal:
+For every name in `missing_secrets` (`mealie_api_token`, `database_url`, `bring_email`,
+`bring_password`), the secret must be typed by the user in a terminal:
 
 ```bash
-SABOR setup secret llm_api_key
+SABOR setup secret mealie_api_token
 ```
 
 It reads the value with hidden input and stores it in the OS keychain (or an owner-only
@@ -150,8 +149,9 @@ opt-in); it never changes the configuration.
    la uses ni la repitas y pide la URL limpia: el token va por `SABOR setup secret mealie_api_token`. Si es `http://` y el host no es local
    (`localhost`, `127.0.0.1`, `host.docker.internal` o un servicio de Docker), avisa de que el token viajaría
    sin cifrar y recomienda `https://`); precios
-   [ninguno] | Mercadona | Open Prices (colaborativo, con pocos datos de España); importar recetas
-   con un modelo de IA [no] | OpenAI-compatible | Gemini | Ollama local; sincronizar con Bring! [no] | sí.
+   [ninguno] | Mercadona | Open Prices (colaborativo, con pocos datos de España); sincronizar con
+   Bring! [no] | sí. Sabor no necesita ningún modelo ni clave de IA: tú, el agente, lees las recetas de
+   texto, imagen o vídeo y las guardas con `create_recipe`.
 3. **Configura** con `SABOR setup --non-interactive --json --lang IDIOMA` (el idioma elegido) y los flags
    de la sección 3 de arriba, sustituyendo los valores en MAYÚSCULAS (nunca ejecutes un ejemplo). Lee
    `ok`, `changed`, `missing_secrets` y `next_steps`. Para cada nombre de `missing_secrets`, el

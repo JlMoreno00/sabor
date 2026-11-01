@@ -74,24 +74,26 @@ class SetupTests(unittest.TestCase):
                 atomic_write(self.path, 'secret')
         self.assertEqual(list(self.path.parent.iterdir()), [])
 
-    def test_malformed_llm_url_is_json_error(self):
-        for source in ('flag', 'file'):
-            with self.subTest(source=source):
-                self.path.write_text('[llm]\nbase_url = "http://["\n' if source == 'file' else '')
-                before = self.path.read_bytes()
-                args = ('--llm', 'openai', '--llm-base-url', 'http://[') if source == 'flag' else ()
-                code, result = self.run_setup('--non-interactive', '--json', *args)
-                self.assertEqual(code, 2)
-                self.assertIn('error', result)
-                self.assertNotIn('http://[', result['error'])
-                self.assertEqual(self.path.read_bytes(), before)
+    def test_removed_llm_options_and_keys(self):
+        # #102: the import-model options are gone; a leftover [llm] section (even an
+        # invalid URL that 0.3 rejected) no longer stops setup.
+        from sabor.setup_cli import main as setup_main
+        for flag in ('--llm', '--llm-base-url', '--llm-model', '--gemini-model'):
+            with self.subTest(flag=flag), self.assertRaises(SystemExit) as error, \
+                    contextlib.redirect_stderr(io.StringIO()):
+                setup_main(['--non-interactive', '--json', flag, 'x'])
+            self.assertEqual(error.exception.code, 2)
+        self.path.write_text('[llm]\nbase_url = "http://["\n')
+        code, result = self.run_setup('--non-interactive', '--json')
+        self.assertEqual(code, 0, result)
+        self.assertEqual(tomllib.loads(self.path.read_text())['llm'], {'base_url': 'http://['})
 
     def test_interactive_answers_are_validated_and_normalized(self):
         original = '[llm]\nbase_url = "https://example.com/v1"\nmodel = "model"\n'
-        for index in range(5):
+        for index in range(4):
             with self.subTest(invalid_field=index):
                 self.path.write_text(original)
-                answers = ['en', 'sqlite', 'none', 'none', 'no']
+                answers = ['en', 'sqlite', 'none', 'no']
                 answers[index] = 'typo'
                 with patch('builtins.input', side_effect=answers):
                     code, result = self.run_setup('--json', tty=True)
@@ -100,13 +102,13 @@ class SetupTests(unittest.TestCase):
         for yes in (' YES ', 'y', 'sí', 'si', 's'):
             with self.subTest(yes=yes):
                 self.path.write_text('')
-                with patch('builtins.input', side_effect=[' EN ', ' SQLITE ', 'mercadona, open_prices', ' NONE ', yes]), patch('getpass.getpass', return_value=''):
+                with patch('builtins.input', side_effect=[' EN ', ' SQLITE ', 'mercadona, open_prices', yes]), patch('getpass.getpass', return_value=''):
                     code, result = self.run_setup('--json', tty=True)
                 self.assertEqual(code, 0, result)
                 document = tomllib.loads(self.path.read_text())
                 self.assertTrue(document['pricing']['open_prices'])
                 self.assertIn('bring_password', result['missing_secrets'])
-        with patch('builtins.input', side_effect=['en', 'sqlite', 'none', 'none', ' N ']):
+        with patch('builtins.input', side_effect=['en', 'sqlite', 'none', ' N ']):
             self.assertEqual(self.run_setup('--json', tty=True)[0], 0)
 
     def test_pricing_preserves_custom_toolsets(self):
@@ -211,12 +213,11 @@ class SetupTests(unittest.TestCase):
             load_settings({'SABOR_LANGUAGE': 'PRIVATE_SENTINEL'})
         code, result = self.run_setup('--non-interactive', '--json', '--store', 'mealie',
                                       '--mealie-url', 'https://mealie.example', '--lang', 'es',
-                                      '--llm', 'gemini', '--bring', '--pricing', 'open_prices')
+                                      '--bring', '--pricing', 'open_prices')
         self.assertEqual(code, 0)
-        self.assertEqual(result['missing_secrets'], ['mealie_api_token', 'gemini_api_key', 'bring_email', 'bring_password'])
+        self.assertEqual(result['missing_secrets'], ['mealie_api_token', 'bring_email', 'bring_password'])
         self.assertEqual(result['next_steps'], ['sabor-mcp setup secret ' + name for name in result['missing_secrets']])
-        self.assertEqual(self.run_setup('--non-interactive', '--json', '--llm', 'ollama')[0], 2)
-        self.assertEqual(self.run_setup('--non-interactive', '--json', '--llm', 'ollama', '--llm-model', 'local')[0], 0)
+        self.assertEqual(self.run_setup('--non-interactive', '--json', '--lang', 'en')[0], 0)
         self.assertTrue(self.path.with_name('config.toml.bak').exists())
         self.path.write_text('[secrets]\nmealie_api_token = "PRIVATE_SENTINEL"\n')
         code, result = self.run_setup('--non-interactive', '--json')
@@ -278,10 +279,9 @@ class SetupHelpTests(unittest.TestCase):
 
     def test_every_option_is_described(self):
         for args, prog, options in [
-                ((), 'sabor-mcp setup', ('--json', '--non-interactive', '--lang', '--store', '--llm',
+                ((), 'sabor-mcp setup', ('--json', '--non-interactive', '--lang', '--store',
                                          '--pricing', '--sqlite-path', '--mealie-url',
-                                         '--mercadona-warehouse', '--llm-base-url', '--llm-model',
-                                         '--gemini-model', '--bring')),
+                                         '--mercadona-warehouse', '--bring')),
                 (('secret',), 'sabor-mcp setup secret', ('--json', '--backend', 'name'))]:
             with self.subTest(prog=prog):
                 text = self.help_text(*args)

@@ -162,13 +162,13 @@ class DoctorTests(unittest.TestCase):
         secrets.write_text('[secrets]\nbring_email = "PRIVATE_SENTINEL"\n')
         secrets.chmod(0o600)
         self.backend.values['sabor', 'mealie_api_token'] = 'PRIVATE_SENTINEL'
-        with patch.dict(os.environ, {'GEMINI_API_KEY': 'PRIVATE_SENTINEL'}):
+        with patch.dict(os.environ, {'SPOONACULAR_API_KEY': 'PRIVATE_SENTINEL'}):
             code, result = self.run_cli('config', 'show', '--json')
             self.assertEqual(code, 0)
             rows = {row['key']: row for row in result['keys']}
             self.assertEqual(rows['general.language']['origin'], 'file')
             self.assertEqual(rows['store.backend']['origin'], 'default')
-            for name, origin in [('mealie_api_token', 'keyring'), ('bring_email', 'file'), ('gemini_api_key', 'env')]:
+            for name, origin in [('mealie_api_token', 'keyring'), ('bring_email', 'file'), ('spoonacular_api_key', 'env')]:
                 self.assertEqual(rows['secrets.' + name]['origin'], origin)
                 self.assertEqual(rows['secrets.' + name]['value'], '***')
             with patch.dict(os.environ, {'SABOR_LANGUAGE': 'en'}):
@@ -192,12 +192,18 @@ class DoctorTests(unittest.TestCase):
         self.assertEqual(len([w for w in result['warnings'] if 'Supabase' in w]), 3)
         self.assertIn('If the project is paused, restore it in the Supabase dashboard', result['next_steps'])
 
-    def test_missing_remote_and_video_secrets(self):
-        self.path.write_text('[llm]\nbase_url = "https://llm.example/v1"\nmodel = "test"\n[import]\nvideo_provider = "gemini_native"\n')
-        code, result = self.run_cli('doctor', '--json')
-        self.assertEqual(code, 1)
-        self.assertEqual(result['missing_secrets'], ['llm_api_key', 'gemini_api_key'])
-        self.path.write_text('[llm]\nbase_url = "http://localhost:11434/v1"\nmodel = "test"\n')
-        self.assertEqual(self.run_cli('doctor', '--json')[0], 0)
-        self.path.write_text('[llm]\nbase_url = "http://[invalid"\n')
-        self.assertEqual(self.run_cli('doctor', '--json')[0], 2)
+    def test_removed_ai_settings_warn_once(self):
+        # #102: 0.3 required these secrets and rejected an invalid URL; 0.4.0 ignores the
+        # removed keys and gives one warning naming them.
+        for text in ('[llm]\nbase_url = "https://llm.example/v1"\nmodel = "test"\n[import]\nvideo_provider = "gemini_native"\n',
+                     '[llm]\nbase_url = "http://[invalid"\n'):
+            self.path.write_text(text)
+            code, result = self.run_cli('doctor', '--json')
+            self.assertEqual(code, 0, result)
+            self.assertEqual(result['missing_secrets'], [])
+            removed = [w for w in result['warnings'] if 'removed in 0.4.0' in w]
+            self.assertEqual(len(removed), 1, result['warnings'])
+            self.assertIn('the agent does extraction', removed[0])
+            self.assertIn('SABOR_LLM_BASE_URL', removed[0])
+        self.path.write_text('[store]\nbackend = "sqlite"\n')
+        self.assertFalse(any('removed in 0.4.0' in w for w in self.run_cli('doctor', '--json')[1]['warnings']))

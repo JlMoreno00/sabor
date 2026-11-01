@@ -65,7 +65,6 @@ def default_context() -> AppContext:
             env[key] = str(getattr(config, key))
     for key in ("MEMORY_FILE", "SABOR_NUTRITION_DB"):
         env[key] = str(getattr(config, key))
-    env["VIDEO_RECIPE_GEMINI_MODEL"] = getattr(config, "GEMINI_MODEL")
     settings = load_settings(env)
     from sabor.store.mealie import MealieRecipeStore
     return assemble_context(settings, store_factory=(lambda s: cast(RecipeStore, MealieRecipeStore(

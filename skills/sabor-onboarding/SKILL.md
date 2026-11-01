@@ -12,7 +12,7 @@ or examples, and accept free text. The profile is household data, not configurat
 
 - **Profile** (this skill): diners, allergies, restrictions, dislikes, pantry, budget,
   schedule and tastes. Saved with Sabor's preference tools, only after the user approves.
-- **Configuration** (not this skill): recipe store, prices, import model, Bring!, secrets.
+- **Configuration** (not this skill): recipe store, prices, Bring!, secrets.
   It is changed only by running `sabor-mcp setup` (and `sabor-mcp setup secret <name>`)
   in a terminal; see `llms-install.md`. MCP tools never change it.
 - Never ask for, accept or repeat passwords, tokens or API keys in the chat.

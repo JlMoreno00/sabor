@@ -37,15 +37,6 @@ def load_legacy_config(env: Mapping[str, str]) -> LegacyConfig:
     SPOONACULAR_BASE = "https://api.spoonacular.com"
     SPOONACULAR_TIMEOUT = 20
 
-    GEMINI_API_KEY = env.get("GEMINI_API_KEY", "")
-    GEMINI_MODEL = env.get("VIDEO_RECIPE_GEMINI_MODEL", "gemini-2.5-flash-lite")
-    _GEMINI_FALLBACK_MODELS = [
-        "gemini-2.5-flash-lite",
-        "gemini-2.5-flash",
-        "gemini-2.0-flash",
-    ]
-    _GEMINI_BASE = "https://generativelanguage.googleapis.com"
-
     BRING_EMAIL = env.get("BRING_EMAIL", "")
     BRING_PASSWORD = env.get("BRING_PASSWORD", "")
     BRING_PUBLIC_CLIENT_ID = "cof4Nc6D8saplXjE3h3HXqHH8m7VU2i1Gs0g85Sp"  # gitleaks:allow
@@ -92,4 +83,4 @@ def load_legacy_config(env: Mapping[str, str]) -> LegacyConfig:
 
     BRING_CATALOG_DIR = env.get("BRING_CATALOG_DIR", "")
     return LegacyConfig(MappingProxyType({k: v for k, v in locals().items()
-                                         if k.isupper() or k.startswith("_GEMINI")}))
+                                         if k.isupper()}))

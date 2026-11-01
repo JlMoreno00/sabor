@@ -13,8 +13,18 @@
   with `create_recipe`. LLM or Gemini settings no longer enable the `import` toolset,
   which needs a recipe store, and `sabor_capabilities` no longer lists AI import
   adapters. Video downloads stay in place for the agent media bundle that comes next
-  in 0.4.0. The AI configuration keys are still read and are removed in the next
-  0.4.0 change.
+  in 0.4.0.
+- **Breaking (0.4.0, #102):** the AI settings are removed: `SABOR_LLM_BASE_URL`,
+  `SABOR_LLM_MODEL`, `SABOR_LLM_API_KEY`, `GEMINI_API_KEY`, `VIDEO_RECIPE_GEMINI_MODEL`,
+  `SABOR_VIDEO_PROVIDER`, the `[llm]` section, `[import] video_provider` and
+  `gemini_model`, the `llm_api_key` / `gemini_api_key` secrets, the `sabor-mcp setup`
+  options `--llm`, `--llm-base-url`, `--llm-model` and `--gemini-model` (and the
+  interactive «LLM» step), and their entries in `server.json` and
+  `mcp-manifest.json`. **Migration:** nothing to do. A configuration that still sets
+  them keeps starting (they are no longer validated, so a malformed old URL no longer
+  stops startup); they are ignored, and `sabor-mcp doctor` gives one warning:
+  «removed in 0.4.0, the agent does extraction» with their names. Remove them when
+  convenient; `sabor-mcp setup secret` no longer accepts the two AI secret names.
 
 ### Fixed
 - Video import from YouTube: videos served only as separate DASH video and audio

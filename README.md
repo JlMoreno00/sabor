@@ -103,8 +103,9 @@ configuration/reconciliation failure, 2 for invalid arguments. Review nested
 
 Since 0.4.0 Sabor contains no AI provider client (#102): the client agent reads
 text, images and video itself and saves the recipe with `create_recipe`. The
-`SABOR_LLM_*`, `GEMINI_*`, `VIDEO_RECIPE_GEMINI_MODEL` and `SABOR_VIDEO_PROVIDER`
-settings no longer enable anything; a later 0.4.0 change removes them.
+`SABOR_LLM_*`, `GEMINI_API_KEY`, `VIDEO_RECIPE_GEMINI_MODEL` and `SABOR_VIDEO_PROVIDER`
+settings were removed: an old configuration keeps starting, they are ignored, and
+`sabor-mcp doctor` warns once naming them.
 
 ## Recipe stores and instance boundaries
 

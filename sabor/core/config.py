@@ -5,6 +5,10 @@ from urllib.parse import urlsplit
 from .legacy_config import LegacyConfig, load_legacy_config
 from .config_file import FILE_KEYS, SECRET_ENV
 
+# Settings removed in 0.4.0 (#102): Sabor has no AI provider. They are ignored, never
+# validated, and only reported (doctor) so an old configuration keeps starting.
+REMOVED_SETTINGS = ('SABOR_LLM_BASE_URL', 'SABOR_LLM_MODEL', 'SABOR_LLM_API_KEY', 'GEMINI_API_KEY',
+                    'VIDEO_RECIPE_GEMINI_MODEL', 'SABOR_VIDEO_PROVIDER')
 TOOLSETS = ('core', 'import', 'shopping_sync', 'pricing', 'legacy_spoonacular',
             'legacy_pricing', 'legacy_memory', 'legacy_nutrition', 'legacy_catalog', 'preferences')
 
@@ -18,12 +22,6 @@ class Settings:
     requested_toolsets: tuple[str, ...]
     mealie_base_url: str = field(repr=False)
     mealie_api_token: str = field(repr=False)
-    llm_base_url: str = field(repr=False)
-    llm_model: str = field(repr=False)
-    llm_api_key: str = field(repr=False)
-    gemini_api_key: str = field(repr=False)
-    video_recipe_gemini_model: str = field(repr=False)
-    video_provider: str
     bring_email: str = field(repr=False)
     bring_password: str = field(repr=False)
     spoonacular_api_key: str = field(repr=False)
@@ -41,18 +39,12 @@ class Settings:
     config_source: str = 'defaults'
     language: str | None = None
     database_url: str = field(default='', repr=False)
+    # Names (never values) of removed AI settings still present in the configuration.
+    removed_settings: tuple[str, ...] = ()
 
     @property
     def mealie_configured(self):
         return bool(self.mealie_base_url and self.mealie_api_token)
-
-    @property
-    def llm_configured(self):
-        return bool(self.llm_base_url and self.llm_model)
-
-    @property
-    def gemini_configured(self):
-        return bool(self.gemini_api_key and self.video_recipe_gemini_model)
 
 
 def load_settings(env: Mapping[str, str]) -> Settings:
@@ -79,15 +71,9 @@ def load_settings(env: Mapping[str, str]) -> Settings:
                       get('SABOR_TOOLSETS', 'core,import,shopping_sync').split(',') if x.strip()))
     if set(requested) - set(TOOLSETS):
         raise ConfigError('Unknown toolset in SABOR_TOOLSETS')
-    mealie, llm = url('MEALIE_BASE_URL'), url('SABOR_LLM_BASE_URL')
-    if llm and (not get('SABOR_LLM_MODEL') or
-                (urlsplit(llm).hostname not in ('localhost', '127.0.0.1') and not get('SABOR_LLM_API_KEY'))):
-        raise ConfigError('LLM endpoint requires a model and remote endpoints require an API key')
+    mealie = url('MEALIE_BASE_URL')
     if bool(get('BRING_EMAIL')) != bool(get('BRING_PASSWORD')):
         raise ConfigError('Bring requires both email and password')
-    provider = get('SABOR_VIDEO_PROVIDER')
-    if provider not in ('', 'gemini_native', 'openai_compatible'):
-        raise ConfigError('Invalid SABOR_VIDEO_PROVIDER')
     store = get('SABOR_STORE') or ('mealie' if mealie else 'sqlite')
     if store not in ('sqlite', 'mealie', 'postgres'):
         raise ConfigError('Invalid SABOR_STORE')
@@ -103,11 +89,7 @@ def load_settings(env: Mapping[str, str]) -> Settings:
         except ValueError:
             raise ConfigError('SABOR_DATABASE_URL requires a Postgres URL') from None
     legacy = load_legacy_config(env)
-    return Settings(requested, mealie, get('MEALIE_API_TOKEN'), llm,
-                    get('SABOR_LLM_MODEL'), get('SABOR_LLM_API_KEY'),
-                    get('GEMINI_API_KEY'),
-                    # 0.1.x default kept so existing Gemini deployments keep video import.
-                    get('VIDEO_RECIPE_GEMINI_MODEL') or 'gemini-2.5-flash-lite', provider,
+    return Settings(requested, mealie, get('MEALIE_API_TOKEN'),
                     get('BRING_EMAIL'), get('BRING_PASSWORD'), get('SPOONACULAR_API_KEY'),
                     get('SABOR_MERCADONA_ENABLED').lower() == 'true',
                     legacy.SABOR_NUTRITION_ENABLED, str(legacy.MEMORY_FILE), legacy,
@@ -117,4 +99,5 @@ def load_settings(env: Mapping[str, str]) -> Settings:
                     legacy.SABOR_NORMALIZE_CONFIDENCE,
                     get('SABOR_OPEN_PRICES_ENABLED').lower() == 'true',
                     'env' if any(env.get(key) for key in (*FILE_KEYS.values(), *SECRET_ENV)) else 'defaults',
-                    language or None, database_url)
+                    language or None, database_url,
+                    tuple(sorted(key for key in REMOVED_SETTINGS if get(key))))

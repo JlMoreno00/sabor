@@ -96,43 +96,6 @@
       "secret": true
     },
     {
-      "name": "SABOR_LLM_BASE_URL",
-      "description": "Optional OpenAI-compatible endpoint for text import and portable video import, e.g. https://api.openai.com/v1 or http://localhost:11434/v1 (Ollama).",
-      "required": false,
-      "secret": false
-    },
-    {
-      "name": "SABOR_LLM_MODEL",
-      "description": "Model name for SABOR_LLM_BASE_URL; required when that endpoint is set.",
-      "required": false,
-      "secret": false
-    },
-    {
-      "name": "SABOR_LLM_API_KEY",
-      "description": "API key for SABOR_LLM_BASE_URL; required for non-localhost endpoints.",
-      "required": false,
-      "secret": true
-    },
-    {
-      "name": "SABOR_VIDEO_PROVIDER",
-      "description": "Video import provider: gemini_native or openai_compatible. Unset uses Gemini when GEMINI_API_KEY is set, otherwise the OpenAI-compatible LLM.",
-      "required": false,
-      "secret": false
-    },
-    {
-      "name": "GEMINI_API_KEY",
-      "description": "Optional Google Gemini API key for native video recipe extraction.",
-      "required": false,
-      "secret": true
-    },
-    {
-      "name": "VIDEO_RECIPE_GEMINI_MODEL",
-      "description": "Gemini model used for native video extraction.",
-      "required": false,
-      "secret": false,
-      "default": "gemini-2.5-flash-lite"
-    },
-    {
       "name": "VIDEO_RECIPE_WORKDIR",
       "description": "Scratch directory for downloaded video media.",
       "required": false,
