@@ -30,7 +30,15 @@ def http_url(source):
     return p
 
 
+def local_path(source):
+    """An absolute path in the platform's sense (/x, C:\\x, \\\\server\\share), checked before any URL parsing."""
+    return os.path.isabs(source)
+
+
 def detect(source):
+    if local_path(source):
+        # An absolute path names a local video file (stdio only, under SABOR_MEDIA_ROOTS).
+        return 'video'
     p = urlsplit(source)
     if p.scheme:
         http_url(source)
@@ -39,9 +47,6 @@ def detect(source):
                ('youtube.com', 'youtu.be', 'tiktok.com', 'vimeo.com', 'instagram.com')) or p.path.lower().endswith(('.mp4', '.mov', '.webm', '.mkv')):
             return 'video'
         return 'url'
-    if source.startswith('/'):
-        # An absolute path names a local video file (stdio only, under SABOR_MEDIA_ROOTS).
-        return 'video'
     if source.startswith(('./', '../')):
         raise ValueError('Local media needs an absolute path')
     return 'text'
@@ -328,7 +333,7 @@ def _import_recipe(ctx, source, kind, dry_run, language, max_recipes, min_confid
             from .video import bundle
             return ok(dict(preview=True, kind='video', provider='sabor', candidates=[], dropped=0,
                            created=[], skips=[]) | bundle(source, language))
-        if kind == 'video' and source.startswith('/'):
+        if kind == 'video' and local_path(source):
             if not ctx.settings.local_media:
                 reject('unsupported_operation', 'Local video files are read only when Sabor runs on your '
                        'machine (stdio). Pass the video URL instead, or read the recipe yourself and save '

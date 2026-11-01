@@ -208,7 +208,8 @@ def local_bundle(text, roots, language):
     limitations = [] if images else [{'code': 'no_frames', 'message': 'No video frames could be extracted.'}]
     limitations.append({'code': 'no_transcript', 'message': 'A local video has no platform subtitles.'})
     return dict(metadata=metadata, transcript=None, frames=images, limitations=limitations,
-                next_step=next_step(language, f'local video {path.name}'))
+                # The file name is third-party text: it stays in metadata, never in instructions.
+                next_step=next_step(language, 'the local video file'))
 
 
 def merge(streams, root, remaining):

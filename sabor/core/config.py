@@ -1,4 +1,5 @@
 """Pure startup configuration; no environment reads or provider probes."""
+import os
 from dataclasses import dataclass, field
 from typing import Mapping
 from urllib.parse import urlsplit
@@ -93,7 +94,7 @@ def load_settings(env: Mapping[str, str]) -> Settings:
         except ValueError:
             raise ConfigError('SABOR_DATABASE_URL requires a Postgres URL') from None
     media_roots = tuple(x.strip() for x in get('SABOR_MEDIA_ROOTS').split(',') if x.strip())
-    if any(not root.startswith('/') for root in media_roots):
+    if any(not os.path.isabs(root) for root in media_roots):
         raise ConfigError('SABOR_MEDIA_ROOTS requires absolute directory paths')
     legacy = load_legacy_config(env)
     return Settings(requested, mealie, get('MEALIE_API_TOKEN'),
