@@ -9,20 +9,17 @@ class ImportTests(unittest.TestCase):
     def context_patch(self):
         from sabor.core.context import build_context
         from sabor.store.mealie import MealieRecipeStore
-        from sabor.importing.video import GeminiNativeVideo
         def context():
             cfg = t.settings()
             return build_context(cfg, store_factory=lambda s: MealieRecipeStore(
-                s.mealie_base_url, s.mealie_api_token, session=t.requests),
-                import_factories=(t.OpenAIImportProvider, GeminiNativeVideo))
+                s.mealie_base_url, s.mealie_api_token, session=t.requests))
         p = patch('sabor.core.context.default_context', side_effect=context)
         p.start()
         self.addCleanup(p.stop)
 
     def setUp(self):
         self.context_patch()
-        self.settings = load_settings({'MEALIE_BASE_URL': 'http://mealie', 'MEALIE_API_TOKEN': 'test',
-            'SABOR_LLM_BASE_URL': 'http://localhost:11434/v1', 'SABOR_LLM_MODEL': 'test'})
+        self.settings = load_settings({'MEALIE_BASE_URL': 'http://mealie', 'MEALIE_API_TOKEN': 'test'})
         self.p = patch.object(t, 'settings', return_value=self.settings)
         self.p.start()
         self.addCleanup(self.p.stop)
@@ -61,51 +58,38 @@ class ImportTests(unittest.TestCase):
         self.assertEqual(t.import_recipe('https://example.org', dry_run=False)['data']['created'], ['soup'])
         self.assertEqual(post.call_args.kwargs['json'], {'url': 'https://example.org', 'includeTags': True, 'includeCategories': True})
 
-    def test_text_requires_llm(self):
-        with patch.object(t, 'settings', return_value=load_settings({})):
-            self.assertEqual(t.import_recipe('soup')['error']['code'], 'provider_unconfigured')
-
-    @patch.object(t.requests, 'post')
-    def test_text_validation_filter_and_headers(self, post):
-        candidate = dict(name='Soup', ingredients=['salt'], steps=['Mix'], servings='2', notes='', confidence=.8)
-        post.return_value = self.response({'choices': [{'message': {'content': json.dumps({'recipes': [candidate, dict(candidate, confidence=.1)]})}}]})
-        result = t.import_recipe('some soup')
-        self.assertEqual(len(result['data']['candidates']), 1)
-        self.assertEqual(result['data']['dropped'], 1)
-        self.assertNotIn('Authorization', post.call_args.kwargs['headers'])
-        post.return_value = self.response({'choices': [{'message': {'content': 'SECRET raw output'}}]})
-        result = t.import_recipe('soup')
-        self.assertEqual(result['error']['code'], 'invalid_response')
-        self.assertNotIn('SECRET', str(result))
-
-    @patch.object(t.requests, 'get')
-    @patch.object(t.requests, 'post')
-    def test_jsonld(self, post, get):
-        candidate = dict(name='Soup', ingredients=['salt'], steps=['Mix'], servings='2', notes='', confidence=.8)
-        post.side_effect = [self.response({'choices': [{'message': {'content': json.dumps({'recipes': [candidate]})}}]}), self.response('soup')]
-        get.return_value = self.response({'items': [], 'total_pages': 1, 'total': 0, 'page': 1, 'per_page': 100})
-        self.assertTrue(t.import_recipe('soup', dry_run=False)['ok'])
-        payload = json.loads(post.call_args.kwargs['json']['data'])
-        self.assertEqual(payload['recipeIngredient'], ['salt'])
-        self.assertEqual(payload['@type'], 'Recipe')
+    def test_text_points_to_create_recipe(self):
+        # #102: Sabor has no AI provider; the agent extracts text and calls create_recipe.
+        with patch.object(t.requests, 'post', side_effect=AssertionError('Unexpected network')):
+            result = t.import_recipe('soup')
+        self.assertEqual(result['error']['code'], 'unsupported_operation')
+        self.assertIn('create_recipe', result['error']['message'])
 
     @patch('yt_dlp.YoutubeDL')
-    def test_video_and_image_preview(self, youtube_dl):
-        # Offline: yt-dlp yields no media info, as for an unavailable video (no real download).
-        youtube_dl.return_value.__enter__.return_value.extract_info.return_value = None
+    def test_video_and_image_point_to_create_recipe(self, youtube_dl):
+        # #102: nothing is downloaded or sent anywhere; the agent extracts them itself.
         for source, kind in [('https://youtu.be/a', 'auto'), ('x', 'video'), ('https://x.org/a.png', 'image')]:
-            self.assertEqual(t.import_recipe(source, kind)['error']['code'], 'unsupported_operation')
-        youtube_dl.return_value.__enter__.return_value.extract_info.assert_called_once()
+            for dry_run in (True, False):
+                result = t.import_recipe(source, kind, dry_run)
+                self.assertEqual(result['error']['code'], 'unsupported_operation')
+                self.assertIn('create_recipe', result['error']['message'])
+        youtube_dl.assert_not_called()
+
+    def fetch_image(self, url):
+        # The SSRF guard behind recipe pages and recipe images (#94), at the 10 MB image limit.
+        with self.assertRaises(t.ImportErrorResult) as ctx:
+            t.safe_bytes(url, 10, ('image/jpeg', 'image/png', 'image/webp', 'image/gif'), 'Image')
+        return ctx.exception.result['error']['code']
 
     @patch.object(t.socket, 'getaddrinfo', return_value=[(2, 1, 6, '', ('127.0.0.1', 80))])
     def test_ssrf(self, dns):
-        self.assertEqual(t.import_recipe('http://internal/a.png', 'image', False)['error']['code'], 'invalid_argument')
+        self.assertEqual(self.fetch_image('http://internal/a.png'), 'invalid_argument')
 
     @patch.object(t.socket, 'getaddrinfo', return_value=[(2, 1, 6, '', ('93.184.216.34', 443))])
     @patch.object(t, 'image_response', create=True)
     def test_image_size(self, get, dns):
         get.return_value = Mock(status=200, headers={'Content-Length': str(11 * 1024 * 1024)})
-        self.assertEqual(t.import_recipe('https://example.org/a.png', 'image', False)['error']['code'], 'invalid_argument')
+        self.assertEqual(self.fetch_image('https://example.org/a.png'), 'invalid_argument')
 
     @patch.object(t.requests, 'post')
     def test_nested_url_steps(self, post):
@@ -114,39 +98,11 @@ class ImportTests(unittest.TestCase):
             'itemListElement': [{'@type': 'HowToSection', 'itemListElement': ['Cook']}]}]})
         self.assertEqual(t.import_recipe('https://example.org')['data']['candidates'][0]['steps'], ['Start', 'Mix', 'Cook'])
 
-    @patch.object(t.requests, 'post')
-    def test_format_retry_and_fenced_json(self, post):
-        post.side_effect = [Mock(status_code=400), self.response({'choices': [{'message': {'content': '```json\n{"recipes": []}\n```'}}]})]
-        self.assertTrue(t.import_recipe('soup')['ok'])
-        self.assertEqual(post.call_count, 2)
-        self.assertNotIn('response_format', post.call_args.kwargs['json'])
-
-    @patch.object(t.requests, 'post')
-    def test_retry_is_bounded(self, post):
-        post.return_value = Mock(status_code=400)
-        self.assertFalse(t.import_recipe('soup')['ok'])
-        self.assertEqual(post.call_count, 2)
-
-    @patch.object(t.socket, 'getaddrinfo', return_value=[(2, 1, 6, '', ('93.184.216.34', 443))])
-    @patch.object(t, 'image_response', create=True)
-    @patch.object(t.requests, 'post')
-    def test_image_multipart(self, post, fetch, dns):
-        fetch.return_value = Mock(status=200, headers={'Content-Type': 'image/png'})
-        fetch.return_value.stream.return_value = [b'png']
-        # OpenAPI 201 schema is {}; string/list shapes need live verification.
-        post.return_value = self.response('soup')
-        post.return_value.status_code = 201
-        result = t.import_recipe('https://example.org/a.png', 'image', False, language='es')
-        self.assertEqual(result['data']['created'], ['soup'])
-        self.assertEqual(post.call_args.kwargs['files'][0][0], 'images')
-        self.assertEqual(post.call_args.kwargs['params'], {'translateLanguage': 'es'})
-
     @patch.object(t.socket, 'getaddrinfo', side_effect=[[(2, 1, 6, '', ('93.184.216.34', 443))], [(2, 1, 6, '', ('127.0.0.1', 443))]])
     @patch.object(t, 'image_response', create=True)
     def test_redirect_revalidation(self, fetch, dns):
         fetch.return_value = Mock(status=302, headers={'Location': 'https://internal/image'})
-        result = t.import_recipe('https://example.org/a.png', 'image', False)
-        self.assertEqual(result['error']['code'], 'invalid_argument')
+        self.assertEqual(self.fetch_image('https://example.org/a.png'), 'invalid_argument')
         self.assertEqual(dns.call_count, 2)
         self.assertEqual(fetch.call_count, 1)
 
@@ -155,29 +111,13 @@ class ImportTests(unittest.TestCase):
     def test_stream_overflow(self, fetch, dns):
         fetch.return_value = Mock(status=200, headers={'Content-Type': 'image/png'})
         fetch.return_value.stream.return_value = [b'x' * (10 * 1024 * 1024), b'x']
-        self.assertEqual(t.import_recipe('https://example.org/a.png', 'image', False)['error']['code'], 'invalid_argument')
+        self.assertEqual(self.fetch_image('https://example.org/a.png'), 'invalid_argument')
         fetch.return_value.close.assert_called_once()
-
-    @patch.object(t.requests, 'post')
-    def test_invalid_candidate_type(self, post):
-        c = dict(name='Soup', ingredients=[42], steps=['Mix'], servings='2', notes='', confidence=.8)
-        post.return_value = self.response({'choices': [{'message': {'content': json.dumps({'recipes': [c]})}}]})
-        self.assertEqual(t.import_recipe('soup')['error']['code'], 'invalid_response')
 
     @patch.object(t.requests, 'post')
     def test_source_budget(self, post):
         self.assertEqual(t.import_recipe('x' * 20001)['error']['code'], 'invalid_argument')
         post.assert_not_called()
-
-    @patch.object(t.requests, 'get')
-    @patch.object(t.requests, 'post')
-    def test_partial_commit(self, post, get):
-        c = dict(name='Soup', ingredients=['salt'], steps=['Mix'], servings='2', notes='', confidence=.8)
-        post.side_effect = [self.response({'choices': [{'message': {'content': json.dumps({'recipes': [c, dict(c, name='Stew')]})}}]}), self.response('soup'), Mock(status_code=500)]
-        get.return_value = self.response({'items': [], 'total_pages': 1, 'total': 0, 'page': 1, 'per_page': 100})
-        result = t.import_recipe('two recipes', dry_run=False)
-        self.assertEqual(result['error']['code'], 'partial_failure')
-        self.assertEqual(result['data']['completed'], ['soup'])
 
     def test_pinned_transport(self):
         import urllib3
@@ -189,7 +129,8 @@ class ImportTests(unittest.TestCase):
         self.assertFalse(pool.return_value.urlopen.call_args.kwargs['redirect'])
         self.assertEqual(pool.return_value.urlopen.call_args.kwargs['headers']['Host'], 'example.org')
 
-    def test_llm_only_registration(self):
+    def test_llm_settings_do_not_register_import(self):
+        # #102: LLM settings no longer make import available; it needs a recipe store.
         from sabor.server import register_tools, _registered
         class Server:
             def __init__(self):
@@ -198,11 +139,8 @@ class ImportTests(unittest.TestCase):
                 self.tools[fn.__name__] = fn
         server = Server()
         register_tools(server, {'SABOR_STORE': 'mealie', 'SABOR_LLM_BASE_URL': 'http://localhost:11434/v1', 'SABOR_LLM_MODEL': 'test'})
-        self.assertIn('import_recipe', server.tools)
-        self.assertNotIn('search_recipes', server.tools)
-        self.assertEqual(_registered[server].imports[0].id, 'openai_compatible')
-        adapters = server.tools['sabor_capabilities']()['data']['capabilities']['import']['adapters']
-        self.assertIn('openai_compatible', [a['id'] for a in adapters])
+        self.assertNotIn('import_recipe', server.tools)
+        self.assertFalse(hasattr(_registered[server], 'imports'))
 
 
 class ImportPostCommitTests(unittest.TestCase):
@@ -233,38 +171,14 @@ class ImportPostCommitTests(unittest.TestCase):
 
     @patch.object(t.requests, 'get')
     @patch.object(t.requests, 'post')
-    def test_text_commit_normalizes(self, post, get):
-        candidate = dict(name='Soup', ingredients=['salt'], steps=['Mix'], servings='2', notes='', confidence=.8)
-        post.side_effect = [self.response({'choices': [{'message': {'content': json.dumps({'recipes': [candidate]})}}]}),
-                            self.response('soup')]
-        get.return_value = self.response(self.EMPTY)
-        self.assert_hooks(t.import_recipe('soup', dry_run=False), 'soup')
-
-    @patch.object(t.requests, 'get')
-    @patch.object(t.requests, 'post')
     def test_url_commit_normalizes(self, post, get):
         post.side_effect = [self.response({'name': 'Soup'}), self.response('soup')]
         get.return_value = self.response(self.EMPTY)
         self.assert_hooks(t.import_recipe('https://example.org', dry_run=False), 'soup')
 
-    @patch.object(t.socket, 'getaddrinfo', return_value=[(2, 1, 6, '', ('93.184.216.34', 443))])
-    @patch.object(t, 'image_response', create=True)
-    @patch.object(t.requests, 'post')
-    def test_image_commit_normalizes(self, post, fetch, dns):
-        fetch.return_value = Mock(status=200, headers={'Content-Type': 'image/png'})
-        fetch.return_value.stream.return_value = [b'png']
-        post.return_value = self.response('soup')
-        post.return_value.status_code = 201
-        self.assert_hooks(t.import_recipe('https://example.org/a.png', 'image', False), 'soup')
-
-    @patch.object(t.requests, 'get')
-    @patch.object(t.requests, 'post')
-    def test_partial_failure_runs_hooks_on_created(self, post, get):
-        c = dict(name='Soup', ingredients=['salt'], steps=['Mix'], servings='2', notes='', confidence=.8)
-        post.side_effect = [self.response({'choices': [{'message': {'content': json.dumps({'recipes': [c, dict(c, name='Stew')]})}}]}),
-                            self.response('soup'), Mock(status_code=500)]
-        get.return_value = self.response(self.EMPTY)
-        result = t.import_recipe('two recipes', dry_run=False)
+    def test_partial_failure_runs_hooks_on_created(self):
+        from sabor.core.context import default_context
+        result = t.partial(default_context(), ['soup'], 'mealie')
         self.assertFalse(result['ok'])
         self.assertEqual(result['error']['code'], 'partial_failure')
         self.assertEqual(result['data'], {
@@ -274,15 +188,10 @@ class ImportPostCommitTests(unittest.TestCase):
         self.assertEqual([call.args[1] for call in self.normalize.call_args_list], ['soup'])
         self.assertEqual([call.args[1] for call in self.nutrition.call_args_list], ['soup'])
 
-    @patch.object(t.requests, 'get')
-    @patch.object(t.requests, 'post')
-    def test_partial_failure_hook_crash_keeps_partial(self, post, get):
-        c = dict(name='Soup', ingredients=['salt'], steps=['Mix'], servings='2', notes='', confidence=.8)
-        post.side_effect = [self.response({'choices': [{'message': {'content': json.dumps({'recipes': [c, dict(c, name='Stew')]})}}]}),
-                            self.response('soup'), Mock(status_code=500)]
-        get.return_value = self.response(self.EMPTY)
+    def test_partial_failure_hook_crash_keeps_partial(self):
+        from sabor.core.context import default_context
         self.nutrition.side_effect = RuntimeError('boom')
-        result = t.import_recipe('two recipes', dry_run=False)
+        result = t.partial(default_context(), ['soup'], 'mealie')
         self.assertEqual(result['error']['code'], 'partial_failure')
         self.assertEqual(result['data'], {
             'completed': ['soup'], 'failed': ['remaining'], 'normalization': {}, 'nutrition': {},
@@ -294,34 +203,16 @@ class ImportPostCommitTests(unittest.TestCase):
     @patch.object(t.requests, 'get')
     @patch.object(t.requests, 'post')
     def test_complete_import_hook_crash_runs_hooks_once_and_stays_ok(self, post, get):
-        c = dict(name='Soup', ingredients=['salt'], steps=['Mix'], servings='2', notes='', confidence=.8)
-        post.side_effect = [self.response({'choices': [{'message': {'content': json.dumps({'recipes': [c]})}}]}),
-                            self.response('soup')]
+        post.side_effect = [self.response({'name': 'Soup'}), self.response('soup')]
         get.return_value = self.response(self.EMPTY)
         self.nutrition.side_effect = RuntimeError('boom')
-        result = t.import_recipe('soup', dry_run=False)
+        result = t.import_recipe('https://example.org', dry_run=False)
         self.assertTrue(result['ok'], result)
         self.assertEqual(result['data']['created'], ['soup'])
         self.assertEqual({k: result['data'][k] for k in self.HOOKS_FAILED}, self.HOOKS_FAILED)
         self.assertEqual(self.normalize.call_count, 1)
         self.assertEqual(self.nutrition.call_count, 1)
         self.assertEqual(post.call_count, 2)
-
-    @patch.object(t.socket, 'getaddrinfo', return_value=[(2, 1, 6, '', ('93.184.216.34', 443))])
-    @patch.object(t, 'image_response', create=True)
-    @patch.object(t.requests, 'post')
-    def test_image_import_hook_crash_runs_hooks_once_and_stays_ok(self, post, fetch, dns):
-        fetch.return_value = Mock(status=200, headers={'Content-Type': 'image/png'})
-        fetch.return_value.stream.return_value = [b'png']
-        post.return_value = self.response('soup')
-        post.return_value.status_code = 201
-        self.normalize.side_effect = RuntimeError('boom')
-        self.nutrition.side_effect = RuntimeError('boom')
-        result = t.import_recipe('https://example.org/a.png', 'image', False)
-        self.assertTrue(result['ok'], result)
-        self.assertEqual(result['data']['created'], ['soup'])
-        self.assertEqual(self.nutrition.call_count, 1)
-        self.assertEqual(post.call_count, 1)
 
     @patch.object(t.requests, 'get')
     @patch.object(t.requests, 'post')

@@ -63,8 +63,9 @@ class RegistrationTests(unittest.TestCase):
             self.register({'SABOR_TOOLSETS': 'unknown'})
 
     def test_gemini_only(self):
+        # #102: a leftover Gemini key no longer enables import; it needs a recipe store.
         tools, discovery = self.register(GEMINI)
-        self.assertEqual(set(tools), {'sabor_capabilities', 'import_recipe'})
+        self.assertEqual(set(tools), {'sabor_capabilities'})
 
     def test_bring_only(self):
         tools, _ = self.register(BRING)

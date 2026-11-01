@@ -1,5 +1,4 @@
 """Store-independent import paths through real SQLite registration."""
-import json
 from pathlib import Path
 from unittest.mock import Mock, patch
 from contextlib import nullcontext
@@ -52,36 +51,15 @@ def test_no_recipe(importer):
 
 
 @pytest.mark.parametrize('kind', ['text', 'image', 'video'])
-def test_extracted_preview_commit(importer, kind):
-    candidate = dict(name='Sopa', ingredients=['200 g harina'], steps=['Mezclar'],
-                     servings='2', notes='Notas', confidence=.9)
-    response = Mock(status_code=200)
-    response.json.return_value = {'choices': [{'message': {'content': json.dumps({'recipes': [candidate]})}}]}
+def test_agent_extracts_text_image_and_video(importer, kind):
+    # #102: no AI provider; the agent reads the source and saves it with create_recipe.
     source = 'recipe text' if kind == 'text' else 'https://example.org/recipe'
-    with patch.object(t.requests, 'post', return_value=response) as post, patch.object(
-            t, 'image_bytes', return_value=(b'png', 'image/png')), patch(
-            'sabor.importing.video.preview_video', return_value={
-                'candidates': [candidate], 'dropped': 0, 'limitations': []}), patch(
-            'sabor.importing.video.tag_video'), patch(
-            'sabor.tools.nutrition._nutrition_after_import') as nutrition:
-        preview = importer['import_recipe'](source, kind=kind)
-        assert preview['ok'], preview
-        assert preview['data']['candidates'][0]['name'] == 'Sopa'
-        result = importer['import_recipe'](source, kind=kind, dry_run=False)
-        assert result['ok'], result
-        assert result['data']['created']
-        nutrition.assert_not_called()
-        if kind == 'image':
-            assert post.call_args.kwargs['json']['messages'][1]['content'][1]['image_url']['url'].startswith('data:image/png;base64,')
-
-
-def test_image_unconfigured(tmp_path):
-    server = FastMCP('no-llm')
-    register_tools(server, {'SABOR_STORE_DB': str(tmp_path / 'recipes.db'), 'SABOR_TOOLSETS': 'import'})
-    tool = next(x.fn for x in server._tool_manager.list_tools() if x.name == 'import_recipe')
-    result = tool('https://example.org/image', kind='image')
-    assert result['error']['code'] == 'provider_unconfigured'
-    assert 'Mealie' not in result['error']['message']
+    with patch.object(t.requests, 'post', side_effect=AssertionError('Unexpected network')):
+        for dry_run in (True, False):
+            result = importer['import_recipe'](source, kind=kind, dry_run=dry_run)
+            assert result['error']['code'] == 'unsupported_operation', result
+            assert 'create_recipe' in result['error']['message']
+            assert 'Mealie' not in result['error']['message']
 
 
 @pytest.mark.parametrize('case', ['private', 'redirect', 'size', 'type'])

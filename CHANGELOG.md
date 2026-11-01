@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+### Removed
+- **Breaking (0.4.0, #102):** Sabor no longer contains any AI provider client. The
+  client agent does the extraction. Removed: the OpenAI-compatible LLM import
+  (text and image), Gemini and OpenAI-compatible video extraction
+  (`sabor/importing/gemini_client.py`), and Mealie's image import, which needed
+  Mealie's own OpenAI configuration. `import_recipe` now imports recipe web pages
+  only (`kind='url'`, unchanged). For `text`, `image` and `video` it returns
+  `unsupported_operation`: the agent reads the source itself and saves the recipe
+  with `create_recipe`. LLM or Gemini settings no longer enable the `import` toolset,
+  which needs a recipe store, and `sabor_capabilities` no longer lists AI import
+  adapters. Video downloads stay in place for the agent media bundle that comes next
+  in 0.4.0. The AI configuration keys are still read and are removed in the next
+  0.4.0 change.
+
 ### Fixed
 - Video import from YouTube: videos served only as separate DASH video and audio
   streams failed with `Requested format is not available`, because Sabor asked yt-dlp

@@ -94,15 +94,8 @@ def store_ready(settings: Settings) -> bool:
 
 
 def import_ready(settings: Settings) -> bool:
-    return store_ready(settings) or settings.llm_configured or settings.gemini_configured
-
-
-def gemini_ready(settings: Settings) -> bool:
-    return settings.gemini_configured
-
-
-def video_commit_ready(settings: Settings) -> bool:
-    return settings.gemini_configured and store_ready(settings)
+    # Import writes recipe pages into a store; no AI provider extracts anything (#102).
+    return store_ready(settings)
 
 
 def bring_ready(settings: Settings) -> bool:

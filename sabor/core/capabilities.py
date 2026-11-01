@@ -5,14 +5,7 @@ if TYPE_CHECKING:
     from .context import AppContext
 
 from .envelope import ok
-from .registry import ImportProvider
 from .registry import Registry
-
-VIDEO_LIMITATIONS = {
-    'gemini_native': ['External whole-video upload processes audio and vision.'],
-    'openai_compatible': ['Sampled frames and captions only; vision support is model-dependent.',
-                          'Without captions, spoken quantities are unavailable.'],
-}
 
 
 def describe(registry: 'Registry | AppContext', registered_tools, version: str) -> dict:
@@ -32,36 +25,18 @@ def describe(registry: 'Registry | AppContext', registered_tools, version: str) 
                           'limitations': []} for a in adapters],
         }
 
-    for name, adapters in (('import', registry.imports), ('shopping_sync', registry.syncs)):
+    for name in ('import', 'shopping_sync'):
         enabled = name in registry.enabled_toolsets
-        rows = []
-        for adapter in adapters if enabled else ():
-            row: dict[str, Any] = {'id': adapter.id}
-            if name == 'import':
-                kinds = set(cast(ImportProvider, adapter).kinds)
-                if adapter.id != registry.video_provider:
-                    kinds.discard('video')
-                if not kinds:
-                    continue
-                row.update(kinds=sorted(kinds), operations=['preview'])
-                if registry.recipe_store is not None:
-                    row['operations'].append('commit')
-                if 'image' in kinds:
-                    row['limitations'] = ['Image import uses Mealie-owned OpenAI configuration; preview is not supported.']
-                if 'video' in kinds:
-                    row['active_video'] = True
-                    row['limitations'] = VIDEO_LIMITATIONS[registry.video_provider or 'openai_compatible']
-            else:
-                row.update(kinds=['shopping_list'], operations=['targets', 'plan', 'apply'])
-            rows.append(row)
-        if name == 'import' and enabled:
+        rows: list[dict[str, Any]] = []
+        if enabled and name == 'shopping_sync':
+            rows = [{'id': adapter.id, 'kinds': ['shopping_list'], 'operations': ['targets', 'plan', 'apply']}
+                    for adapter in registry.syncs]
+        if enabled and name == 'import':
+            # Mealie's native recipe page import; Sabor has no AI provider adapter (#102).
             native = getattr(registry.recipe_store, 'native_import_kinds', frozenset())
-            for kind in sorted(native):
-                rows.append({'id': 'mealie', 'kinds': [kind],
-                             'operations': ['preview', 'commit'] if kind == 'url' else ['commit'],
-                             'limitations': [] if kind == 'url' else [
-                                 'Image import uses Mealie-owned OpenAI configuration; preview is not supported.']})
-        capability = {'configured': enabled, 'adapters': rows}
+            rows = [{'id': 'mealie', 'kinds': [kind], 'operations': ['preview', 'commit'],
+                     'limitations': []} for kind in sorted(native)]
+        capability: dict[str, Any] = {'configured': enabled, 'adapters': rows}
         if not enabled:
             capability['reason'] = registry.disabled_toolsets[name]
         capabilities[name] = capability
@@ -75,9 +50,7 @@ def describe(registry: 'Registry | AppContext', registered_tools, version: str) 
     if not registry.settings.mealie_configured:
         mealie_only.append({'toolset': 'legacy_catalog', 'reason': 'requires_mealie',
                             'detail': 'The Spanish catalog seeds Mealie foods and units; configure Mealie.'})
-    warnings = []
-    if registry.settings.video_provider and registry.video_provider is None:
-        warnings.append('Requested video provider is not configured; no fallback was selected.')
+    warnings: list[str] = []
     return ok({'version': version,
                'language': registry.settings.language,
                'config_source': registry.settings.config_source,
