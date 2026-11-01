@@ -205,5 +205,12 @@ class DoctorTests(unittest.TestCase):
             self.assertEqual(len(removed), 1, result['warnings'])
             self.assertIn('the agent does extraction', removed[0])
             self.assertIn('SABOR_LLM_BASE_URL', removed[0])
+        # CodeRabbit on #121: leftover AI secret references are named too, never resolved.
+        self.path.write_text('[secrets]\nllm_api_key = "keyring"\n')
+        code, result = self.run_cli('doctor', '--json')
+        self.assertEqual(code, 0, result)
+        removed = [w for w in result['warnings'] if 'removed in 0.4.0' in w]
+        self.assertEqual(len(removed), 1, result['warnings'])
+        self.assertIn('llm_api_key', removed[0])
         self.path.write_text('[store]\nbackend = "sqlite"\n')
         self.assertFalse(any('removed in 0.4.0' in w for w in self.run_cli('doctor', '--json')[1]['warnings']))

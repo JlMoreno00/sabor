@@ -15,7 +15,7 @@ from sabor.core.config_file import FILE_KEYS, apply_config_file, config_path
 from sabor.core.context import assemble_context
 from sabor.core.redaction import redact
 from sabor.store.sqlite_schema import MIGRATIONS
-from sabor.secrets_store import SECRET_NAMES, required_secrets
+from sabor.secrets_store import REMOVED_SECRET_NAMES, SECRET_NAMES, required_secrets
 from sabor.store import StoreError
 
 
@@ -97,10 +97,10 @@ def main(argv=None):
                 for name, capability in metadata['capabilities'].items()}
             result['missing_secrets'] = missing
             result['next_steps'] = ['sabor-mcp setup secret ' + name for name in missing]
-            if settings.removed_settings:
-                # Names only, never values: these settings no longer do anything (#102).
-                result['warnings'].append('removed in 0.4.0, the agent does extraction: '
-                                          + ', '.join(settings.removed_settings))
+            # Names only, never values: these settings no longer do anything (#102).
+            removed = [*settings.removed_settings, *sorted(set(refs) & REMOVED_SECRET_NAMES)]
+            if removed:
+                result['warnings'].append('removed in 0.4.0, the agent does extraction: ' + ', '.join(removed))
             if 'keyring' in refs.values():
                 import keyring
                 from keyring.errors import KeyringError

@@ -173,7 +173,8 @@ def main(argv=None):
                 if key in document.get(section, {}) and not env.get(envkey, '').strip():
                     value = document[section][key]
                     env[envkey] = ','.join(value) if isinstance(value, list) else str(value)
-            for name in set(required) | set(refs):
+            # References to secrets removed in 0.4.0 (#102) are kept but never resolved.
+            for name in (set(required) | set(refs)) & SECRET_NAMES.keys():
                 if not env.get(SECRET_NAMES[name], '').strip():
                     env[SECRET_NAMES[name]] = 'postgres:///placeholder' if name == 'database_url' else 'placeholder'
             settings = load_settings(env)

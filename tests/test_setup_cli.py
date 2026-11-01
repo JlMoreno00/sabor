@@ -87,6 +87,10 @@ class SetupTests(unittest.TestCase):
         code, result = self.run_setup('--non-interactive', '--json')
         self.assertEqual(code, 0, result)
         self.assertEqual(tomllib.loads(self.path.read_text())['llm'], {'base_url': 'http://['})
+        # CodeRabbit on #121: a leftover AI secret reference does not crash setup.
+        self.path.write_text('[secrets]\nllm_api_key = "keyring"\ngemini_api_key = "file"\n')
+        code, result = self.run_setup('--non-interactive', '--json')
+        self.assertEqual(code, 0, result)
 
     def test_interactive_answers_are_validated_and_normalized(self):
         original = '[llm]\nbase_url = "https://example.com/v1"\nmodel = "model"\n'
