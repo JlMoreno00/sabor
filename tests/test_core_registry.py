@@ -39,20 +39,6 @@ class RegistryTests(unittest.TestCase):
             with self.subTest(key=key), self.assertRaises(ConfigError):
                 load_settings({key: 'secret'})
 
-    def test_llm_key(self):
-        env = {'SABOR_LLM_MODEL': 'model', 'SABOR_LLM_BASE_URL': 'https://remote.test'}
-        with self.assertRaises(ConfigError):
-            load_settings(env)
-        for host in ('localhost', '127.0.0.1'):
-            self.assertTrue(load_settings(dict(env, SABOR_LLM_BASE_URL=f'http://{host}:11434/v1')).llm_configured)
-
-    def test_gemini_model_keeps_0_1_default(self):
-        settings = load_settings({'GEMINI_API_KEY': 'secret'})
-        self.assertEqual(settings.video_recipe_gemini_model, 'gemini-2.5-flash-lite')
-        self.assertTrue(settings.gemini_configured)
-        self.assertEqual(load_settings({'GEMINI_API_KEY': 's', 'VIDEO_RECIPE_GEMINI_MODEL': 'g'})
-                         .video_recipe_gemini_model, 'g')
-
     def test_duplicate_id(self):
         with self.assertRaises(ConfigError):
             registry(sync_factories=(lambda s: Adapter('same'), lambda s: Adapter('same')))
@@ -83,7 +69,7 @@ class RegistryTests(unittest.TestCase):
             self.assertEqual(load_settings({}), load_settings({}))
 
     def test_invalid_url_and_provider_safe(self):
-        for env in ({'MEALIE_BASE_URL': 'secret'}, {'SABOR_VIDEO_PROVIDER': 'secret'}):
+        for env in ({'MEALIE_BASE_URL': 'secret'},):
             with self.assertRaises(ConfigError) as error:
                 load_settings(env)
             self.assertNotIn('secret', str(error.exception))

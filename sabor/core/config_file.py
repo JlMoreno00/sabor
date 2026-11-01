@@ -12,10 +12,6 @@ FILE_KEYS = {
     ('store', 'backend'): 'SABOR_STORE',
     ('store', 'sqlite_path'): 'SABOR_STORE_DB',
     ('mealie', 'base_url'): 'MEALIE_BASE_URL',
-    ('llm', 'base_url'): 'SABOR_LLM_BASE_URL',
-    ('llm', 'model'): 'SABOR_LLM_MODEL',
-    ('import', 'video_provider'): 'SABOR_VIDEO_PROVIDER',
-    ('import', 'gemini_model'): 'VIDEO_RECIPE_GEMINI_MODEL',
     ('import', 'video_workdir'): 'VIDEO_RECIPE_WORKDIR',
     ('import', 'normalize'): 'SABOR_NORMALIZE_IMPORTS',
     ('import', 'ingredient_parser'): 'SABOR_INGREDIENT_PARSER',
@@ -29,7 +25,15 @@ FILE_KEYS = {
         'min_publish_confidence', 'publish_estimates', 'profile_ttl_days',
         'not_found_ttl_days', 'source_language', 'default_cup_ml', 'auto_on_import', 'auto_publish')},
 }
-SECRET_ENV = frozenset({'SABOR_DATABASE_URL', 'MEALIE_API_TOKEN', 'SABOR_LLM_API_KEY', 'GEMINI_API_KEY',
+# Keys removed in 0.4.0 (#102): accepted and ignored so an old config.toml keeps
+# starting; their environment names only feed doctor's removal warning.
+REMOVED_FILE_KEYS = {
+    ('llm', 'base_url'): 'SABOR_LLM_BASE_URL',
+    ('llm', 'model'): 'SABOR_LLM_MODEL',
+    ('import', 'video_provider'): 'SABOR_VIDEO_PROVIDER',
+    ('import', 'gemini_model'): 'VIDEO_RECIPE_GEMINI_MODEL',
+}
+SECRET_ENV = frozenset({'SABOR_DATABASE_URL', 'MEALIE_API_TOKEN',
                         'BRING_EMAIL', 'BRING_PASSWORD', 'SPOONACULAR_API_KEY'})
 # Effective value type per key; every other key is a string.
 _TYPES = {
@@ -43,6 +47,7 @@ _TYPES = {
 }
 _SECRET_KEYS = {('store', 'database_url'), ('mealie', 'api_token'), ('llm', 'api_key'), ('import', 'gemini_api_key'),
                 ('bring', 'email'), ('bring', 'password'), ('nutrition', 'spoonacular_api_key')}
+_SECTIONS = {section for section, _ in (*FILE_KEYS, *REMOVED_FILE_KEYS)}
 
 
 def config_path(env, platform=sys.platform):
@@ -87,16 +92,21 @@ def read_config_file(path, *, explicit) -> dict[str, str] | None:
     result = {}
     for section, entries in document.items():
         if section == 'secrets':
-            from sabor.secrets_store import SECRET_NAMES
-            if not isinstance(entries, dict) or any(k not in SECRET_NAMES or v not in ('keyring', 'file') for k, v in entries.items()):
+            from sabor.secrets_store import REMOVED_SECRET_NAMES, SECRET_NAMES
+            if not isinstance(entries, dict) or any((k not in SECRET_NAMES and k not in REMOVED_SECRET_NAMES)
+                                                    or v not in ('keyring', 'file') for k, v in entries.items()):
                 raise ConfigError('Invalid config.toml secret reference')
             continue
-        if section not in {s for s, _ in FILE_KEYS} or not isinstance(entries, dict):
+        if section not in _SECTIONS or not isinstance(entries, dict):
             raise ConfigError('Unknown or invalid config.toml section')
         for key, value in entries.items():
             pair = (section, key)
             if pair in _SECRET_KEYS:
                 raise ConfigError('Secrets do not belong in config.toml; set them in the environment')
+            if pair in REMOVED_FILE_KEYS:
+                # Ignored since 0.4.0; recorded (any value) only to report the removal.
+                result[REMOVED_FILE_KEYS[pair]] = str(value)
+                continue
             if pair not in FILE_KEYS:
                 raise ConfigError('Unknown config.toml key')
             expected = _TYPES.get(pair, str)
@@ -128,6 +138,8 @@ def apply_config_file(environ) -> str:
     with config_path(environ).open('rb') as stream:
         refs = tomllib.load(stream).get('secrets', {})
     for name, backend in refs.items():
+        if name not in SECRET_NAMES:
+            continue  # Removed in 0.4.0 (#102): never resolved.
         key = SECRET_NAMES[name]
         if not environ.get(key, '').strip():
             value = resolve(config_path(environ), name, backend)

@@ -77,36 +77,6 @@
           "isSecret": true
         },
         {
-          "name": "SABOR_LLM_BASE_URL",
-          "description": "Optional OpenAI-compatible endpoint for text import and portable video import, e.g. https://api.openai.com/v1 or http://localhost:11434/v1 (Ollama).",
-          "isRequired": false,
-          "isSecret": false
-        },
-        {
-          "name": "SABOR_LLM_MODEL",
-          "description": "Model name for SABOR_LLM_BASE_URL; required when that endpoint is set.",
-          "isRequired": false,
-          "isSecret": false
-        },
-        {
-          "name": "SABOR_LLM_API_KEY",
-          "description": "API key for SABOR_LLM_BASE_URL; required for non-localhost endpoints.",
-          "isRequired": false,
-          "isSecret": true
-        },
-        {
-          "name": "SABOR_VIDEO_PROVIDER",
-          "description": "Video import provider: gemini_native or openai_compatible. Unset uses Gemini when GEMINI_API_KEY is set, otherwise the OpenAI-compatible LLM.",
-          "isRequired": false,
-          "isSecret": false
-        },
-        {
-          "name": "GEMINI_API_KEY",
-          "description": "Optional Google Gemini API key for native video recipe extraction.",
-          "isRequired": false,
-          "isSecret": true
-        },
-        {
           "name": "BRING_EMAIL",
           "description": "Optional Bring! account email for the shopping_sync toolset; set together with BRING_PASSWORD.",
           "isRequired": false,

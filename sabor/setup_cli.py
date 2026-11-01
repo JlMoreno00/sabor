@@ -47,8 +47,8 @@ def main(argv=None):
     parser.add_argument('--json', action='store_true', help='Print one JSON result')
     if secret:
         arguments = arguments[1:]
-        parser.add_argument('name', help='mealie_api_token, llm_api_key, gemini_api_key, bring_email, '
-                                         'bring_password, spoonacular_api_key or database_url')
+        parser.add_argument('name', help='mealie_api_token, bring_email, bring_password, '
+                                         'spoonacular_api_key or database_url')
         parser.add_argument('--backend', choices=('auto', 'keyring', 'file'), default='auto',
                             help='Where to store it; auto uses the keychain and falls back to secrets.toml')
     else:
@@ -56,17 +56,13 @@ def main(argv=None):
                             help='Use only the flags (no prompts); required without a terminal')
         for flag, choices, text in [
                 ('lang', ('es', 'en'), 'Conversation language stored as [general] language'),
-                ('store', ('sqlite', 'mealie', 'postgres'), 'Recipe store (default sqlite)'),
-                ('llm', ('none', 'openai', 'gemini', 'ollama'), 'Model for text/video recipe import')]:
+                ('store', ('sqlite', 'mealie', 'postgres'), 'Recipe store (default sqlite)')]:
             parser.add_argument('--' + flag, choices=choices, help=text)
         parser.add_argument('--pricing', choices=('none', 'mercadona', 'open_prices'), action='append',
                             help='Price provider; repeat to enable several, none disables them')
         for flag, text in [('sqlite-path', 'SQLite database path (default: the OS data directory)'),
                            ('mealie-url', 'Mealie base URL (required with --store mealie)'),
-                           ('mercadona-warehouse', 'Mercadona warehouse id (default mad1)'),
-                           ('llm-base-url', 'OpenAI-compatible base URL'),
-                           ('llm-model', 'Model name for --llm openai or ollama'),
-                           ('gemini-model', 'Gemini model for --llm gemini')]:
+                           ('mercadona-warehouse', 'Mercadona warehouse id (default mad1)')]:
             parser.add_argument('--' + flag, help=text)
         parser.add_argument('--bring', action=argparse.BooleanOptionalAction, default=None,
                             help='Sync shopping lists with Bring! (needs bring_email and bring_password)')
@@ -98,7 +94,7 @@ def main(argv=None):
                 if not sys.stdin.isatty():
                     raise ConfigError('Use --non-interactive without a terminal')
                 for field, label, default in [('lang', 'Language / idioma', 'es'), ('store', 'Store / almacén', 'sqlite'),
-                                              ('pricing', 'Pricing / precios', 'none'), ('llm', 'LLM', 'none'),
+                                              ('pricing', 'Pricing / precios', 'none'),
                                               ('bring', 'Bring (yes/no)', 'no')]:
                     if getattr(args, field) is None:
                         if field == 'lang':
@@ -107,8 +103,6 @@ def main(argv=None):
                             default = _effective_store(document)
                         elif field == 'pricing':
                             default = ','.join(p for p in ('mercadona', 'open_prices') if document.get('pricing', {}).get(p)) or default
-                        elif field == 'llm':
-                            default = 'gemini' if document.get('import', {}).get('video_provider') == 'gemini_native' else 'openai' if document.get('llm', {}).get('base_url') else default
                         elif field == 'bring' and 'bring_email' in refs:
                             default = 'yes'
                         answer = (input(f'{label} [{default}]: ').strip() or default).lower()
@@ -124,8 +118,6 @@ def main(argv=None):
                         setattr(args, field, value)
                 if args.store == 'mealie' and not args.mealie_url and not document.get('mealie', {}).get('base_url'):
                     args.mealie_url = input('Mealie URL: ').strip()
-                if args.llm in ('ollama', 'openai') and not args.llm_model:
-                    args.llm_model = input('LLM model: ').strip()
             def put(section, key, value):
                 if value is not None:
                     document.setdefault(section, {})[key] = value
@@ -150,20 +142,6 @@ def main(argv=None):
                 pricing = document.get('pricing', {})
                 put('general', 'toolsets', [*SETUP_TOOLSETS, *(['pricing'] if any(
                     pricing.get(provider) for provider in ('mercadona', 'open_prices')) else [])])
-            if args.llm is not None:
-                for section, keys in [('llm', ('base_url', 'model')), ('import', ('video_provider', 'gemini_model'))]:
-                    for key in keys:
-                        document.get(section, {}).pop(key, None)
-                if args.llm in ('openai', 'ollama'):
-                    put('llm', 'base_url', args.llm_base_url or ('http://localhost:11434/v1' if args.llm == 'ollama' else 'https://api.openai.com/v1'))
-                    put('llm', 'model', args.llm_model)
-                if args.llm == 'gemini':
-                    put('import', 'video_provider', 'gemini_native')
-                    put('import', 'gemini_model', args.gemini_model)
-            if args.llm is None:
-                put('llm', 'base_url', args.llm_base_url)
-                put('llm', 'model', args.llm_model)
-                put('import', 'gemini_model', args.gemini_model)
             if _effective_store(document) == 'mealie' and not (
                     document.get('mealie', {}).get('base_url') or os.environ.get('MEALIE_BASE_URL', '').strip()):
                 raise ConfigError('Mealie store requires a base URL')
@@ -195,7 +173,8 @@ def main(argv=None):
                 if key in document.get(section, {}) and not env.get(envkey, '').strip():
                     value = document[section][key]
                     env[envkey] = ','.join(value) if isinstance(value, list) else str(value)
-            for name in set(required) | set(refs):
+            # References to secrets removed in 0.4.0 (#102) are kept but never resolved.
+            for name in (set(required) | set(refs)) & SECRET_NAMES.keys():
                 if not env.get(SECRET_NAMES[name], '').strip():
                     env[SECRET_NAMES[name]] = 'postgres:///placeholder' if name == 'database_url' else 'placeholder'
             settings = load_settings(env)
