@@ -1,4 +1,4 @@
-"""Bounded URL video extraction; providers never write recipes."""
+"""Bounded URL video download and frames; no AI provider ever sees the media (#102)."""
 import base64
 import re
 import shutil
@@ -6,11 +6,10 @@ import subprocess
 import time
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Any, Protocol
+from typing import Any
 from urllib.parse import urlsplit
 
-import sabor.importing.gemini_client as gemini_client
-from sabor.importing.tools import OpenAIImportProvider, ImportErrorResult, reject, validate_recipes
+from sabor.importing.tools import reject
 
 MAX_BYTES = 100 * 1024 * 1024
 MAX_SECONDS = 600
@@ -32,17 +31,12 @@ def _complete(info):
     return all(any(f.get(kind) != 'none' for f in picked) for kind in ('vcodec', 'acodec'))
 
 
-class VideoExtractor(Protocol):
-    id: str
-
-    def extract(self, path: Path, captions: str, request: dict) -> dict: ...
-
 
 def download(source, root):
     host = (urlsplit(source).hostname or '').lower()
     if host == 'tiktok.com' or host.endswith('.tiktok.com'):
-        reject('unsupported_operation', 'TikTok bloquea descargas. Pega el caption o la transcripción '
-               "del video como texto: import_recipe(source=<texto>, kind='text').")
+        reject('unsupported_operation', 'TikTok bloquea descargas. Lee el caption o la transcripción '
+               'del vídeo y guarda la receta con create_recipe.')
     if urlsplit(source).scheme not in ('http', 'https'):
         reject('unsupported_operation', 'Upload guidance: local media paths are not enabled.')
     import yt_dlp
@@ -150,88 +144,3 @@ def frames(path):
             except (OSError, subprocess.TimeoutExpired):
                 continue
     return images
-
-
-class GeminiNativeVideo:
-    id = 'gemini_native'
-    kinds = frozenset({'video'})
-
-    def __init__(self, cfg):
-        self.cfg = cfg
-
-    def preview(self, request):
-        return preview_video(request['source'], self.cfg, request, extractor=self)
-
-    def extract(self, path, captions, request):
-        upload = gemini_client._upload_to_gemini(path, cfg=self.cfg)
-        name = upload.get('name')
-        try:
-            if not upload.get('ok') or not name or not upload.get('uri'):
-                reject('upstream_error', 'Video upload failed.', self.id)
-            if upload.get('state') != 'ACTIVE' and not gemini_client._wait_for_gemini_processing(name, cfg=self.cfg):
-                reject('upstream_error', 'Video processing failed.', self.id)
-            result = gemini_client._extract_recipes_with_gemini(upload['uri'], request['language'], request['max_recipes'], cfg=self.cfg)
-            if not result.get('ok'):
-                reject('invalid_response', 'Video extraction failed.', self.id)
-            return dict(validate_recipes(result['recipes'], request), limitations=[])
-        finally:
-            if name:
-                gemini_client._cleanup_gemini_file(name, cfg=self.cfg)
-
-
-class OpenAICompatibleVideo:
-    id = 'openai_compatible'
-
-    def __init__(self, cfg):
-        self.cfg = cfg
-
-    def extract(self, path, captions, request):
-        images = frames(path)
-        limitations = ['audio_not_analyzed']
-        if not images:
-            limitations.append('visual_evidence_unavailable')
-        if not images and not captions:
-            reject('unsupported_operation', 'Neither visual nor caption evidence is available.', self.id)
-        source = ([{'type': 'text', 'text': captions}] +
-                  [{'type': 'image_url', 'image_url': {'url': image}} for image in images]) if images else captions
-        try:
-            result = OpenAIImportProvider(self.cfg).preview(dict(request, source=source))
-        except ImportErrorResult as exc:
-            if not images or exc.result['error']['code'] != 'invalid_argument':
-                raise
-            if not captions:
-                reject('unsupported_operation', 'Model cannot use images and no captions are available.', self.id)
-            limitations.append('visual_evidence_unavailable')
-            result = OpenAIImportProvider(self.cfg).preview(dict(request, source=captions))
-        return dict(result, limitations=limitations)
-
-
-def select_video(cfg) -> VideoExtractor:
-    provider = cfg.video_provider or ('gemini_native' if cfg.gemini_configured else 'openai_compatible')
-    if provider == 'gemini_native' and cfg.gemini_configured:
-        return GeminiNativeVideo(cfg)
-    if provider == 'openai_compatible' and cfg.llm_configured:
-        return OpenAICompatibleVideo(cfg)
-    reject('provider_unconfigured', 'Video extraction provider is not configured.', provider)
-
-
-def preview_video(source, cfg, request, extractor=None):
-    with TemporaryDirectory() as tmp:
-        media, captions = download(source, Path(tmp))
-        return (extractor or select_video(cfg)).extract(media, captions, request)
-
-
-def tag_video(slug):
-    from sabor.core.toolsets import current_context, use_context
-    from sabor.core.context import default_context
-    from sabor.store import StoreError
-
-    try:
-        ctx = current_context()
-    except LookupError:
-        with use_context(factory=default_context):
-            return tag_video(slug)
-    try:
-        ctx.store.tag_recipe(slug, ['video-import'])
-    except StoreError:
-        reject('upstream_error', 'Video recipe tagging failed.', 'mealie')

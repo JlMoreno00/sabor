@@ -156,7 +156,7 @@ assert 'sabor.config' not in sys.modules
     subprocess.run([sys.executable, '-c', script, str(tmp_path)], check=True)
 
 
-def test_video_bring_and_after_import_bridge(tmp_path, monkeypatch):
+def test_bring_and_after_import_bridge(tmp_path, monkeypatch):
     from sabor.core.toolsets import current_context
     from sabor.tools import nutrition
 
@@ -178,22 +178,7 @@ def test_video_bring_and_after_import_bridge(tmp_path, monkeypatch):
         name = expected.get()
         calls.append((name, method, url))
         headers = {}
-        if 'generativelanguage' in url:
-            key = kwargs.get('params', {}).get('key')
-            assert key == f'gemini-{name}' or f'key=gemini-{name}' in url
-            if '/upload/' in url:
-                headers = {'X-Goog-Upload-URL': f'https://upload.example/{name}'}
-                body = {}
-            elif ':generateContent' in url:
-                candidate = dict(name='Video recipe', ingredients=['1 g salt'], steps=['Mix'],
-                                 servings='2', notes='', confidence=.9)
-                body = {'candidates': [{'content': {'parts': [{'text': json.dumps({'recipes': [candidate]})}]}}]}
-            else:
-                body = {'state': 'ACTIVE'}
-        elif 'upload.example' in url:
-            assert url.endswith('/' + name)
-            body = {'file': {'name': f'files/{name}', 'uri': f'uri-{name}', 'state': 'PROCESSING'}}
-        elif 'getbring.com' in url:
+        if 'getbring.com' in url:
             if url.endswith('/bringauth'):
                 assert kwargs['data'] == {'email': f'{name}@example.com', 'password': f'password-{name}'}
                 body = {'uuid': name, 'access_token': f'bring-{name}', 'expires_in': 3600}
@@ -206,10 +191,8 @@ def test_video_bring_and_after_import_bridge(tmp_path, monkeypatch):
         else:
             assert url.startswith(f'https://{name}.example/')
             assert kwargs['headers']['Authorization'] == f'Bearer {name}'
-            if '/create/html-or-json' in url:
+            if '/create/url' in url:
                 body = 'video-recipe'
-            elif '/organizers/tags' in url:
-                body = {'items': [{'id': 'tag', 'slug': 'video-import', 'name': 'video-import'}]}
             else:
                 body = {'id': 'recipe', 'slug': 'recipe', 'name': 'Recipe', 'tags': [],
                         'items': [], 'total_pages': 1, 'page': 1, 'per_page': 25, 'total': 0}
@@ -220,13 +203,6 @@ def test_video_bring_and_after_import_bridge(tmp_path, monkeypatch):
                             lambda url, _method=method, **kw: response(_method.upper(), url, **kw))
     monkeypatch.setattr('requests.sessions.Session.request',
                         lambda self, method, url, **kw: response(method, url, **kw))
-
-    def download(source, root):
-        media = root / 'video.mp4'
-        media.write_bytes(b'video')
-        return media, ''
-
-    monkeypatch.setattr('sabor.importing.video.download', download)
 
     def ensure(slug, trigger):
         # Keep the real bridge, service construction and recipe fetch; stub only
@@ -248,7 +224,8 @@ def test_video_bring_and_after_import_bridge(tmp_path, monkeypatch):
             assert targets[0]['list_id'] == expected.get()
             adapter = contexts[index].registry.syncs[0]
             assert adapter.catalogs[0]['unique item'] == expected.get()
-            result = server.tools['import_recipe']('https://youtu.be/test', kind='video', dry_run=False)
+            # #102: recipe pages through Mealie's native import (no AI provider, no video).
+            result = server.tools['import_recipe']('https://example.org/recipe', kind='url', dry_run=False)
             assert result['ok'], result
             assert result['data']['created'] == ['video-recipe']
             assert result['data']['nutrition']['video-recipe']['ok']
@@ -263,8 +240,7 @@ def test_video_bring_and_after_import_bridge(tmp_path, monkeypatch):
     for name, service in bridge_services:
         assert service is contexts[('a', 'b').index(name)].state.nutrition_service
     for name in ('a', 'b'):
-        assert any(owner == name and method == 'PATCH' and '/api/recipes/video-recipe' in url
-                   for owner, method, url in calls)
+        assert any(owner == name and '/api/recipes/create/url' in url for owner, method, url in calls)
 
 
 def test_default_context_assembles_providers_and_stable_direct_sync_scope(tmp_path, monkeypatch):
@@ -282,6 +258,5 @@ def test_default_context_assembles_providers_and_stable_direct_sync_scope(tmp_pa
     server = Server()
     register_tools(server, env)
     registered = _contexts[server]
-    assert [p.id for p in direct.registry.imports] == [p.id for p in registered.registry.imports]
-    assert [p.id for p in direct.registry.syncs] == ['bring']
+    assert [p.id for p in direct.registry.syncs] == [p.id for p in registered.registry.syncs] == ['bring']
     assert _direct_context().registry.syncs[0].scope == _direct_context().registry.syncs[0].scope

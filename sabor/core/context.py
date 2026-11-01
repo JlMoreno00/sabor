@@ -9,7 +9,7 @@ from typing import Callable, cast
 from sabor.store import RecipeStore
 from sabor.pricing.provider import PricingProvider
 from .config import Settings
-from .registry import Registry, ImportProvider, ShoppingSyncProvider
+from .registry import Registry, ShoppingSyncProvider
 
 
 @dataclass
@@ -76,19 +76,16 @@ def default_context() -> AppContext:
 def build_context(settings: Settings, *,
                   store_factory: Callable[[Settings], RecipeStore] | None = None,
                   pricing_factories: tuple[Callable[[Settings], PricingProvider], ...] = (),
-                  import_factories: tuple[Callable[[Settings], ImportProvider], ...] = (),
                   sync_factories: tuple[Callable[[Settings], ShoppingSyncProvider], ...] = ()) -> AppContext:
     """Pure dependency assembly; no environment reads, probes or global writes."""
     registry = Registry(settings, store_factory=store_factory,
                         pricing_factories=pricing_factories,
-                        import_factories=import_factories, sync_factories=sync_factories)
+                        sync_factories=sync_factories)
     return AppContext(settings, registry, registry.recipe_store, registry.pricings)
 
 
 def assemble_context(settings: Settings, *, store_factory=None) -> AppContext:
     """Share provider assembly between registration and direct Python calls."""
-    from sabor.importing.tools import OpenAIImportProvider
-    from sabor.importing.video import GeminiNativeVideo
     from sabor.sync.bring import BringSyncProvider
     from sabor.pricing.mercadona import MercadonaPricing
     from sabor.pricing.open_prices import OpenPricesPricing
@@ -104,6 +101,4 @@ def assemble_context(settings: Settings, *, store_factory=None) -> AppContext:
             warehouse=MERCADONA_WAREHOUSE,
             cache_path=_mercadona_cache_path(MERCADONA_WAREHOUSE, s.legacy_config.SABOR_DATA_DIR)),) if settings.mercadona_enabled else ())
         + ((lambda s: OpenPricesPricing(),) if settings.open_prices_enabled else ()),
-        import_factories=((OpenAIImportProvider,) if settings.llm_configured else ())
-        + ((GeminiNativeVideo,) if settings.gemini_configured else ()),
         sync_factories=(BringSyncProvider,) if settings.bring_email and settings.bring_password else ())

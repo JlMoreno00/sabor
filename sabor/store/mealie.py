@@ -91,7 +91,8 @@ class MealieRecipeStore(MealieShoppingItemsMixin, MealieShoppingListsMixin):
         self.direct_compatibility = session is requests
         self._headers = {"Authorization": f"Bearer {token}"}
 
-    native_import_kinds = frozenset({'url', 'image'})
+    # Mealie's image import needs Mealie's own OpenAI configuration: not used (#102).
+    native_import_kinds = frozenset({'url'})
 
     def _native_import(self, path, **kwargs):
         try:
@@ -110,11 +111,6 @@ class MealieRecipeStore(MealieShoppingItemsMixin, MealieShoppingListsMixin):
 
     def import_url(self, source):
         return self._native_import('/create/url', json=dict(url=source, includeTags=True, includeCategories=True))
-
-    def import_image(self, content, mime, language):
-        return self._native_import('/create/image',
-            files=[('images', ('recipe-image', content, mime))],
-            params={'translateLanguage': language})
 
     def normalize_imported(self, slug):
         from sabor.integrations.mealie import normalize_imported_recipe

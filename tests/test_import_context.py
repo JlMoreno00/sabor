@@ -44,4 +44,5 @@ class ImportContextTests(unittest.TestCase):
         ctx, _ = self.context('http://one')
         rows = describe(ctx, [], 'test')['data']['capabilities']['import']['adapters']
         self.assertTrue(any('url' in r['kinds'] and 'preview' in r['operations'] for r in rows))
-        self.assertTrue(any('image' in r['kinds'] and 'preview' not in r['operations'] for r in rows))
+        # #102: Mealie's image import needed Mealie's OpenAI configuration; it is gone.
+        self.assertFalse(any('image' in r['kinds'] for r in rows))

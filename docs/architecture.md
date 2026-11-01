@@ -109,7 +109,6 @@ See [Postgres operations](operations.md#postgres--supabase-store).
 | MCP client | Expose tools at `/mcp` over Streamable HTTP | Choose tools and supply explicit mutation arguments |
 | Mealie | Read and mutate recipes, planning, tags, comments, shopping lists, foods, units, and cookbooks through REST | Persist canonical cooking data and run the configured ingredient parser |
 | Spoonacular | Search recipes and fetch exact-match ingredient profiles | Supply external recipe and per-100-g nutrient data |
-| Gemini | Upload video, request structured recipe extraction, and attempt uploaded-file deletion | Analyze video content and retain uploaded data until deletion or provider expiry |
 | OpenAI parser | Send parser name and ingredient text to Mealie | Mealie selects and operates its `openai` parser; Sabor has no direct OpenAI client or key |
 | Bring! | Authenticate and synchronize shopping-list items | Persist Bring! account and list data |
 | Mercadona | Read public product catalog and prices into an in-memory cache | Supply public product data |
@@ -144,13 +143,8 @@ FastMCP is configured as stateless HTTP. This means MCP session state is not
 stored in the process, but instance provider caches, the legacy Mercadona cache
 and the local data files are still operational state.
 
-Gemini upload deletion is best effort, not guaranteed. Sabor attempts deletion
-after extraction and after a processing failure, but suppresses request errors,
-does not verify the DELETE response, and has no retry queue. Process termination,
-network failure, or provider errors can therefore leave an uploaded file until
-Gemini's documented automatic deletion after 48 hours, or until an operator
-removes it through the provider. A failed upload initialization/finalization may
-also leave provider-side state that Sabor cannot identify for cleanup.
+Sabor contains no AI provider client (#102) and uploads no recipe content, image or
+video to any AI service. With Mealie, a committed import runs Mealie's ingredient parser (`SABOR_INGREDIENT_PARSER`, default `openai`), which may use the AI provider configured in Mealie.
 
 ## Capability registry and public envelopes (0.3)
 
@@ -160,19 +154,16 @@ with readiness, applies per-tool requirements and registers discovery once.
 There are no startup credential probes. Legacy modules remain imported by the
 server; selection is not a plugin-loading/security sandbox.
 
-Import adapters implement extraction/preview; the unified importer commits via
-the instance store. Native URL/image services remain optional Mealie extensions.
-Native discovery advertises URL preview/commit and image commit-only. Non-native
-stores use offline `recipe_scrapers.scrape_html` with JSON-LD fallback for URL
-imports, and the compatible LLM with a data-URL image content part for image
-preview/commit. Both create RecipeDrafts through the store, retaining source URL
-provenance in the description. Shared pinned-IP fetching rejects private addresses
-at every redirect, bypasses proxies and bounds streamed HTML to 5 MB and images
-to 10 MB, with explicit content-type allowlists. Scraped content is untrusted data.
+The unified importer handles recipe web pages only and commits via the instance
+store; text, images and video are extracted by the client agent, which calls
+`create_recipe` (#102). Mealie's native URL import remains an optional extension,
+advertised with preview/commit. Non-native stores use offline
+`recipe_scrapers.scrape_html` with JSON-LD fallback and create RecipeDrafts through
+the store, retaining source URL provenance in the description. Shared pinned-IP fetching rejects private addresses
+at every redirect, bypasses proxies and bounds streamed HTML and recipe images
+to 5 MB, with explicit content-type allowlists. Scraped content is untrusted data.
 Normalization uses the store's optional hook; nutrition runs only with Mealie.
-Gemini-native uses
-whole-video audio/vision; OpenAI-compatible uses frames and captions. Selection
-is explicit or Gemini-first when configured. Sync adapters implement
+Sync adapters implement
 targets/plan/apply; the orchestrator reads the recipe store, resolves a unique target,
 previews and confirms a rebuilt current plan. Bring! is the only sync provider;
 Todoist is planned for 0.3.1. A free-text source item (no food, no unit) with the
@@ -207,7 +198,7 @@ there is no global store state. Tags, comments, history,
 shopping preview/clear and ID validation belong to the store. Core tool modules
 do not import HTTP clients. Mealie-only scheduling transport and its nutrition
 gate live in the adapter; other stores schedule without that gate. Native
-URL/image imports, catalog reconciliation and nutrition remain Mealie-specific.
+URL import, catalog reconciliation and nutrition remain Mealie-specific.
 
 Context-aware tools (`@tool(..., uses_context=True)`) receive their context
 explicitly per call. `bind_context(fn, context)` runs the tool inside
@@ -323,14 +314,12 @@ recipe import into a failure. Placeholder-only legacy recipes skip
 normalization.
 
 `SABOR_INGREDIENT_PARSER=openai` selects a Mealie parser for the legacy
-normalization path. Unified import commits (`dry_run=False`, every kind) run
+normalization path. Unified URL import commits (`dry_run=False`) run
 the same instance-owned normalization (`SABOR_NORMALIZE_IMPORTS`) and
 nutrition-after-import gate as `create_recipe`, reported per slug in
 `normalization`, `nutrition` and `warnings`; hook failures never fail the
 import. A `partial_failure` runs the same hooks on the recipes already created
-and carries those keys next to `completed` and `failed`. It has no `normalize` parameter. Its text/video adapter calls
-the explicitly configured compatible LLM directly using `SABOR_LLM_*`, not
-`OPENAI_API_KEY`.
+and carries those keys next to `completed` and `failed`. It has no `normalize` parameter.
 
 ## Spanish Catalog Flow
 

@@ -60,7 +60,7 @@ not automatic retries or an assumed cross-system rollback.
 |---|---|---|
 | Recipes, meal plans, shopping lists | Built-in SQLite; no account or token | Mealie URL + API token |
 | URL import | Offline recipe-scrapers / JSON-LD | Native Mealie scraper |
-| Text / image / video import | Optional compatible LLM / Gemini; video needs ffmpeg | Optional providers; native image import uses Mealie configuration |
+| Text / image / video | The client agent extracts the recipe and calls `create_recipe` (no AI provider in Sabor) | Same |
 | Bring! sync / Mercadona estimates | Optional credentials / pricing opt-in | Same optional integrations |
 | Spanish catalog / legacy nutrition | Not supported | Mealie adapter required |
 | Cookbooks | Not supported | Mealie cookbooks (`search_recipes(cookbook_id=...)`, nutrition cookbook tools) |
@@ -96,24 +96,15 @@ configuration/reconciliation failure, 2 for invalid arguments. Review nested
 |---|---|---|
 | Core | Built-in SQLite, or Mealie URL + token | Recipes, suggestions, planning, shopping items and history; API baseline Mealie 3.22.0 |
 | Import: URL | SQLite: offline recipe-scrapers + schema.org JSON-LD; Mealie: native scraper | Read-only preview; pages without a recipe return `not_found`; no paid-provider fallback |
-| Import: text | OpenAI-compatible endpoint + model (+ key remotely) | Typed recipe extraction; preview can incur LLM charges |
-| Import: image | SQLite: vision-capable OpenAI-compatible LLM; Mealie: native import with Mealie's OpenAI configuration | Explicit `kind="image"`, public image URL; SQLite supports preview, Mealie remains commit-only |
-| Import: video | `gemini_native` or `openai_compatible` | URL download; up to 100 MiB / 10 minutes; no playlists or local paths; TikTok URLs unsupported (paste the caption/transcript with `kind='text'`) |
+| Import: text, image, video | None: Sabor contains no AI provider | `import_recipe` returns `unsupported_operation`; the agent reads the source and saves it with `create_recipe` |
 | Shopping sync | Bring! email + password **and a recipe store** | Only unchecked source items; does not check off Mealie items |
 | Pricing | `pricing` toolset + `SABOR_MERCADONA_ENABLED=true` or `SABOR_OPEN_PRICES_ENABLED=true` | Read-only quantity-aware estimates; Mercadona catalog or Open Prices observations |
 | Legacy | Explicit toolset selection plus provider configuration | Promotions, memory, nutrition and Spanish catalog |
 
-Gemini-native uploads the whole video for audio + vision processing using
-`GEMINI_API_KEY` (`VIDEO_RECIPE_GEMINI_MODEL` defaults to `gemini-2.5-flash-lite`).
-OpenAI-compatible video uses sampled frames and available captions; visual support
-depends on the model, and without captions spoken quantities are unavailable.
-No generic audio/transcription endpoint is assumed. Text-only models can use
-captions with limitations. Neither adapter guarantees extraction accuracy.
-
-Set `SABOR_VIDEO_PROVIDER=gemini_native` or `openai_compatible` to select
-explicitly. Otherwise configured Gemini wins, then the compatible endpoint.
-An explicitly unconfigured selection does not silently fall back.
-LLM-only setups can preview text/video; committing requires a recipe store (SQLite or Mealie).
+Since 0.4.0 Sabor contains no AI provider client (#102): the client agent reads
+text, images and video itself and saves the recipe with `create_recipe`. The
+`SABOR_LLM_*`, `GEMINI_*`, `VIDEO_RECIPE_GEMINI_MODEL` and `SABOR_VIDEO_PROVIDER`
+settings no longer enable anything; a later 0.4.0 change removes them.
 
 ## Recipe stores and instance boundaries
 
@@ -126,10 +117,9 @@ invalid values fail startup. SQLite construction and registration perform no
 filesystem I/O. Runtime startup initializes the database before serving requests;
 direct store use initializes on first operation. Missing parent directories are
 created, and opening failures never silently fall back. Back up its data volume.
-URL, text, video and image import work with SQLite: URL needs no LLM; text needs
-an OpenAI-compatible LLM, image needs a vision-capable compatible model, and video
-needs either video adapter above. The Spanish catalog, legacy nutrition and native
-URL/image services still require Mealie; SQLite does not advertise native imports.
+URL import works with SQLite and needs no AI. The Spanish catalog, legacy
+nutrition and Mealie's native URL import still require Mealie; SQLite does not
+advertise native imports.
 Tandoor and KitchenOwl are not implemented integrations. Existing slug/list arguments remain unchanged,
 including the historical `mealie_list_id` sync argument. There is no public
 per-call backend URL or tenant selector.
@@ -148,8 +138,7 @@ for role permissions, Supabase session-pooler settings and backups, and
 An `AppContext` binds settings, store, registry and pricing providers to registered
 tools. Mealie sessions, Mercadona catalog caches and Bring authentication/cache
 state are instance-owned. Every registered tool binds the server's configuration;
-nutrition services, caches and locks, memory paths, Gemini credentials, video
-tagging and Bring catalog overrides are isolated between registrations. This is
+nutrition services, caches and locks, memory paths and Bring catalog overrides are isolated between registrations. This is
 **not a multi-tenant security boundary**: legacy Mercadona promotion/catalog state
 and direct-call compatibility globals remain process-wide. Use separate
 processes/containers, credentials and data volumes for untrusted households;
@@ -158,7 +147,7 @@ Direct Python compatibility calls are not equivalent to registered app contexts.
 
 Discovery exposes `data.capabilities.recipe_store` and `pricing` with adapter IDs
 and operations; `data.mealie.configured` remains a deprecated compatibility field.
-Native import discovery includes `url` (preview/commit) and `image` (commit only).
+Native import discovery includes `url` (preview/commit) only.
 Configured means locally configured, never authenticated or healthy.
 
 ## Quantity-aware pricing
@@ -285,7 +274,7 @@ is trimmed, duplicates collapse, and unknown names prevent startup.
 | Toolset | Selection / configuration |
 |---|---|
 | `core` | Default; built-in SQLite or Mealie URL + token |
-| `import` | Default; recipe store, compatible LLM or Gemini; kinds depend on provider |
+| `import` | Default; a recipe store; recipe web pages (`kind='url'`) only |
 | `shopping_sync` | Default; Bring! credentials + recipe store for the tools |
 | `pricing` | Opt-in + `SABOR_MERCADONA_ENABLED=true` or `SABOR_OPEN_PRICES_ENABLED=true`; no Mealie required for inline items |
 | `legacy_spoonacular` | Opt-in + `SPOONACULAR_API_KEY` |
@@ -327,11 +316,10 @@ MCP schema validation can reject a call before a tool runs.
 
 - `confirm=False` previews recipe updates, shopping item removal, clear/delete
   lists, clear calendar ranges and both sync modes. Show preview → ask → confirm.
-- Import defaults to `dry_run=True`; preview may download media/upload to an
-  external processor and consume quota, but does not create recipes.
-  Ask for processing consent **before** sending private content.
-- Mealie image import cannot preview; obtain explicit approval for `dry_run=False`.
-  SQLite image preview downloads the image and sends it to the configured LLM.
+- Import defaults to `dry_run=True`; preview fetches the recipe page but does not
+  create recipes. Sabor itself calls no AI provider. With Mealie, a committed import
+  runs Mealie's ingredient parser (`SABOR_INGREDIENT_PARSER`, default `openai`), which
+  may send ingredient text to the AI provider configured in Mealie.
 - Other writes require client-side approval even without a server flag.
   Legacy `apply`, `publish` and `execute` gates retain their separate meanings.
 - Sync accepts optional `preview_digest`. Supplying the approved preview's digest
@@ -388,7 +376,7 @@ code --add-mcp '{"name":"sabor","command":"uvx","args":["sabor-mcp"]}'
 ```
 
 Without a `config.toml`, Sabor starts with local SQLite in the OS data directory;
-run `sabor-mcp setup` later to add Mealie, prices, an import model or Bring!.
+run `sabor-mcp setup` later to add Mealie, prices or Bring!.
 
 ### 3. Docker or Mealie (advanced)
 
@@ -428,8 +416,8 @@ directory (Docker), otherwise the OS user data directory:
 SQLite, memory, nutrition and catalog cache paths derive from it; explicit
 per-file overrides still win. Persist the Docker volume and back up local data.
 
-Video import needs system **ffmpeg / ffprobe** (included in Docker); install
-ffmpeg separately for uvx. Missing binaries return a clear
+Video downloads (for the agent media bundle in 0.4.0) need system **ffmpeg /
+ffprobe** (included in Docker); install ffmpeg separately for uvx. Missing binaries return a clear
 `provider_unconfigured` error rather than disabling core tools.
 
 ## Quickstart: Docker — Sabor + Mealie

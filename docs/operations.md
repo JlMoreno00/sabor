@@ -244,8 +244,8 @@ The executable runtime, `.env.example`, and `mcp-manifest.json` all use
 | `SABOR_DATABASE_URL` | Empty | Required for Postgres backend | Secret Postgres URL; environment or setup-managed secret reference, never `[store] database_url` |
 | `MEALIE_API_TOKEN` | Empty | Optional Mealie adapter only | Bearer token; secret |
 | `SPOONACULAR_API_KEY` | Empty | Spoonacular tools and nutrition profile fetches | Secret |
-| `GEMINI_API_KEY` | Empty | Video analysis/import | Secret |
-| `VIDEO_RECIPE_GEMINI_MODEL` | `gemini-2.5-flash-lite` | Native video | Same default as 0.1.x; set it to pin another Gemini model |
+| `GEMINI_API_KEY` | Empty | No effect since 0.4.0 (#102); removed in a later 0.4.0 change | Secret |
+| `VIDEO_RECIPE_GEMINI_MODEL` | `gemini-2.5-flash-lite` | No effect since 0.4.0 (#102); removed in a later 0.4.0 change | |
 | `VIDEO_RECIPE_WORKDIR` | `/tmp/video-recipe-mcp` | Video URL processing | Temporary downloaded media |
 | `BRING_EMAIL` | Empty | Bring! tools | Account identifier; treat as sensitive |
 | `BRING_PASSWORD` | Empty | Bring! tools | Secret |
@@ -257,21 +257,21 @@ The executable runtime, `.env.example`, and `mcp-manifest.json` all use
 
 SQLite, Mealie and optional Postgres are shipped RecipeStores. Without a Mealie URL, SQLite enables
 recipes, meal plans, shopping lists and import locally. URL import uses offline
-recipe-scrapers with JSON-LD fallback and needs no LLM. Text requires a compatible
-LLM; image preview/commit requires a vision-capable compatible model (otherwise
-`provider_unconfigured`); video requires a configured video adapter. Native
-URL/image services, Spanish catalog and legacy nutrition still require Mealie.
-HTML downloads accept only text/html or application/xhtml+xml up to 5 MB; image
-downloads accept JPEG, PNG, WebP or GIF up to 10 MB. Both pin validated public IPs,
+recipe-scrapers with JSON-LD fallback and needs no AI. Sabor contains no AI provider
+(#102): `import_recipe` returns `unsupported_operation` for text, image and video,
+and the agent saves what it extracts with `create_recipe`. Mealie's native URL import,
+the Spanish catalog and legacy nutrition still require Mealie.
+HTML downloads accept only text/html or application/xhtml+xml up to 5 MB; recipe image
+downloads accept JPEG, PNG, WebP or GIF up to 5 MB. Both pin validated public IPs,
 revalidate redirects and ignore proxy settings. Registered tools use an AppContext with
 instance-owned Mealie session, Mercadona catalog cache and Bring transport/auth
 state. Discovery's `capabilities.recipe_store` lists operations; the old
 `data.mealie.configured` field is deprecated. Native URL import supports preview
-and commit; image is commit-only. Configuration discovery does not probe health.
+and commit. Configuration discovery does not probe health.
 
 Each registration freezes configuration from its supplied environment mapping.
-Nutrition services/locks, memory paths, Gemini credentials, video tagging and
-Bring catalog overrides are instance-owned. Give independent registrations
+Nutrition services/locks, memory paths and Bring catalog overrides are
+instance-owned. Give independent registrations
 distinct `SABOR_STORE_DB`, `MEMORY_FILE` and `SABOR_NUTRITION_DB` paths; identical paths intentionally
 share persistence. `BRING_CATALOG_DIR` is captured at registration, before the
 installed-package discovery fallback, not reread from the process environment.
@@ -468,19 +468,15 @@ configuration.
 | Variable | Default | Meaning |
 |---|---|---|
 | `SABOR_TOOLSETS` | `core,import,shopping_sync` | Comma-separated allowlist; empty = discovery only; unknown names fail startup |
-| `SABOR_LLM_BASE_URL` | Empty | Compatible endpoint, including /v1 where required |
-| `SABOR_LLM_MODEL` | Empty | Explicit compatible model |
-| `SABOR_LLM_API_KEY` | Empty | Required remotely; localhost/127.0.0.1 may omit |
-| `SABOR_VIDEO_PROVIDER` | Empty | Auto: configured Gemini then compatible; explicit choice has no fallback |
+| `SABOR_LLM_BASE_URL` | Empty | No effect since 0.4.0 (#102); removed in a later 0.4.0 change |
+| `SABOR_LLM_MODEL` | Empty | No effect since 0.4.0 (#102); removed in a later 0.4.0 change |
+| `SABOR_LLM_API_KEY` | Empty | No effect since 0.4.0 (#102); removed in a later 0.4.0 change |
+| `SABOR_VIDEO_PROVIDER` | Empty | No effect since 0.4.0 (#102); removed in a later 0.4.0 change |
 | `SABOR_MERCADONA_ENABLED` | `false` | Explicit readiness for Mercadona pricing and selected legacy pricing |
 | `SABOR_OPEN_PRICES_ENABLED` | `false` | Enable Open Prices observations; accepts true/false, case-insensitive; select pricing toolset |
 
-Endpoint examples: OpenAI `https://api.openai.com/v1`; Gemini-compatible
-`https://generativelanguage.googleapis.com/v1beta/openai/`; Ollama
-`http://localhost:11434/v1`. Models must support the requested media; compatible
-video uses frames/captions, not whole-video audio. Native Gemini requires its
-existing key plus an explicit model. Inside Docker, localhost means the Sabor
-container; use an intentionally trusted reachable service address and key.
+Sabor itself calls no AI provider: the client agent extracts recipes from text,
+images and video and saves them with `create_recipe`. With Mealie, a committed import runs Mealie's ingredient parser (`SABOR_INGREDIENT_PARSER`, default `openai`), which may use the AI provider configured in Mealie.
 
 For Spanish catalog setup, prefer the CLI; the MCP tools will be retired in a future major version.
 The existing `spanish_catalog_status` and `apply_spanish_catalog` MCP tools remain
@@ -512,8 +508,8 @@ SABOR_MERCADONA_ENABLED=true
 Core/catalog need Mealie. Spoonacular needs its key; memory/nutrition can register
 locally, with existing nutrition operation gates unchanged. Sync tools need both
 Bring credentials and Mealie; partial Bring credentials fail startup.
-Import can register with Mealie alone or an LLM/Gemini preview provider.
-Mealie image import uses Mealie-owned OpenAI configuration and cannot preview.
+Import registers with a recipe store (SQLite, Postgres or Mealie); it imports
+recipe web pages only.
 
 ## Redaction policy
 
@@ -682,11 +678,8 @@ unverified. Use throwaway targets only and record the result here.
    `confirm=True` with the returned `preview_digest`; check the items in the
    Bring app, then repeat with a changed source to confirm stale-digest
    rejection.
-3. **Imports with real models**: `import_recipe` with an OpenAI-compatible LLM
-   (text, and video frames plus captions) and with Gemini-native video, preview
-   then commit on a test store. Record model names and costs.
-4. **Native Mealie image import**: requires Mealie's own OpenAI configuration;
-   record the actual `POST /api/recipes/create/image` response shape.
+3. **URL import**: `import_recipe` on a real recipe page, preview then commit on a
+   test store (Mealie's native import and the built-in scraper).
 
 ## Disabled-First Nutrition Rollout
 
