@@ -158,7 +158,9 @@ The unified importer handles recipe web pages only and commits via the instance
 store; text, images and video are extracted by the client agent, which calls
 `create_recipe` (#102). For a video URL the importer returns a media bundle
 (`importing/video.py`: metadata, platform subtitles, frames), and `bind_context`
-sends its frames as MCP `ImageContent`. Mealie's native URL import remains an optional extension,
+sends its frames as MCP `ImageContent`. Local video files are read only when
+`Settings.local_media` is set, which only the stdio command does, and only under
+`SABOR_MEDIA_ROOTS`. Mealie's native URL import remains an optional extension,
 advertised with preview/commit. Non-native stores use offline
 `recipe_scrapers.scrape_html` with JSON-LD fallback and create RecipeDrafts through
 the store, retaining source URL provenance in the description. Shared pinned-IP fetching rejects private addresses

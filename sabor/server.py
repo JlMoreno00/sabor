@@ -57,7 +57,8 @@ def _mercadona_cache_path(warehouse: str, directory=None) -> str:
     return str(root / f"mercadona-catalog-{warehouse}.json")
 
 
-def register_tools(server=None, env=None, *, store_factory=None, config_source=None) -> None:
+def register_tools(server=None, env=None, *, store_factory=None, config_source=None,
+                   local_media=False) -> None:
     """Freeze configuration and register each selected tool once per server."""
     server = mcp if server is None else server
     if server in _registered:
@@ -65,6 +66,9 @@ def register_tools(server=None, env=None, *, store_factory=None, config_source=N
     settings = load_settings(os.environ if env is None else env)
     if config_source is not None:
         settings = replace(settings, config_source=config_source)
+    if local_media:
+        # Local video files are read only when the server runs on the user's machine.
+        settings = replace(settings, local_media=True)
     context = (
         assemble_context(settings)
         if store_factory is None
@@ -159,7 +163,7 @@ def cli(argv=None) -> None:
             allowed_hosts=["127.0.0.1:*", "localhost:*", "[::1]:*"],
             allowed_origins=["http://127.0.0.1:*", "http://localhost:*", "http://[::1]:*"],
         )
-    register_tools(config_source=config_source)
+    register_tools(config_source=config_source, local_media=args.transport == "stdio")
     start_runtime_services()
     mcp.run(transport="stdio" if args.transport == "stdio" else "streamable-http")
 

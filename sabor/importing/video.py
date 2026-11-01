@@ -1,7 +1,9 @@
 """Bounded URL video download and the media bundle the client agent reads (#102); no AI provider sees it."""
 import base64
+import os
 import re
 import shutil
+import stat
 import subprocess
 import time
 from pathlib import Path
@@ -25,6 +27,12 @@ MUXED = 'b[height<=720]'
 # Only video platforms are fetched, by their own extractors: yt-dlp's generic extractor
 # would request any URL, private addresses included, outside the import SSRF guard.
 PLATFORMS = ('youtube.com', 'youtu.be', 'vimeo.com', 'instagram.com')
+VIDEO_EXTENSIONS = ('.mp4', '.mov', '.webm', '.mkv', '.m4v')
+# Only the containers sabor accepts are decoded: playlist or concat demuxers would let a
+# file named .mp4 make ffmpeg read other files.
+DEMUXERS = ['-format_whitelist', 'mov,matroska']
+OUTSIDE_ROOTS = ('A local video must be a regular video file (.mp4, .mov, .webm, .mkv or .m4v) under '
+                 'SABOR_MEDIA_ROOTS, which defaults to your home directory.')
 
 
 def _complete(info):
@@ -135,9 +143,76 @@ def bundle(source, language):
     if text is None:
         limitations.append({'code': 'no_transcript', 'message': 'The video has no platform subtitles.'})
     return dict(metadata=metadata, transcript=text, frames=images, limitations=limitations,
-                next_step=(f'Extract the recipe from the description, transcript and frames in language '
-                           f'{language!r}, show it to the user as a preview, save it with create_recipe adding '
-                           f"'Source: {metadata['source_url']}' to the description, then tag it video-import."))
+                next_step=next_step(language, metadata['source_url']))
+
+
+def next_step(language, source):
+    return (f'Extract the recipe from the description, transcript and frames in language '
+            f'{language!r}, show it to the user as a preview, save it with create_recipe adding '
+            f"'Source: {source}' to the description, then tag it video-import.")
+
+
+def local_file(text, roots):
+    """The resolved path and stat of a local video under an allowed root, or reject.
+
+    No '..' is accepted; symlinks are resolved and the target must stay inside a root.
+    """
+    raw = Path(text)
+    if not raw.is_absolute() or '..' in raw.parts:
+        reject('invalid_argument', OUTSIDE_ROOTS)
+    try:
+        path = raw.resolve(strict=True)
+        allowed = [Path(root).resolve() for root in roots or (str(Path.home()),)]
+        info = path.stat()
+    except (OSError, RuntimeError):
+        reject('invalid_argument', OUTSIDE_ROOTS)
+    if (path.suffix.lower() not in VIDEO_EXTENSIONS or not stat.S_ISREG(info.st_mode)
+            or not any(path.is_relative_to(root) for root in allowed)):
+        reject('invalid_argument', OUTSIDE_ROOTS)
+    if info.st_size > MAX_BYTES:
+        reject('unsupported_operation', 'Video exceeds media limits.')
+    return path, info
+
+
+def private_copy(path, info, root):
+    """Copy the validated file, opened without following links, so ffmpeg never reads a
+    path that could change after validation."""
+    copy = root / ('video' + path.suffix.lower())
+    try:
+        source = open(os.open(path, os.O_RDONLY | getattr(os, 'O_NOFOLLOW', 0)), 'rb')
+    except OSError:
+        reject('invalid_argument', OUTSIDE_ROOTS)
+    with source, open(copy, 'wb') as out:
+        opened = os.fstat(source.fileno())
+        if (opened.st_dev, opened.st_ino) != (info.st_dev, info.st_ino) or not stat.S_ISREG(opened.st_mode):
+            reject('invalid_argument', OUTSIDE_ROOTS)
+        copied = 0
+        while chunk := source.read(1 << 20):
+            copied += len(chunk)
+            if copied > MAX_BYTES:
+                reject('unsupported_operation', 'Video exceeds media limits.')
+            out.write(chunk)
+    return copy
+
+
+def local_bundle(text, roots, language):
+    """The media bundle of a local video file (stdio only; checked by the caller)."""
+    if not all(shutil.which(name) for name in ('ffmpeg', 'ffprobe')):
+        reject('provider_unconfigured', 'Local video files need ffmpeg and ffprobe installed on the system.')
+    path, info = local_file(text, roots)
+    with TemporaryDirectory() as tmp:
+        copy = private_copy(path, info, Path(tmp))
+        seconds = duration(copy)
+        if seconds is None:
+            reject('unsupported_operation', 'Video exceeds media limits or has no bounded duration.')
+        images = frames(copy, seconds)
+    metadata = {'title': path.stem, 'uploader': None, 'duration': seconds, 'upload_date': None,
+                'source_url': None, 'source_path': str(path), 'platform': 'local', 'description': ''}
+    limitations = [] if images else [{'code': 'no_frames', 'message': 'No video frames could be extracted.'}]
+    limitations.append({'code': 'no_transcript', 'message': 'A local video has no platform subtitles.'})
+    return dict(metadata=metadata, transcript=None, frames=images, limitations=limitations,
+                # The file name is third-party text: it stays in metadata, never in instructions.
+                next_step=next_step(language, 'the local video file'))
 
 
 def merge(streams, root, remaining):
@@ -150,7 +225,7 @@ def merge(streams, root, remaining):
     output = root / ('merged.mp4' if mp4 else 'merged.mkv')
     args = ['ffmpeg', '-nostdin', '-y']
     for stream in streams:
-        args += ['-i', str(stream)]
+        args += DEMUXERS + ['-i', str(stream)]
     for index in range(len(streams)):
         args += ['-map', str(index)]
     try:
@@ -165,26 +240,32 @@ def merge(streams, root, remaining):
     return output
 
 
-def frames(path):
+def duration(path):
+    """Seconds of a bounded video (0 < s ≤ MAX_SECONDS) according to ffprobe, else None."""
+    try:
+        probe = subprocess.run(['ffprobe', '-v', 'error', *DEMUXERS, '-show_entries', 'format=duration',
+            '-of', 'default=noprint_wrappers=1:nokey=1', str(path)],
+            capture_output=True, timeout=15, check=False)
+        seconds = float(probe.stdout)
+    except (OSError, ValueError, TypeError, subprocess.TimeoutExpired):
+        return None
+    return seconds if not probe.returncode and 0 < seconds <= MAX_SECONDS else None
+
+
+def frames(path, seconds=None):
     """Eight evenly spaced JPEG samples (≤640 px) with their time; no audio is decoded."""
     if not all(shutil.which(name) for name in ("ffmpeg", "ffprobe")):
         reject("provider_unconfigured", "Video frame extraction requires ffmpeg and ffprobe installed on the system.")
     images = []
-    try:
-        probe = subprocess.run(['ffprobe', '-v', 'error', '-show_entries', 'format=duration',
-            '-of', 'default=noprint_wrappers=1:nokey=1', str(path)],
-            capture_output=True, timeout=15, check=False)
-        duration = float(probe.stdout)
-        if probe.returncode or not 0 < duration <= MAX_SECONDS:
-            return []
-    except (OSError, ValueError, TypeError, subprocess.TimeoutExpired):
+    length = duration(path) if seconds is None else seconds
+    if length is None:
         return []
     with TemporaryDirectory() as tmp:
         for index in range(FRAME_COUNT):
             output = Path(tmp) / f'frame-{index}.jpg'
-            at = duration * (index + .5) / FRAME_COUNT
+            at = length * (index + .5) / FRAME_COUNT
             try:
-                result = subprocess.run(['ffmpeg', '-nostdin', '-y', '-ss', str(at), '-i', str(path),
+                result = subprocess.run(['ffmpeg', '-nostdin', '-y', '-ss', str(at), *DEMUXERS, '-i', str(path),
                     '-an', '-vf', 'scale=640:640:force_original_aspect_ratio=decrease',
                     '-frames:v', '1', str(output)], capture_output=True, timeout=15, check=False)
                 if result.returncode == 0 and output.exists() and output.stat().st_size <= 1024 * 1024:

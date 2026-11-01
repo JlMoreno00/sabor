@@ -1,4 +1,5 @@
 """Pure startup configuration; no environment reads or provider probes."""
+import os
 from dataclasses import dataclass, field
 from typing import Mapping
 from urllib.parse import urlsplit
@@ -41,6 +42,10 @@ class Settings:
     database_url: str = field(default='', repr=False)
     # Names (never values) of removed AI settings still present in the configuration.
     removed_settings: tuple[str, ...] = ()
+    # Absolute directories local video files may come from; empty means the user's home.
+    media_roots: tuple[str, ...] = ()
+    # True only for the stdio command, where the server runs on the user's machine (#102).
+    local_media: bool = False
 
     @property
     def mealie_configured(self):
@@ -88,6 +93,12 @@ def load_settings(env: Mapping[str, str]) -> Settings:
             parsed.port
         except ValueError:
             raise ConfigError('SABOR_DATABASE_URL requires a Postgres URL') from None
+    media_roots = tuple(x.strip() for x in get('SABOR_MEDIA_ROOTS').split(',') if x.strip())
+    # On Windows a root also needs its drive or share: '\\Videos' would depend on the
+    # process's current drive.
+    if any(not os.path.isabs(root) or (os.path.sep != '/' and not os.path.splitdrive(root)[0])
+           for root in media_roots):
+        raise ConfigError('SABOR_MEDIA_ROOTS requires absolute directory paths')
     legacy = load_legacy_config(env)
     return Settings(requested, mealie, get('MEALIE_API_TOKEN'),
                     get('BRING_EMAIL'), get('BRING_PASSWORD'), get('SPOONACULAR_API_KEY'),
@@ -100,4 +111,4 @@ def load_settings(env: Mapping[str, str]) -> Settings:
                     get('SABOR_OPEN_PRICES_ENABLED').lower() == 'true',
                     'env' if any(env.get(key) for key in (*FILE_KEYS.values(), *SECRET_ENV)) else 'defaults',
                     language or None, database_url,
-                    tuple(sorted(key for key in REMOVED_SETTINGS if get(key))))
+                    tuple(sorted(key for key in REMOVED_SETTINGS if get(key))), media_roots)

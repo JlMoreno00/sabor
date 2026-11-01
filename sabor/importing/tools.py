@@ -30,7 +30,15 @@ def http_url(source):
     return p
 
 
+def local_path(source):
+    """An absolute path in the platform's sense (/x, C:\\x, \\\\server\\share), checked before any URL parsing."""
+    return os.path.isabs(source)
+
+
 def detect(source):
+    if local_path(source):
+        # An absolute path names a local video file (stdio only, under SABOR_MEDIA_ROOTS).
+        return 'video'
     p = urlsplit(source)
     if p.scheme:
         http_url(source)
@@ -39,8 +47,8 @@ def detect(source):
                ('youtube.com', 'youtu.be', 'tiktok.com', 'vimeo.com', 'instagram.com')) or p.path.lower().endswith(('.mp4', '.mov', '.webm', '.mkv')):
             return 'video'
         return 'url'
-    if source.startswith(('/', './', '../')):
-        raise ValueError('Local media is unsupported')
+    if source.startswith(('./', '../')):
+        raise ValueError('Local media needs an absolute path')
     return 'text'
 
 
@@ -297,7 +305,8 @@ def import_recipe(source: str, kind: str = 'auto', dry_run: bool = True,
                   min_confidence: float = 0.55) -> dict:
     """Preview or import a recipe from a web page URL; Sabor uses no AI provider.
 
-    A video URL returns its metadata, subtitles and frames, and writes nothing: read the
+    A video URL, or an absolute path to a local video file when Sabor runs on the user's
+    machine, returns its metadata, subtitles and frames, and writes nothing: read the
     recipe from them, then save it with create_recipe. For text or images, read the recipe
     yourself and save it with create_recipe.
     """
@@ -324,6 +333,14 @@ def _import_recipe(ctx, source, kind, dry_run, language, max_recipes, min_confid
             from .video import bundle
             return ok(dict(preview=True, kind='video', provider='sabor', candidates=[], dropped=0,
                            created=[], skips=[]) | bundle(source, language))
+        if kind == 'video' and local_path(source):
+            if not ctx.settings.local_media:
+                reject('unsupported_operation', 'Local video files are read only when Sabor runs on your '
+                       'machine (stdio). Pass the video URL instead, or read the recipe yourself and save '
+                       'it with create_recipe.')
+            from .video import local_bundle
+            return ok(dict(preview=True, kind='video', provider='sabor', candidates=[], dropped=0,
+                           created=[], skips=[]) | local_bundle(source, ctx.settings.media_roots, language))
         if kind != 'url':
             # Sabor has no AI provider (#102): the client agent reads text and images
             # itself and saves the recipe it extracts with create_recipe.
