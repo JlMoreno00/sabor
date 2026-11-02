@@ -64,8 +64,9 @@ class DoctorTests(unittest.TestCase):
         self.assertEqual(result['store']['backend'], 'sqlite')
         self.assertTrue(result['store']['reachable'])
         self.assertIsInstance(result['store']['schema_version'], int)
+        # The built-in importer is announced since #102 PR 3c (url and video rows, one id).
         self.assertEqual(result['capabilities_summary'], {'recipe_store': ['sqlite'], 'pricing': [],
-                                                        'import': [], 'shopping_sync': []})
+                                                        'import': ['sabor'], 'shopping_sync': []})
         self.assertEqual(result['warnings'], [])
         self.assertEqual(result['missing_secrets'], [])
         from sabor.server import VERSION
@@ -76,7 +77,7 @@ class DoctorTests(unittest.TestCase):
                          config={'found': True, 'source': 'file', 'valid': True},
                          store={'backend': 'sqlite', 'reachable': True, 'schema_version': MIGRATIONS[-1][0]},
                          toolsets=['core', 'import'],
-                         capabilities_summary={'recipe_store': ['sqlite'], 'pricing': [], 'import': [], 'shopping_sync': []},
+                         capabilities_summary={'recipe_store': ['sqlite'], 'pricing': [], 'import': ['sabor'], 'shopping_sync': []},
                          missing_secrets=[], warnings=[], next_steps=[]))
 
     def test_missing_database_is_reported_not_created(self):

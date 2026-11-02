@@ -23,7 +23,7 @@ reachability, not token validity or authenticated permissions.
 The stable JSON key order and nesting are:
 
 ```json
-{"ok":true,"version":"0.3.0","config_path":"/path/config.toml","config":{"found":true,"source":"file","valid":true},"store":{"backend":"sqlite","reachable":true,"schema_version":3},"toolsets":["core","import"],"capabilities_summary":{"recipe_store":["sqlite"],"pricing":[],"import":[],"shopping_sync":[]},"missing_secrets":[],"warnings":[],"next_steps":[]}
+{"ok":true,"version":"0.3.0","config_path":"/path/config.toml","config":{"found":true,"source":"file","valid":true},"store":{"backend":"sqlite","reachable":true,"schema_version":3},"toolsets":["core","import"],"capabilities_summary":{"recipe_store":["sqlite"],"pricing":[],"import":["sabor"],"shopping_sync":[]},"missing_secrets":[],"warnings":[],"next_steps":[]}
 ```
 
 `schema_version` is null for Mealie or failed probes. Invalid configuration adds
@@ -142,9 +142,19 @@ original-language track first, then the `language` argument, Spanish and English
 `{source, language, text}` or `null`), `frames` (8 evenly spaced JPEG frames of 640 px
 at most, each with its `time`; on MCP they are `ImageContent` blocks and the JSON keeps
 only their times), `limitations` (`no_frames`, `no_transcript`) and `next_step`.
-Nothing is written. Videos are fetched from YouTube, Vimeo and Instagram only, by
-their own yt-dlp extractors (the generic extractor is disabled, so no other URL is
+Nothing is written. Videos are fetched from YouTube, Vimeo, Instagram and TikTok only,
+by their own yt-dlp extractors (the generic extractor is disabled, so no other URL is
 requested outside the SSRF guard); other video URLs return `unsupported_operation`.
+TikTok short links (`vm.tiktok.com`, `vt.tiktok.com`) return `unsupported_operation`
+asking for the full `https://www.tiktok.com/@user/video/ID` URL, because yt-dlp resolves
+them with a request that follows redirects outside the SSRF guard. TikTok and other
+platforms often block downloads: the error is then `upstream_error`
+from `yt_dlp` with the redacted reason, and its message suggests saving the video and
+passing its absolute path (stdio), or reading the recipe and calling `create_recipe`.
+`sabor_capabilities` lists the importers under `capabilities.import.adapters`: Mealie's
+native URL import when the store is Mealie, otherwise `sabor` with `url`
+(`preview`, `commit`), and always `sabor` with `video` (`bundle`; limitation
+`local_files_require_stdio` when local files are not accepted).
 A local video file (an absolute path) gets the same bundle with `metadata.platform`
 `local`, its `source_path` and no transcript. It is read only by the stdio command,
 where the server runs on the user's machine; over HTTP (Docker, hosted) and from
