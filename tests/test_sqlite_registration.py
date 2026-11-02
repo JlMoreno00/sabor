@@ -81,7 +81,10 @@ def test_sqlite_explicit_with_mealie_and_native_import_limits(tmp_path):
     data = tools['sabor_capabilities']()['data']
     assert data['mealie']['configured'] is True
     assert data['capabilities']['recipe_store']['adapters'][0]['id'] == 'sqlite'
-    assert not data['capabilities']['import']['adapters']
+    # Deferred from #120: the built-in importer is announced; Mealie's native one is not.
+    rows = data['capabilities']['import']['adapters']
+    assert {row['id'] for row in rows} == {'sabor'}
+    assert {kind for row in rows for kind in row['kinds']} == {'url', 'video'}
     assert 'nutrition_recipe_readiness' not in tools
     assert 'spanish_catalog_status' in tools
     # SQLite never uses Mealie's native import, even with Mealie credentials (#38).
@@ -148,3 +151,18 @@ def test_discovery_has_no_mealie_only_gaps_with_mealie():
     data = registered({'MEALIE_BASE_URL': 'http://mealie.test', 'MEALIE_API_TOKEN': 'token',
                        'SABOR_TOOLSETS': 'core,legacy_nutrition,legacy_catalog'})['sabor_capabilities']()['data']
     assert data['mealie_only'] == []
+
+
+def test_builtin_import_adapter_rows(tmp_path):
+    # Deferred from #120 (#102 PR 3c): the built-in importer is discoverable.
+    from dataclasses import replace
+    from sabor.core.capabilities import describe
+    from sabor.core.config import load_settings
+    from sabor.core.context import assemble_context
+    settings = load_settings({'SABOR_STORE': 'sqlite', 'SABOR_STORE_DB': str(tmp_path / 's.db'),
+                              'SABOR_TOOLSETS': 'core,import'})
+    for local, limitations in ((False, ['local_files_require_stdio']), (True, [])):
+        rows = describe(assemble_context(replace(settings, local_media=local)), [], 'test')['data'][
+            'capabilities']['import']['adapters']
+        assert rows == [{'id': 'sabor', 'kinds': ['url'], 'operations': ['commit', 'preview'], 'limitations': []},
+                        {'id': 'sabor', 'kinds': ['video'], 'operations': ['bundle'], 'limitations': limitations}]

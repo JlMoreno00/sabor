@@ -26,7 +26,10 @@ FORMAT = '(bv[height<=720][ext=mp4]/bv[height<=720],ba[ext=m4a]/ba)/b[height<=72
 MUXED = 'b[height<=720]'
 # Only video platforms are fetched, by their own extractors: yt-dlp's generic extractor
 # would request any URL, private addresses included, outside the import SSRF guard.
-PLATFORMS = ('youtube.com', 'youtu.be', 'vimeo.com', 'instagram.com')
+PLATFORMS = ('youtube.com', 'youtu.be', 'vimeo.com', 'instagram.com', 'tiktok.com')
+# TikTok short links are resolved by a request that follows redirects outside the SSRF
+# guard; only full video URLs are fetched.
+SHORT_LINKS = ('vm.tiktok.com', 'vt.tiktok.com')
 VIDEO_EXTENSIONS = ('.mp4', '.mov', '.webm', '.mkv', '.m4v')
 # Only the containers sabor accepts are decoded: playlist or concat demuxers would let a
 # file named .mp4 make ffmpeg read other files.
@@ -47,13 +50,13 @@ def download(source, root, language='en', media=True):
     """Return (media path or None, transcript or None, yt-dlp info). With media=False only
     metadata and subtitles are fetched."""
     host = (urlsplit(source).hostname or '').lower()
-    if host == 'tiktok.com' or host.endswith('.tiktok.com'):
-        reject('unsupported_operation', 'TikTok bloquea descargas. Lee el caption o la transcripción '
-               'del vídeo y guarda la receta con create_recipe.')
+    if host in SHORT_LINKS:
+        reject('unsupported_operation', 'TikTok short links are not fetched: open the link and pass the full '
+               'video URL (https://www.tiktok.com/@user/video/ID).')
     if urlsplit(source).scheme not in ('http', 'https'):
         reject('unsupported_operation', 'Upload guidance: local media paths are not enabled.')
     if not any(host == name or host.endswith('.' + name) for name in PLATFORMS):
-        reject('unsupported_operation', 'Sabor fetches videos from YouTube, Vimeo and Instagram only. '
+        reject('unsupported_operation', 'Sabor fetches videos from YouTube, Vimeo, Instagram and TikTok only. '
                'For other videos, read the recipe yourself and save it with create_recipe.')
     import yt_dlp
 
@@ -88,7 +91,10 @@ def download(source, root, language='en', media=True):
             # The real reason, redacted by the error envelope (no URL query, token or email),
             # from yt_dlp instead of a generic failure of the video provider (#102).
             reason = re.sub(r'https?://\S+', '[url]', re.sub(r'^ERROR:\s*', '', str(exc)).strip())[:300]
-            reject('upstream_error', 'Video download failed.', 'yt_dlp', data={'reason': reason})
+            # Platforms such as TikTok often block downloads: offer the local-file route (#102).
+            reject('upstream_error', 'Video download failed. Save the video on your computer and pass '
+                   'its absolute path (Sabor on stdio), or read the recipe yourself and save it with '
+                   'create_recipe.', 'yt_dlp', data={'reason': reason})
         if not isinstance(info, dict) or duration_filter(info):
             reject('unsupported_operation', 'Video exceeds media limits or has no bounded duration.')
         if not media or _complete(info):

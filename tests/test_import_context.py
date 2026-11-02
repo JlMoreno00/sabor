@@ -46,3 +46,7 @@ class ImportContextTests(unittest.TestCase):
         self.assertTrue(any('url' in r['kinds'] and 'preview' in r['operations'] for r in rows))
         # #102: Mealie's image import needed Mealie's OpenAI configuration; it is gone.
         self.assertFalse(any('image' in r['kinds'] for r in rows))
+        # With Mealie's native URL import, Sabor still announces only its video bundle.
+        self.assertEqual([r for r in rows if r['id'] == 'sabor'],
+                         [{'id': 'sabor', 'kinds': ['video'], 'operations': ['bundle'],
+                           'limitations': ['local_files_require_stdio']}])
