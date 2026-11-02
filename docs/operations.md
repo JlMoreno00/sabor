@@ -170,11 +170,14 @@ files need ffmpeg and ffprobe (`provider_unconfigured` otherwise). An explicit
 `kind='text'` or `kind='image'` with a local path returns the `create_recipe`
 guidance.
 
-On stdio a video bundle (local file or URL) also leaves its files for the agent in
-`.sabor-media/<id>/` inside the first `SABOR_MEDIA_ROOTS` directory (the home
-directory when empty): `audio.m4a` (the soundtrack as AAC, in `audio_path`) and
-`frame-0.jpg` … `frame-7.jpg` (each frame gets a `path`; the frames are still
-attached as images). Both folders are created with mode 0700, and each bundle folder
+On stdio a video bundle (local file or URL) also tries to leave its files for the
+agent in `.sabor-media/<id>/` inside the first `SABOR_MEDIA_ROOTS` directory (the home
+directory when empty): `audio.m4a` (the soundtrack as AAC, given in `audio_path`) and
+up to eight `frame-<n>.jpg` files (a frame that was written gets a `path`; every
+extracted frame is still attached as an image). Any of them may be missing: without
+an audio track `audio_path` is `null` (`no_audio`), a frame whose file could not be
+written has no `path`, and when the folder cannot be used no file is written
+(`no_media_paths`). Both folders are created with mode 0700, and each bundle folder
 holds an empty `.sabor-bundle` marker. Each stdio video import removes only folders
 Sabor created that are older than 24 hours: a `.sabor-media/<32 hex>` real directory
 holding the marker as a regular file. It never follows links and never touches other
