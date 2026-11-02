@@ -37,6 +37,8 @@ DEMUXERS = ['-format_whitelist', 'mov,matroska']
 MEDIA_DIR = '.sabor-media'
 KEEP_SECONDS = 24 * 3600
 BUNDLE_NAME = re.compile(r'[0-9a-f]{32}')
+# Written in every folder Sabor creates there; only folders holding it are ever pruned.
+MARKER = '.sabor-bundle'
 OUTSIDE_ROOTS = ('A local video must be a regular video file (.mp4, .mov, .webm, .mkv or .m4v) under '
                  'SABOR_MEDIA_ROOTS, which defaults to your home directory.')
 
@@ -192,19 +194,25 @@ def media_folder(roots):
         prune(base)
         folder = base / uuid.uuid4().hex
         os.mkdir(folder, 0o700)
+        keep_file(folder, MARKER, b'')
         return folder
     except (OSError, RuntimeError):
         return None
 
 
 def prune(base):
-    """Remove Sabor's own bundle folders older than KEEP_SECONDS; links and other names stay."""
+    """Remove folders Sabor created that are older than KEEP_SECONDS.
+
+    A folder qualifies only when its name is 32 lowercase hex, it is a real directory and
+    it holds Sabor's marker as a regular file. Links and every other entry stay.
+    """
     cutoff = time.time() - KEEP_SECONDS
     with os.scandir(base) as entries:
         for entry in entries:
             try:
                 if (BUNDLE_NAME.fullmatch(entry.name) and entry.is_dir(follow_symlinks=False)
-                        and entry.stat(follow_symlinks=False).st_mtime < cutoff):
+                        and entry.stat(follow_symlinks=False).st_mtime < cutoff
+                        and stat.S_ISREG(os.lstat(os.path.join(entry.path, MARKER)).st_mode)):
                     # rmtree never follows links inside the folder (fd-based on this platform).
                     shutil.rmtree(entry.path)
             except OSError:

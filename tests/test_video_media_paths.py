@@ -83,24 +83,56 @@ class MediaPathTests(unittest.TestCase):
         self.assertFalse(any('path' in f for f in data['frames']))
         self.assertFalse(self.media.exists())
 
-    def test_old_bundles_are_pruned_and_nothing_else(self):
+    def test_only_old_folders_created_by_sabor_are_pruned(self):
+        # Only folders Sabor created (32 hex name, real directory, its own marker file)
+        # and older than 24 h are removed; links are never followed, outside or inside.
         self.media.mkdir(mode=0o700)
         day = time.time() - 25 * 3600
-        old, fresh, other = self.media / ('a' * 32), self.media / ('b' * 32), self.media / 'keep-me'
-        for folder in (old, fresh, other):
-            folder.mkdir()
-            (folder / 'audio.m4a').write_bytes(b'x')
         (self.outside / 'secret.txt').write_text('secret')
+
+        def folder(name, marker=True, age=day):
+            path = self.media / name
+            path.mkdir()
+            (path / 'audio.m4a').write_bytes(b'x')
+            if marker:
+                (path / v.MARKER).write_bytes(b'')
+            os.utime(path, (age, age))
+            return path
+        old = folder('a' * 32)
+        fresh = folder('b' * 32, age=time.time() - 3600)
+        unmarked = folder('d' * 32, marker=False)
+        other = folder('keep-me')
+        upper = folder('E' * 32)
+        fake_marker = folder('f' * 32, marker=False)
+        (fake_marker / v.MARKER).symlink_to(self.outside / 'secret.txt')
+        os.utime(fake_marker, (day, day))
+        # An old Sabor folder holding links to outside: the folder goes, the targets stay.
+        inside = folder('1' * 32)
+        (inside / 'to-file').symlink_to(self.outside / 'secret.txt')
+        (inside / 'to-dir').symlink_to(self.outside, target_is_directory=True)
+        os.utime(inside, (day, day))
         link = self.media / ('c' * 32)
         link.symlink_to(self.outside, target_is_directory=True)
-        for path in (old, other):
-            os.utime(path, (day, day))
         os.utime(link, (day, day), follow_symlinks=False)
-        self.run_import()
+        # An old marked folder elsewhere (the second root) is never looked at.
+        stray = self.outside / ('2' * 32)
+        stray.mkdir()
+        (stray / v.MARKER).write_bytes(b'')
+        os.utime(stray, (day, day))
+
+        data = self.run_import()
         self.assertFalse(old.exists())
-        self.assertTrue((fresh / 'audio.m4a').exists())
-        self.assertTrue((other / 'audio.m4a').exists(), 'only Sabor folder names are removed')
-        self.assertEqual((self.outside / 'secret.txt').read_text(), 'secret', 'links are never followed')
+        self.assertFalse(inside.exists())
+        for kept in (fresh, unmarked, other, upper, fake_marker):
+            self.assertTrue((kept / 'audio.m4a').exists(), kept.name)
+        self.assertTrue(link.is_symlink())
+        self.assertTrue(stray.exists())
+        self.assertEqual((self.outside / 'secret.txt').read_text(), 'secret')
+        self.assertEqual(sorted(p.name for p in self.outside.iterdir()), ['2' * 32, 'secret.txt'])
+        # The folder of this import carries the marker, so a later import may prune it.
+        created = Path(data['audio_path']).parent
+        self.assertTrue((created / v.MARKER).is_file())
+        self.assertFalse((created / v.MARKER).is_symlink())
 
     def test_a_linked_media_folder_is_never_used(self):
         self.media.symlink_to(self.outside, target_is_directory=True)
