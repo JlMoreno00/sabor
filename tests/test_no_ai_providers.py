@@ -51,8 +51,9 @@ class NoAIProviderTests(unittest.TestCase):
         ctx = assemble_context(load_settings(AI_ENV))
         self.assertFalse(hasattr(ctx.registry, 'imports'))
         self.assertFalse(hasattr(ctx.registry, 'video_provider'))
-        # The built-in store still imports recipe web pages; no AI adapter is announced.
-        self.assertEqual(describe(ctx, (), 'test')['data']['capabilities']['import']['adapters'], [])
+        # The built-in importer is announced (#102 PR 3c); no AI adapter is.
+        self.assertEqual({row['id'] for row in describe(ctx, (), 'test')['data']['capabilities']['import']['adapters']},
+                         {'sabor'})
         text = str(describe(ctx, (), 'test'))
         for name in ('gemini', 'openai', 'llm'):
             self.assertNotIn(name, text.casefold())

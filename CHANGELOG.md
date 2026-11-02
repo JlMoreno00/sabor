@@ -22,6 +22,11 @@
   limitation.
 
 ### Added
+- TikTok in `import_recipe` (#102): TikTok video URLs are tried with yt-dlp's TikTok
+  extractor instead of being rejected up front. When a platform blocks the download,
+  the `upstream_error` keeps the real reason and suggests the local-file route or
+  `create_recipe`. `sabor_capabilities` now announces the built-in importer: `sabor`
+  with `url` (when the store has no native import) and `video` (`bundle`).
 - Local video files in `import_recipe` (#102): an absolute path to a `.mp4`, `.mov`,
   `.webm`, `.mkv` or `.m4v` file (≤100 MB, ≤10 min) returns the same media bundle,
   for TikTok, Instagram or any video saved on the computer. Only with the stdio

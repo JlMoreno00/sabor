@@ -168,17 +168,44 @@ class VideoTests(unittest.TestCase):
         self.assertEqual(run.call_count, 9)
         self.assertTrue(all(c.kwargs['timeout'] == 15 for c in run.call_args_list))
 
-    def test_tiktok_guidance(self):
+    def test_tiktok_is_tried_with_its_own_extractor(self):
+        # #102 PR 3c: TikTok is no longer rejected up front; yt-dlp's TikTok extractor tries it.
+        import yt_dlp
         from sabor.importing import video as v
-        with self.assertRaises(t.ImportErrorResult) as ctx:
-            v.download('https://www.tiktok.com/a', Path('/unused'))
-        error = ctx.exception.result['error']
-        self.assertEqual(error['code'], 'unsupported_operation')
-        # The agent reads the caption itself and saves the recipe with create_recipe (#102);
-        # no file upload or local path is offered yet.
-        self.assertIn('create_recipe', error['message'])
-        self.assertNotIn("kind='text'", error['message'])
-        self.assertNotIn('archivo', error['message'])
+        ydl = Mock()
+        def extract(*args, **kwargs):
+            opts = factory.call_args.args[0]
+            self.assertEqual(opts['allowed_extractors'], ['default', '-generic'])
+            Path(opts['outtmpl'].replace('%(format_id)s.%(ext)s', '0.mp4')).write_bytes(b'video')
+            return {'duration': 30, 'extractor_key': 'TikTok'}
+        ydl.extract_info.side_effect = extract
+        factory = Mock(return_value=Mock(__enter__=Mock(return_value=ydl), __exit__=Mock(return_value=False)))
+        with patch.dict(sys.modules, yt_dlp=SimpleNamespace(YoutubeDL=factory)), v.TemporaryDirectory() as root:
+            media, _, info = v.download('https://www.tiktok.com/@cook/video/7300000000000000000', Path(root))
+            self.assertTrue(media is not None and media.exists())
+        self.assertEqual(info['extractor_key'], 'TikTok')
+        # The real extractor list (no network) claims TikTok video URLs.
+        real = yt_dlp.YoutubeDL({'quiet': True, 'allowed_extractors': ['default', '-generic']})
+        names = [ie.IE_NAME for ie in real._ies.values()
+                 if ie.suitable('https://www.tiktok.com/@cook/video/7300000000000000000')]
+        self.assertIn('TikTok', names)
+
+    def test_a_blocked_download_suggests_the_local_file_route(self):
+        # #102 PR 3c: when TikTok (or any platform) blocks the download, the error keeps the
+        # real reason and offers the local-file route and create_recipe.
+        class DownloadError(Exception):
+            pass
+        ydl = Mock(extract_info=Mock(side_effect=DownloadError('ERROR: [TikTok] 73: Your IP address is blocked')))
+        factory = Mock(return_value=Mock(__enter__=Mock(return_value=ydl), __exit__=Mock(return_value=False)))
+        from sabor.importing import video as v
+        with patch.dict(sys.modules, yt_dlp=SimpleNamespace(YoutubeDL=factory, DownloadError=DownloadError)), \
+                self.assertRaises(t.ImportErrorResult) as ctx:
+            v.download('https://www.tiktok.com/@cook/video/73', Path('/unused'))
+        result = ctx.exception.result
+        self.assertEqual((result['error']['code'], result['error']['provider']), ('upstream_error', 'yt_dlp'))
+        self.assertIn('Your IP address is blocked', result['data']['reason'])
+        for words in ('absolute path', 'create_recipe'):
+            self.assertIn(words, result['error']['message'])
 
     def test_caption_parsing(self):
         from sabor.importing import video as v
