@@ -166,6 +166,22 @@ class MediaPathTests(unittest.TestCase):
         self.assertEqual(len(data['frames']), 8)
         self.assertFalse(any('path' in f for f in data['frames']))
 
+    def test_an_unsaved_soundtrack_is_not_reported_as_missing_audio(self):
+        # CodeRabbit on #125: audio that was extracted but could not be written is
+        # `audio_not_saved`, never `no_audio` (which means the video has no audio track).
+        original = v.MediaFolder.write
+
+        def write(folder, name, data):
+            if name == 'audio.m4a':
+                raise OSError(28, 'No space left on device')
+            return original(folder, name, data)
+        with patch.object(v.MediaFolder, 'write', write):
+            data = self.run_import()
+        self.assertIsNone(data['audio_path'])
+        codes = [item['code'] for item in data['limitations']]
+        self.assertIn('audio_not_saved', codes)
+        self.assertNotIn('no_audio', codes)
+
     def test_a_failed_prune_still_creates_the_bundle(self):
         # CodeRabbit on #125: pruning problems never cost the import its files.
         with patch.object(v, 'prune', side_effect=PermissionError(13, 'denied')):

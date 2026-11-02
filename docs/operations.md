@@ -175,7 +175,8 @@ agent in `.sabor-media/<id>/` inside the first `SABOR_MEDIA_ROOTS` directory (th
 directory when empty): `audio.m4a` (the soundtrack as AAC, given in `audio_path`) and
 up to eight `frame-<n>.jpg` files (a frame that was written gets a `path`; every
 extracted frame is still attached as an image). Any of them may be missing: without
-an audio track `audio_path` is `null` (`no_audio`), a frame whose file could not be
+an audio track `audio_path` is `null` (`no_audio`; `audio_not_saved` when the
+soundtrack was extracted but could not be written), a frame whose file could not be
 written has no `path`, and when the folder cannot be used no file is written
 (`no_media_paths`). Both folders are created with mode 0700, and each bundle folder
 holds an empty `.sabor-bundle` marker. Each stdio video import removes only folders

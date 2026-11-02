@@ -141,13 +141,14 @@ def bundle(source, language, roots=(), keep=False):
     With keep (stdio), audio and frames are also left as files under the media roots."""
     media = all(shutil.which(name) for name in ('ffmpeg', 'ffprobe'))
     files = {'audio_path': None}
+    audio_problem = None
     with TemporaryDirectory() as tmp:
         path, text, info = download(source, Path(tmp), language, media)
         folder = media_folder(roots) if keep and path else None
         try:
             images = frames(path, keep=folder) if path else []
             if folder:
-                files['audio_path'] = audio(path, folder)
+                files['audio_path'], audio_problem = audio(path, folder)
         finally:
             if folder:
                 folder.close()
@@ -165,7 +166,7 @@ def bundle(source, language, roots=(), keep=False):
                             'ffprobe installed on the system.' if not media else 'No video frames could be extracted.'})
     if text is None:
         limitations.append({'code': 'no_transcript', 'message': 'The video has no platform subtitles.'})
-    limitations.extend(file_limitations(keep and path, folder, files['audio_path']))
+    limitations.extend(file_limitations(keep and path, folder, audio_problem))
     return dict(metadata=metadata, transcript=text, frames=images, limitations=limitations, **files,
                 next_step=next_step(language, metadata['source_url'], files['audio_path']))
 
@@ -177,12 +178,16 @@ def next_step(language, source, audio_path=None):
     return step + (' If you can transcribe audio, the soundtrack is the file at audio_path.' if audio_path else '')
 
 
-def file_limitations(wanted, folder, audio_path):
+AUDIO_PROBLEMS = {'no_audio': 'The video has no audio track that could be extracted.',
+                  'audio_not_saved': f'The soundtrack was extracted but could not be written to {MEDIA_DIR}.'}
+
+
+def file_limitations(wanted, folder, audio_problem):
     if wanted and folder is None:
         return [{'code': 'no_media_paths', 'message': f'Audio and frame files could not be written to '
                  f'{MEDIA_DIR} in the first SABOR_MEDIA_ROOTS directory; the frames are still attached.'}]
-    if folder is not None and audio_path is None:
-        return [{'code': 'no_audio', 'message': 'The video has no audio track that could be extracted.'}]
+    if folder is not None and audio_problem:
+        return [{'code': audio_problem, 'message': AUDIO_PROBLEMS[audio_problem]}]
     return []
 
 
@@ -282,7 +287,9 @@ def prune(base_fd):
 
 
 def audio(path, folder):
-    """The soundtrack as AAC, written to the folder as audio.m4a (0600), or None."""
+    """(path, None) for the soundtrack as AAC written to the folder as audio.m4a (0600),
+    else (None, reason): 'no_audio' when no audio could be extracted, 'audio_not_saved'
+    when it was extracted but could not be written."""
     with TemporaryDirectory() as tmp:
         output = Path(tmp) / 'audio.m4a'
         try:
@@ -290,13 +297,15 @@ def audio(path, folder):
                                      '-c:a', 'aac', '-b:a', '96k', str(output)],
                                     capture_output=True, timeout=120, check=False)
         except (OSError, subprocess.TimeoutExpired):
-            return None
-        if result.returncode or not output.exists() or output.stat().st_size > MAX_BYTES:
-            return None
+            return None, 'no_audio'
+        if result.returncode or not output.exists():
+            return None, 'no_audio'
+        if output.stat().st_size > MAX_BYTES:
+            return None, 'audio_not_saved'
         try:
-            return folder.write('audio.m4a', output.read_bytes())
+            return folder.write('audio.m4a', output.read_bytes()), None
         except OSError:
-            return None
+            return None, 'audio_not_saved'
 
 
 def local_file(text, roots):
@@ -355,7 +364,7 @@ def local_bundle(text, roots, language, keep=True):
         folder = media_folder(roots) if keep else None
         try:
             images = frames(copy, seconds, keep=folder)
-            audio_path = audio(copy, folder) if folder else None
+            audio_path, audio_problem = audio(copy, folder) if folder else (None, None)
         finally:
             if folder:
                 folder.close()
@@ -363,7 +372,7 @@ def local_bundle(text, roots, language, keep=True):
                 'source_url': None, 'source_path': str(path), 'platform': 'local', 'description': ''}
     limitations = [] if images else [{'code': 'no_frames', 'message': 'No video frames could be extracted.'}]
     limitations.append({'code': 'no_transcript', 'message': 'A local video has no platform subtitles.'})
-    limitations.extend(file_limitations(keep, folder, audio_path))
+    limitations.extend(file_limitations(keep, folder, audio_problem))
     return dict(metadata=metadata, transcript=None, frames=images, limitations=limitations,
                 audio_path=audio_path,
                 # The file name is third-party text: it stays in metadata, never in instructions.
