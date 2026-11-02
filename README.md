@@ -61,7 +61,7 @@ not automatic retries or an assumed cross-system rollback.
 | Recipes, meal plans, shopping lists | Built-in SQLite; no account or token | Mealie URL + API token |
 | URL import | Offline recipe-scrapers / JSON-LD | Native Mealie scraper |
 | Text / image | The client agent extracts the recipe and calls `create_recipe` (no AI provider in Sabor) | Same |
-| Video URL or local video file | `import_recipe` returns a media bundle (metadata, subtitles, 8 frames); the agent extracts the recipe and calls `create_recipe`. Local files: stdio only, under `SABOR_MEDIA_ROOTS` (default home) | Same |
+| Video URL or local video file | `import_recipe` returns a media bundle (metadata, subtitles, 8 frames); the agent extracts the recipe and calls `create_recipe`. Local files: stdio only, under `SABOR_MEDIA_ROOTS` (default home). On stdio the audio and frames are also files in `.sabor-media/` (removed after 24 h) | Same |
 | Bring! sync / Mercadona estimates | Optional credentials / pricing opt-in | Same optional integrations |
 | Spanish catalog / legacy nutrition | Not supported | Mealie adapter required |
 | Cookbooks | Not supported | Mealie cookbooks (`search_recipes(cookbook_id=...)`, nutrition cookbook tools) |

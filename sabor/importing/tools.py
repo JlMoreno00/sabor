@@ -332,7 +332,8 @@ def _import_recipe(ctx, source, kind, dry_run, language, max_recipes, min_confid
             http_url(source)
             from .video import bundle
             return ok(dict(preview=True, kind='video', provider='sabor', candidates=[], dropped=0,
-                           created=[], skips=[]) | bundle(source, language))
+                           created=[], skips=[]) | bundle(source, language, ctx.settings.media_roots,
+                                                         keep=ctx.settings.local_media))
         if kind == 'video' and local_path(source):
             if not ctx.settings.local_media:
                 reject('unsupported_operation', 'Local video files are read only when Sabor runs on your '

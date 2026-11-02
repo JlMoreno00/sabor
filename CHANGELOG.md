@@ -29,6 +29,11 @@
   directories, `[import] media_roots`; default the user's home). No `..`, no symlink
   leaving the roots; Sabor reads a private copy. Explicit `text` or `image` with a
   local path now gets the `create_recipe` guidance instead of `invalid_argument`.
+- On stdio, video bundles also give their files (#102): `audio_path` (the soundtrack
+  as `audio.m4a`) and a `path` for each frame, in a 0700 folder
+  `.sabor-media/<id>/` inside the first `SABOR_MEDIA_ROOTS` directory. Sabor removes
+  its own folders there after 24 hours, never following links. Over HTTP nothing is
+  written and `audio_path` is `null`.
 - **Breaking (0.4.0, #102):** the AI settings are removed: `SABOR_LLM_BASE_URL`,
   `SABOR_LLM_MODEL`, `SABOR_LLM_API_KEY`, `GEMINI_API_KEY`, `VIDEO_RECIPE_GEMINI_MODEL`,
   `SABOR_VIDEO_PROVIDER`, the `[llm]` section, `[import] video_provider` and

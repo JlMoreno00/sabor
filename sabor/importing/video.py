@@ -6,6 +6,7 @@ import shutil
 import stat
 import subprocess
 import time
+import uuid
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any
@@ -31,6 +32,11 @@ VIDEO_EXTENSIONS = ('.mp4', '.mov', '.webm', '.mkv', '.m4v')
 # Only the containers sabor accepts are decoded: playlist or concat demuxers would let a
 # file named .mp4 make ffmpeg read other files.
 DEMUXERS = ['-format_whitelist', 'mov,matroska']
+# On stdio the bundle also leaves its audio and frames as files the agent can open, in
+# <first media root>/.sabor-media/<32 hex>/; Sabor removes its own folders after a day.
+MEDIA_DIR = '.sabor-media'
+KEEP_SECONDS = 24 * 3600
+BUNDLE_NAME = re.compile(r'[0-9a-f]{32}')
 OUTSIDE_ROOTS = ('A local video must be a regular video file (.mp4, .mov, .webm, .mkv or .m4v) under '
                  'SABOR_MEDIA_ROOTS, which defaults to your home directory.')
 
@@ -122,12 +128,17 @@ def transcript(root, languages):
     return None
 
 
-def bundle(source, language):
-    """Metadata, transcript and frames for the agent, which extracts the recipe itself."""
+def bundle(source, language, roots=(), keep=False):
+    """Metadata, transcript and frames for the agent, which extracts the recipe itself.
+    With keep (stdio), audio and frames are also left as files under the media roots."""
     media = all(shutil.which(name) for name in ('ffmpeg', 'ffprobe'))
+    files = {'audio_path': None}
     with TemporaryDirectory() as tmp:
         path, text, info = download(source, Path(tmp), language, media)
-        images = frames(path) if path else []
+        folder = media_folder(roots) if keep and path else None
+        images = frames(path, keep=folder) if path else []
+        if folder:
+            files['audio_path'] = audio(path, folder)
     date = str(info.get('upload_date') or '')
     metadata = {
         'title': info.get('title'), 'uploader': info.get('uploader') or info.get('channel'),
@@ -142,14 +153,85 @@ def bundle(source, language):
                             'ffprobe installed on the system.' if not media else 'No video frames could be extracted.'})
     if text is None:
         limitations.append({'code': 'no_transcript', 'message': 'The video has no platform subtitles.'})
-    return dict(metadata=metadata, transcript=text, frames=images, limitations=limitations,
-                next_step=next_step(language, metadata['source_url']))
+    limitations.extend(file_limitations(keep and path, folder, files['audio_path']))
+    return dict(metadata=metadata, transcript=text, frames=images, limitations=limitations, **files,
+                next_step=next_step(language, metadata['source_url'], files['audio_path']))
 
 
-def next_step(language, source):
-    return (f'Extract the recipe from the description, transcript and frames in language '
+def next_step(language, source, audio_path=None):
+    step = (f'Extract the recipe from the description, transcript and frames in language '
             f'{language!r}, show it to the user as a preview, save it with create_recipe adding '
             f"'Source: {source}' to the description, then tag it video-import.")
+    return step + (' If you can transcribe audio, the soundtrack is the file at audio_path.' if audio_path else '')
+
+
+def file_limitations(wanted, folder, audio_path):
+    if wanted and folder is None:
+        return [{'code': 'no_media_paths', 'message': f'Audio and frame files could not be written to '
+                 f'{MEDIA_DIR} in the first SABOR_MEDIA_ROOTS directory; the frames are still attached.'}]
+    if folder is not None and audio_path is None:
+        return [{'code': 'no_audio', 'message': 'The video has no audio track that could be extracted.'}]
+    return []
+
+
+def media_folder(roots):
+    """A new private folder under <first root>/.sabor-media, or None when it cannot be used.
+
+    A .sabor-media that is a link, not a directory or owned by someone else is never used.
+    Old Sabor folders are pruned first.
+    """
+    try:
+        base = Path(roots[0] if roots else Path.home()).resolve(strict=True) / MEDIA_DIR
+        try:
+            os.mkdir(base, 0o700)
+        except FileExistsError:
+            pass
+        info = os.lstat(base)
+        if not stat.S_ISDIR(info.st_mode) or (hasattr(os, 'getuid') and info.st_uid != os.getuid()):
+            return None
+        prune(base)
+        folder = base / uuid.uuid4().hex
+        os.mkdir(folder, 0o700)
+        return folder
+    except (OSError, RuntimeError):
+        return None
+
+
+def prune(base):
+    """Remove Sabor's own bundle folders older than KEEP_SECONDS; links and other names stay."""
+    cutoff = time.time() - KEEP_SECONDS
+    with os.scandir(base) as entries:
+        for entry in entries:
+            try:
+                if (BUNDLE_NAME.fullmatch(entry.name) and entry.is_dir(follow_symlinks=False)
+                        and entry.stat(follow_symlinks=False).st_mtime < cutoff):
+                    # rmtree never follows links inside the folder (fd-based on this platform).
+                    shutil.rmtree(entry.path)
+            except OSError:
+                continue
+
+
+def audio(path, folder):
+    """The soundtrack as AAC in folder/audio.m4a, or None."""
+    output = folder / 'audio.m4a'
+    try:
+        result = subprocess.run(['ffmpeg', '-nostdin', '-n', *DEMUXERS, '-i', str(path), '-vn',
+                                 '-c:a', 'aac', '-b:a', '96k', str(output)],
+                                capture_output=True, timeout=120, check=False)
+    except (OSError, subprocess.TimeoutExpired):
+        result = None
+    if result is not None and result.returncode == 0 and output.exists():
+        return str(output)
+    output.unlink(missing_ok=True)
+    return None
+
+
+def keep_file(folder, name, data):
+    """Write a new file in the bundle folder (never replacing or following a link)."""
+    fd = os.open(folder / name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, 'O_NOFOLLOW', 0), 0o600)
+    with open(fd, 'wb') as out:
+        out.write(data)
+    return str(folder / name)
 
 
 def local_file(text, roots):
@@ -195,7 +277,7 @@ def private_copy(path, info, root):
     return copy
 
 
-def local_bundle(text, roots, language):
+def local_bundle(text, roots, language, keep=True):
     """The media bundle of a local video file (stdio only; checked by the caller)."""
     if not all(shutil.which(name) for name in ('ffmpeg', 'ffprobe')):
         reject('provider_unconfigured', 'Local video files need ffmpeg and ffprobe installed on the system.')
@@ -205,14 +287,18 @@ def local_bundle(text, roots, language):
         seconds = duration(copy)
         if seconds is None:
             reject('unsupported_operation', 'Video exceeds media limits or has no bounded duration.')
-        images = frames(copy, seconds)
+        folder = media_folder(roots) if keep else None
+        images = frames(copy, seconds, keep=folder)
+        audio_path = audio(copy, folder) if folder else None
     metadata = {'title': path.stem, 'uploader': None, 'duration': seconds, 'upload_date': None,
                 'source_url': None, 'source_path': str(path), 'platform': 'local', 'description': ''}
     limitations = [] if images else [{'code': 'no_frames', 'message': 'No video frames could be extracted.'}]
     limitations.append({'code': 'no_transcript', 'message': 'A local video has no platform subtitles.'})
+    limitations.extend(file_limitations(keep, folder, audio_path))
     return dict(metadata=metadata, transcript=None, frames=images, limitations=limitations,
+                audio_path=audio_path,
                 # The file name is third-party text: it stays in metadata, never in instructions.
-                next_step=next_step(language, 'the local video file'))
+                next_step=next_step(language, 'the local video file', audio_path))
 
 
 def merge(streams, root, remaining):
@@ -252,8 +338,9 @@ def duration(path):
     return seconds if not probe.returncode and 0 < seconds <= MAX_SECONDS else None
 
 
-def frames(path, seconds=None):
-    """Eight evenly spaced JPEG samples (≤640 px) with their time; no audio is decoded."""
+def frames(path, seconds=None, keep=None):
+    """Eight evenly spaced JPEG samples (≤640 px) with their time; no audio is decoded.
+    With keep (a bundle folder), each frame is also written there and gets its path."""
     if not all(shutil.which(name) for name in ("ffmpeg", "ffprobe")):
         reject("provider_unconfigured", "Video frame extraction requires ffmpeg and ffprobe installed on the system.")
     images = []
@@ -269,8 +356,12 @@ def frames(path, seconds=None):
                     '-an', '-vf', 'scale=640:640:force_original_aspect_ratio=decrease',
                     '-frames:v', '1', str(output)], capture_output=True, timeout=15, check=False)
                 if result.returncode == 0 and output.exists() and output.stat().st_size <= 1024 * 1024:
-                    images.append({'index': index, 'time': round(at, 1), 'mime_type': 'image/jpeg',
-                                   'data': base64.b64encode(output.read_bytes()).decode()})
+                    data = output.read_bytes()
+                    frame = {'index': index, 'time': round(at, 1), 'mime_type': 'image/jpeg',
+                             'data': base64.b64encode(data).decode()}
+                    if keep is not None:
+                        frame['path'] = keep_file(keep, f'frame-{index}.jpg', data)
+                    images.append(frame)
             except (OSError, subprocess.TimeoutExpired):
                 continue
     return images

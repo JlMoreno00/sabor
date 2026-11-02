@@ -158,6 +158,17 @@ following links, checks it is the same file, and processes a private copy. Local
 files need ffmpeg and ffprobe (`provider_unconfigured` otherwise). An explicit
 `kind='text'` or `kind='image'` with a local path returns the `create_recipe`
 guidance.
+
+On stdio a video bundle (local file or URL) also leaves its files for the agent in
+`.sabor-media/<id>/` inside the first `SABOR_MEDIA_ROOTS` directory (the home
+directory when empty): `audio.m4a` (the soundtrack as AAC, in `audio_path`) and
+`frame-0.jpg` … `frame-7.jpg` (each frame gets a `path`; the frames are still
+attached as images). Both folders are created with mode 0700. Each stdio video import
+removes Sabor's own `.sabor-media/<32 hex>` folders older than 24 hours; it never
+follows links and never touches other names. When `.sabor-media` is a link, not a
+directory or owned by another user, nothing is written there and the bundle carries
+a `no_media_paths` limitation; a video without an audio track gives `no_audio`.
+Over HTTP `audio_path` is `null` and frames have no `path`.
 Frames need system ffmpeg and ffprobe on PATH (Docker includes
 them); without them only metadata and subtitles are fetched, with a `no_frames`
 limitation.
