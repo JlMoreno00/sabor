@@ -10,9 +10,10 @@ video to an AI service: it fetches or prepares the source, and **you** read it a
 the recipe. Nothing is saved until the user has seen a preview and agreed.
 
 **Mealie's ingredient parser.** When the recipe store is Mealie (`recipe_store.adapters`
-in `sabor_capabilities()` shows `mealie`), saving a recipe, with `create_recipe` or an
-`import_recipe` commit, also runs Mealie's ingredient parser by default. Depending on
-how Mealie is configured, it may send the ingredient lines to the AI provider set up in
+in `sabor_capabilities()` shows `mealie`), saving a recipe with ingredients through
+`create_recipe`, or committing an `import_recipe`, also runs Mealie's ingredient parser
+when Sabor's `SABOR_NORMALIZE_IMPORTS` setting is on (the default). Depending on how
+Mealie is configured, it may send the ingredient lines to the AI provider set up in
 Mealie. Tell the user this when you show the preview, before they approve. The parser
 is chosen in Sabor's configuration (`sabor-mcp setup`), never from the chat.
 
@@ -52,8 +53,9 @@ user") in the description; for videos also pass `source_url` and the tag `video-
 
 `import_recipe(kind='video', source=…)` returns a media bundle and writes no recipe:
 
-- `metadata`: title, uploader, duration, date, platform and the video's description,
-  which often lists the ingredients.
+- `metadata`: `title`, `uploader`, `duration`, `upload_date`, `source_url`, `platform`
+  and `description` (the video's own description,
+  which often lists the ingredients); local files have `source_path` instead of a URL.
 - `transcript`: `{source, language, text}` from the platform's subtitles (`source` is
   `subtitles`), or `null` when the video has none.
 - `frames`: up to 8 frames, attached as images, each with its `time`. If fewer than 8
@@ -68,14 +70,19 @@ or written in the video over what is only seen, and tell the user what was uncle
 - `no_transcript` (always for local files, which have no platform subtitles): rely on
   the description and frames. If they do not give the quantities, ask the user to read
   them out or type them.
-- `no_frames`: ffmpeg and ffprobe are missing where Sabor runs. Continue with the
-  description and transcript, and tell the user frames need ffmpeg.
+- `no_frames`: read its `message`. If it says ffmpeg and ffprobe must be installed, tell
+  the user frames need them; otherwise tell the user no frames could be extracted. In
+  both cases continue with the description and transcript.
 - A download error (`upstream_error` from `yt_dlp`), a TikTok short link or a platform
   Sabor does not fetch: ask the user to save the video on their computer and give you its
   absolute path. Sabor reads local files only when it runs on the same computer (stdio)
   and only under `SABOR_MEDIA_ROOTS` (their home folder by default).
 - `invalid_argument` for a local file: the path is not an absolute path to a video file
   under `SABOR_MEDIA_ROOTS`. Ask for the right path; do not try other folders.
+- `provider_unconfigured` for a local file: ffmpeg or ffprobe is not installed where
+  Sabor runs. Tell the user to install both; do not ask for another path.
+- `unsupported_operation` for a local file: the video is over 100 MB or 10 minutes, or
+  its duration cannot be read. Explain these limits; do not ask for another path.
 
 ## Never
 
