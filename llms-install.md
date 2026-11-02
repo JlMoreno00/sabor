@@ -116,6 +116,10 @@ Then follow the portable skill [skills/sabor-onboarding/SKILL.md](skills/sabor-o
 is saved with the preference tools only when they are registered (the `preferences` toolset is
 opt-in); it never changes the configuration.
 
+To import recipes (web pages, text, photos and videos), follow the portable skill
+[skills/sabor-import/SKILL.md](skills/sabor-import/SKILL.md): you read the source and save
+the recipe yourself; Sabor never sends it to an AI service.
+
 ---
 
 # Instalar Sabor — instrucciones para agentes de IA

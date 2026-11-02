@@ -22,6 +22,10 @@
   limitation.
 
 ### Added
+- Portable Agent Skill `skills/sabor-import` (#102): the agent's workflow for each
+  source (web page, text, photo, video URL or local file), how to read the video
+  bundle (metadata, transcript, frames, `audio_path`) and what to do with each
+  limitation. The agent writes the recipe itself and saves it with `create_recipe`.
 - TikTok in `import_recipe` (#102): TikTok video URLs are tried with yt-dlp's TikTok
   extractor instead of being rejected up front (full video URLs only; `vm.` and
   `vt.tiktok.com` short links ask for the full URL). When a platform blocks the download,
