@@ -142,7 +142,8 @@ original-language track first, then the `language` argument, Spanish and English
 `{source, language, text}` or `null`), `frames` (8 evenly spaced JPEG frames of 640 px
 at most, each with its `time`; on MCP they are `ImageContent` blocks and the JSON keeps
 only their times), `limitations` (`no_frames`, `no_transcript`) and `next_step`.
-Nothing is written. Videos are fetched from YouTube, Vimeo, Instagram and TikTok only,
+No recipe is written; over HTTP nothing is written at all, and on stdio only the
+bundle files described below are left. Videos are fetched from YouTube, Vimeo, Instagram and TikTok only,
 by their own yt-dlp extractors (the generic extractor is disabled, so no other URL is
 requested outside the SSRF guard); other video URLs return `unsupported_operation`.
 TikTok short links (`vm.tiktok.com`, `vt.tiktok.com`) return `unsupported_operation`
@@ -168,6 +169,27 @@ following links, checks it is the same file, and processes a private copy. Local
 files need ffmpeg and ffprobe (`provider_unconfigured` otherwise). An explicit
 `kind='text'` or `kind='image'` with a local path returns the `create_recipe`
 guidance.
+
+On stdio a video bundle (local file or URL) also tries to leave its files for the
+agent in `.sabor-media/<id>/` inside the first `SABOR_MEDIA_ROOTS` directory (the home
+directory when empty): `audio.m4a` (the soundtrack as AAC, given in `audio_path`) and
+up to eight `frame-<n>.jpg` files (a frame that was written gets a `path`; every
+extracted frame is still attached as an image). Any of them may be missing: without
+an audio track `audio_path` is `null` (`no_audio`; `audio_not_saved` when the
+soundtrack was extracted but could not be written), a frame whose file could not be
+written has no `path`, and when the folder cannot be used no file is written
+(`no_media_paths`). Both folders are created with mode 0700, and each bundle folder
+holds an empty `.sabor-bundle` marker. Each stdio video import removes only folders
+Sabor created that are older than 24 hours: a `.sabor-media/<32 hex>` real directory
+holding the marker as a regular file. It never follows links and never touches other
+entries, nor anything outside `.sabor-media`. When `.sabor-media` is a link, not a
+directory or owned by another user, nothing is written there and the bundle carries
+a `no_media_paths` limitation; a video without an audio track gives `no_audio`.
+`.sabor-media` is opened once without following links; pruning, the new folder and its
+files (all 0600) then go through that open directory, so replacing a directory on the
+path afterwards cannot redirect a write or a removal. This needs POSIX descriptor-relative
+calls: on Windows no files are left (`no_media_paths`) and the frames stay attached.
+Over HTTP `audio_path` is `null` and frames have no `path`.
 Frames need system ffmpeg and ffprobe on PATH (Docker includes
 them); without them only metadata and subtitles are fetched, with a `no_frames`
 limitation.

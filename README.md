@@ -61,7 +61,7 @@ not automatic retries or an assumed cross-system rollback.
 | Recipes, meal plans, shopping lists | Built-in SQLite; no account or token | Mealie URL + API token |
 | URL import | Offline recipe-scrapers / JSON-LD | Native Mealie scraper |
 | Text / image | The client agent extracts the recipe and calls `create_recipe` (no AI provider in Sabor) | Same |
-| Video URL or local video file | `import_recipe` returns a media bundle (metadata, subtitles, 8 frames); the agent extracts the recipe and calls `create_recipe`. Local files: stdio only, under `SABOR_MEDIA_ROOTS` (default home) | Same |
+| Video URL or local video file | `import_recipe` returns a media bundle (metadata, subtitles, 8 frames); the agent extracts the recipe and calls `create_recipe`. Local files: stdio only, under `SABOR_MEDIA_ROOTS` (default home). On stdio the audio and frames are also files in `.sabor-media/` (removed after 24 h) | Same |
 | Bring! sync / Mercadona estimates | Optional credentials / pricing opt-in | Same optional integrations |
 | Spanish catalog / legacy nutrition | Not supported | Mealie adapter required |
 | Cookbooks | Not supported | Mealie cookbooks (`search_recipes(cookbook_id=...)`, nutrition cookbook tools) |
@@ -98,7 +98,7 @@ configuration/reconciliation failure, 2 for invalid arguments. Review nested
 | Core | Built-in SQLite, or Mealie URL + token | Recipes, suggestions, planning, shopping items and history; API baseline Mealie 3.22.0 |
 | Import: URL | SQLite: offline recipe-scrapers + schema.org JSON-LD; Mealie: native scraper | Read-only preview; pages without a recipe return `not_found`; no paid-provider fallback |
 | Import: text, image | None: Sabor contains no AI provider | `import_recipe` returns `unsupported_operation`; the agent reads the source and saves it with `create_recipe` |
-| Import: video URL | A recipe store; `ffmpeg` and `ffprobe` for frames | Media bundle for the agent: metadata, platform subtitles and 8 frames as images; writes nothing |
+| Import: video URL | A recipe store; `ffmpeg` and `ffprobe` for frames | Media bundle for the agent: metadata, platform subtitles and 8 frames as images; writes no recipe (on stdio it leaves audio and frame files in `.sabor-media/`) |
 | Shopping sync | Bring! email + password **and a recipe store** | Only unchecked source items; does not check off Mealie items |
 | Pricing | `pricing` toolset + `SABOR_MERCADONA_ENABLED=true` or `SABOR_OPEN_PRICES_ENABLED=true` | Read-only quantity-aware estimates; Mercadona catalog or Open Prices observations |
 | Legacy | Explicit toolset selection plus provider configuration | Promotions, memory, nutrition and Spanish catalog |
