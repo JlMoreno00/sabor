@@ -27,6 +27,9 @@ MUXED = 'b[height<=720]'
 # Only video platforms are fetched, by their own extractors: yt-dlp's generic extractor
 # would request any URL, private addresses included, outside the import SSRF guard.
 PLATFORMS = ('youtube.com', 'youtu.be', 'vimeo.com', 'instagram.com', 'tiktok.com')
+# TikTok short links are resolved by a request that follows redirects outside the SSRF
+# guard; only full video URLs are fetched.
+SHORT_LINKS = ('vm.tiktok.com', 'vt.tiktok.com')
 VIDEO_EXTENSIONS = ('.mp4', '.mov', '.webm', '.mkv', '.m4v')
 # Only the containers sabor accepts are decoded: playlist or concat demuxers would let a
 # file named .mp4 make ffmpeg read other files.
@@ -47,6 +50,9 @@ def download(source, root, language='en', media=True):
     """Return (media path or None, transcript or None, yt-dlp info). With media=False only
     metadata and subtitles are fetched."""
     host = (urlsplit(source).hostname or '').lower()
+    if host in SHORT_LINKS:
+        reject('unsupported_operation', 'TikTok short links are not fetched: open the link and pass the full '
+               'video URL (https://www.tiktok.com/@user/video/ID).')
     if urlsplit(source).scheme not in ('http', 'https'):
         reject('unsupported_operation', 'Upload guidance: local media paths are not enabled.')
     if not any(host == name or host.endswith('.' + name) for name in PLATFORMS):

@@ -190,6 +190,20 @@ class VideoTests(unittest.TestCase):
                  if ie.suitable('https://www.tiktok.com/@cook/video/7300000000000000000')]
         self.assertIn('TikTok', names)
 
+    def test_tiktok_short_links_are_refused(self):
+        # CodeRabbit on #126: yt-dlp resolves vm./vt.tiktok.com short links with a request
+        # that follows redirects outside the SSRF guard; ask for the full video URL instead.
+        from sabor.importing import video as v
+        factory = Mock(side_effect=AssertionError('a short link never reaches yt-dlp'))
+        for source in ('https://vm.tiktok.com/ZMabc123/', 'https://VT.tiktok.com/x/'):
+            with patch.dict(sys.modules, yt_dlp=SimpleNamespace(YoutubeDL=factory)), \
+                    self.assertRaises(t.ImportErrorResult) as ctx:
+                v.download(source, Path('/unused'))
+            error = ctx.exception.result['error']
+            self.assertEqual(error['code'], 'unsupported_operation', source)
+            self.assertIn('www.tiktok.com/@', error['message'])
+        factory.assert_not_called()
+
     def test_a_blocked_download_suggests_the_local_file_route(self):
         # #102 PR 3c: when TikTok (or any platform) blocks the download, the error keeps the
         # real reason and offers the local-file route and create_recipe.

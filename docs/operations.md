@@ -145,7 +145,10 @@ only their times), `limitations` (`no_frames`, `no_transcript`) and `next_step`.
 Nothing is written. Videos are fetched from YouTube, Vimeo, Instagram and TikTok only,
 by their own yt-dlp extractors (the generic extractor is disabled, so no other URL is
 requested outside the SSRF guard); other video URLs return `unsupported_operation`.
-TikTok and other platforms often block downloads: the error is then `upstream_error`
+TikTok short links (`vm.tiktok.com`, `vt.tiktok.com`) return `unsupported_operation`
+asking for the full `https://www.tiktok.com/@user/video/ID` URL, because yt-dlp resolves
+them with a request that follows redirects outside the SSRF guard. TikTok and other
+platforms often block downloads: the error is then `upstream_error`
 from `yt_dlp` with the redacted reason, and its message suggests saving the video and
 passing its absolute path (stdio), or reading the recipe and calling `create_recipe`.
 `sabor_capabilities` lists the importers under `capabilities.import.adapters`: Mealie's

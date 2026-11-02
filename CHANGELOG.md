@@ -23,7 +23,8 @@
 
 ### Added
 - TikTok in `import_recipe` (#102): TikTok video URLs are tried with yt-dlp's TikTok
-  extractor instead of being rejected up front. When a platform blocks the download,
+  extractor instead of being rejected up front (full video URLs only; `vm.` and
+  `vt.tiktok.com` short links ask for the full URL). When a platform blocks the download,
   the `upstream_error` keeps the real reason and suggests the local-file route or
   `create_recipe`. `sabor_capabilities` now announces the built-in importer: `sabor`
   with `url` (when the store has no native import) and `video` (`bundle`).
