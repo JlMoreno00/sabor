@@ -22,6 +22,12 @@
   limitation.
 
 ### Added
+- Optional local transcription (#102): the `sabor-mcp[transcribe]` extra
+  (`faster-whisper==1.2.1`, MIT) transcribes a video's audio on the CPU when it has
+  no platform subtitles (`transcript.source: 'local_asr'`). No AI provider is called;
+  the Whisper weights are downloaded once from Hugging Face. `SABOR_TRANSCRIBE_MODEL`
+  (`tiny`, `base` default, `small`; `[import] transcribe_model`). Docker images get it
+  only with `--build-arg SABOR_TRANSCRIBE=1`.
 - TikTok in `import_recipe` (#102): TikTok video URLs are tried with yt-dlp's TikTok
   extractor instead of being rejected up front (full video URLs only; `vm.` and
   `vt.tiktok.com` short links ask for the full URL). When a platform blocks the download,

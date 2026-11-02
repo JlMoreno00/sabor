@@ -22,6 +22,8 @@ dependencies = [
 
 [project.optional-dependencies]
 postgres = ["psycopg[binary]>=3.2"]
+# Optional local transcription (#102): runs on the CPU, no AI provider is called.
+transcribe = ["faster-whisper==1.2.1"]
 
 [project.scripts]
 sabor-mcp = "sabor.server:cli"

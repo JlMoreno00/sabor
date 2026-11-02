@@ -46,6 +46,8 @@ class Settings:
     media_roots: tuple[str, ...] = ()
     # True only for the stdio command, where the server runs on the user's machine (#102).
     local_media: bool = False
+    # faster-whisper model of the optional local transcriber (sabor-mcp[transcribe]).
+    transcribe_model: str = 'base'
 
     @property
     def mealie_configured(self):
@@ -99,6 +101,9 @@ def load_settings(env: Mapping[str, str]) -> Settings:
     if any(not os.path.isabs(root) or (os.path.sep != '/' and not os.path.splitdrive(root)[0])
            for root in media_roots):
         raise ConfigError('SABOR_MEDIA_ROOTS requires absolute directory paths')
+    transcribe_model = get('SABOR_TRANSCRIBE_MODEL') or 'base'
+    if transcribe_model not in ('tiny', 'base', 'small'):
+        raise ConfigError('SABOR_TRANSCRIBE_MODEL must be tiny, base or small')
     legacy = load_legacy_config(env)
     return Settings(requested, mealie, get('MEALIE_API_TOKEN'),
                     get('BRING_EMAIL'), get('BRING_PASSWORD'), get('SPOONACULAR_API_KEY'),
@@ -111,4 +116,5 @@ def load_settings(env: Mapping[str, str]) -> Settings:
                     get('SABOR_OPEN_PRICES_ENABLED').lower() == 'true',
                     'env' if any(env.get(key) for key in (*FILE_KEYS.values(), *SECRET_ENV)) else 'defaults',
                     language or None, database_url,
-                    tuple(sorted(key for key in REMOVED_SETTINGS if get(key))), media_roots)
+                    tuple(sorted(key for key in REMOVED_SETTINGS if get(key))), media_roots,
+                    transcribe_model=transcribe_model)

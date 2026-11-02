@@ -467,7 +467,9 @@ An initialize response checks the server and transport, not provider credentials
 
 ### Without Docker
 
-Use Python 3.12. Local video processing also needs `ffmpeg` and `curl`.
+Use Python 3.12. Local video processing also needs `ffmpeg` and `curl`. For videos
+without subtitles, the optional `sabor-mcp[transcribe]` extra transcribes the audio
+locally on the CPU (faster-whisper; no AI provider, see `docs/operations.md`).
 
 ```bash
 python3 -m venv .venv
