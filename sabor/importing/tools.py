@@ -306,9 +306,9 @@ def import_recipe(source: str, kind: str = 'auto', dry_run: bool = True,
     """Preview or import a recipe from a web page URL; Sabor uses no AI provider.
 
     A video URL, or an absolute path to a local video file when Sabor runs on the user's
-    machine, returns its metadata, subtitles and frames, and writes nothing: read the
-    recipe from them, then save it with create_recipe. For text or images, read the recipe
-    yourself and save it with create_recipe.
+    machine, returns its metadata, subtitles and frames (on stdio also as files) and writes
+    no recipe: read the recipe from them, then save it with create_recipe. For text or
+    images, read the recipe yourself and save it with create_recipe.
     """
     return _import_recipe(current_context(), source, kind, dry_run, language, max_recipes, min_confidence)
 

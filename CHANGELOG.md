@@ -17,7 +17,7 @@
   for the agent instead of candidates: `metadata` (title, uploader, duration, upload
   date, source URL, platform, description), `transcript` from the platform subtitles
   (original language first), 8 frames of 640 px at most as MCP `ImageContent`,
-  `limitations` and `next_step`. It writes nothing, so `dry_run` has no effect.
+  `limitations` and `next_step`. It writes no recipe, so `dry_run` has no effect.
   Without ffmpeg and ffprobe, metadata and subtitles still come, with a `no_frames`
   limitation.
 

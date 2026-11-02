@@ -142,7 +142,8 @@ original-language track first, then the `language` argument, Spanish and English
 `{source, language, text}` or `null`), `frames` (8 evenly spaced JPEG frames of 640 px
 at most, each with its `time`; on MCP they are `ImageContent` blocks and the JSON keeps
 only their times), `limitations` (`no_frames`, `no_transcript`) and `next_step`.
-Nothing is written. Videos are fetched from YouTube, Vimeo, Instagram and TikTok only,
+No recipe is written; over HTTP nothing is written at all, and on stdio only the
+bundle files described below are left. Videos are fetched from YouTube, Vimeo, Instagram and TikTok only,
 by their own yt-dlp extractors (the generic extractor is disabled, so no other URL is
 requested outside the SSRF guard); other video URLs return `unsupported_operation`.
 TikTok short links (`vm.tiktok.com`, `vt.tiktok.com`) return `unsupported_operation`
