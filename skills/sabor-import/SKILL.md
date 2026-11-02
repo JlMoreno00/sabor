@@ -56,7 +56,8 @@ user") in the description; for videos also pass `source_url` and the tag `video-
   which often lists the ingredients.
 - `transcript`: `{source, language, text}` from the platform's subtitles (`source` is
   `subtitles`), or `null` when the video has none.
-- `frames`: 8 frames, attached as images, each with its `time`.
+- `frames`: up to 8 frames, attached as images, each with its `time`. If fewer than 8
+  arrive, some could not be extracted: tell the user the visual check is partial.
 - `limitations` and `next_step`: read them, then follow step 3.
 
 Combine the description, transcript and frames. When they disagree, prefer what is said
