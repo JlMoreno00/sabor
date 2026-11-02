@@ -48,7 +48,8 @@ def main(argv=None):
     path, model = (sys.argv[1:] if argv is None else argv)[:2]
     if model not in MODELS:
         return 2
-    from faster_whisper import WhisperModel
+    # Only installed with the optional `sabor-mcp[transcribe]` extra.
+    from faster_whisper import WhisperModel  # pyright: ignore[reportMissingImports]
     segments, info = WhisperModel(model, device='cpu', compute_type='int8').transcribe(str(Path(path)))
     text = '\n'.join(part for part in (segment.text.strip() for segment in segments) if part)
     print(json.dumps({'language': info.language, 'text': text[:MAX_TEXT]}))
