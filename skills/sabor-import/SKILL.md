@@ -5,9 +5,16 @@ description: Import a recipe into Sabor from a web page, pasted text, a photo or
 
 # Sabor import: recipes from any source
 
-Talk to the user in their language. Sabor never sends recipes, images, audio or video to
-an AI service: it fetches or prepares the source, and **you** read it and write the recipe.
-Nothing is saved until the user has seen a preview and agreed.
+Talk to the user in their language. Sabor itself never sends recipes, images, audio or
+video to an AI service: it fetches or prepares the source, and **you** read it and write
+the recipe. Nothing is saved until the user has seen a preview and agreed.
+
+**Mealie's ingredient parser.** When the recipe store is Mealie (`recipe_store.adapters`
+in `sabor_capabilities()` shows `mealie`), saving a recipe, with `create_recipe` or an
+`import_recipe` commit, also runs Mealie's ingredient parser by default. Depending on
+how Mealie is configured, it may send the ingredient lines to the AI provider set up in
+Mealie. Tell the user this when you show the preview, before they approve. The parser
+is chosen in Sabor's configuration (`sabor-mcp setup`), never from the chat.
 
 ## 1. Check what is available
 
@@ -47,12 +54,9 @@ user") in the description; for videos also pass `source_url` and the tag `video-
 
 - `metadata`: title, uploader, duration, date, platform and the video's description,
   which often lists the ingredients.
-- `transcript`: `{source, language, text}`. `source` is `subtitles` (the platform's) or
-  `local_asr` (Sabor's optional on-device transcriber), or the transcript is `null`.
-- `frames`: 8 frames, attached as images (each with its `time`, and a `path` on the
-  computer when Sabor runs there).
-- `audio_path`: the soundtrack as a file, only when Sabor runs on the computer; use it
-  only if you can transcribe audio yourself.
+- `transcript`: `{source, language, text}` from the platform's subtitles (`source` is
+  `subtitles`), or `null` when the video has none.
+- `frames`: 8 frames, attached as images, each with its `time`.
 - `limitations` and `next_step`: read them, then follow step 3.
 
 Combine the description, transcript and frames. When they disagree, prefer what is said
@@ -60,9 +64,9 @@ or written in the video over what is only seen, and tell the user what was uncle
 
 ### When the bundle is incomplete
 
-- `no_transcript`: rely on the description and frames. If they do not give the
-  quantities, ask the user. Sabor can transcribe locally when the optional
-  `sabor-mcp[transcribe]` extra is installed; mention it, do not install it yourself.
+- `no_transcript` (always for local files, which have no platform subtitles): rely on
+  the description and frames. If they do not give the quantities, ask the user to read
+  them out or type them.
 - `no_frames`: ffmpeg and ffprobe are missing where Sabor runs. Continue with the
   description and transcript, and tell the user frames need ffmpeg.
 - A download error (`upstream_error` from `yt_dlp`), a TikTok short link or a platform

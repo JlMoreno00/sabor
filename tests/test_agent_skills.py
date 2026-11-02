@@ -53,9 +53,15 @@ class AgentSkillTests(unittest.TestCase):
         self.assertIn(path, SKILLS)
         text = path.read_text(encoding='utf-8')
         for words in ("import_recipe(kind='url'", "import_recipe(kind='video'", 'create_recipe(',
-                      'video-import', 'audio_path', 'local_asr', 'no_transcript', 'no_frames',
-                      'absolute path', 'SABOR_MEDIA_ROOTS', 'preview'):
+                      'video-import', 'no_transcript', 'no_frames', 'absolute path',
+                      'SABOR_MEDIA_ROOTS', 'preview'):
             self.assertIn(words, text)
+        # CodeRabbit on #127: it describes only bundle fields that exist today (#125 and the
+        # transcriber add theirs), and discloses Mealie's own ingredient parser before saving.
+        for later in ('audio_path', 'local_asr'):
+            self.assertNotIn(later, text)
+        for doc in (text, (ROOT / 'llms-install.md').read_text(encoding='utf-8')):
+            self.assertIn("Mealie's ingredient parser", doc)
         for name in ('openai', 'gemini', 'llm', 'api key'):
             self.assertNotIn(name, text.casefold())
         self.assertIn('[skills/sabor-import/SKILL.md](skills/sabor-import/SKILL.md)',
