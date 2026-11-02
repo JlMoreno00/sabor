@@ -138,9 +138,13 @@ def bundle(source, language, roots=(), keep=False):
     with TemporaryDirectory() as tmp:
         path, text, info = download(source, Path(tmp), language, media)
         folder = media_folder(roots) if keep and path else None
-        images = frames(path, keep=folder) if path else []
-        if folder:
-            files['audio_path'] = audio(path, folder)
+        try:
+            images = frames(path, keep=folder) if path else []
+            if folder:
+                files['audio_path'] = audio(path, folder)
+        finally:
+            if folder:
+                folder.close()
     date = str(info.get('upload_date') or '')
     metadata = {
         'title': info.get('title'), 'uploader': info.get('uploader') or info.get('channel'),
@@ -176,70 +180,117 @@ def file_limitations(wanted, folder, audio_path):
     return []
 
 
+class MediaFolder:
+    """A bundle folder held open by descriptor: every write goes through it, so swapping a
+    directory on the path after the checks never redirects a file."""
+
+    def __init__(self, fd, path):
+        self.fd, self.path = fd, path
+
+    def write(self, name, data):
+        """A new 0600 file in the folder (never replacing or following a link); its path."""
+        fd = os.open(name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=self.fd)
+        with open(fd, 'wb') as out:
+            out.write(data)
+        return str(self.path / name)
+
+    def close(self):
+        os.close(self.fd)
+
+
+_DIR = os.O_RDONLY | getattr(os, 'O_DIRECTORY', 0) | getattr(os, 'O_NOFOLLOW', 0)
+# Descriptor-relative calls are POSIX only; elsewhere no files are left (no_media_paths).
+_ANCHORED = (hasattr(os, 'O_DIRECTORY') and hasattr(os, 'O_NOFOLLOW') and shutil.rmtree.avoids_symlink_attacks
+             and {os.open, os.mkdir, os.stat} <= os.supports_dir_fd)
+
+
 def media_folder(roots):
     """A new private folder under <first root>/.sabor-media, or None when it cannot be used.
 
-    A .sabor-media that is a link, not a directory or owned by someone else is never used.
-    Old Sabor folders are pruned first.
+    .sabor-media is opened once without following links and must be a directory owned by
+    the user; pruning, the new folder and its files then go through that descriptor.
     """
+    if not _ANCHORED:
+        return None
+    opened = []
     try:
-        base = Path(roots[0] if roots else Path.home()).resolve(strict=True) / MEDIA_DIR
+        root = Path(roots[0] if roots else Path.home()).resolve(strict=True)
+        root_fd = os.open(root, os.O_RDONLY | os.O_DIRECTORY)
+        opened.append(root_fd)
         try:
-            os.mkdir(base, 0o700)
+            os.mkdir(MEDIA_DIR, 0o700, dir_fd=root_fd)
         except FileExistsError:
             pass
-        info = os.lstat(base)
-        if not stat.S_ISDIR(info.st_mode) or (hasattr(os, 'getuid') and info.st_uid != os.getuid()):
+        base_fd = os.open(MEDIA_DIR, _DIR, dir_fd=root_fd)
+        opened.append(base_fd)
+        info = os.fstat(base_fd)
+        if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid():
             return None
-        prune(base)
-        folder = base / uuid.uuid4().hex
-        os.mkdir(folder, 0o700)
-        keep_file(folder, MARKER, b'')
+        try:
+            prune(base_fd)
+        except OSError:
+            pass  # pruning never costs the import its files
+        name = uuid.uuid4().hex
+        os.mkdir(name, 0o700, dir_fd=base_fd)
+        folder = MediaFolder(os.open(name, _DIR, dir_fd=base_fd), root / MEDIA_DIR / name)
+        try:
+            folder.write(MARKER, b'')
+        except OSError:
+            folder.close()
+            raise
         return folder
     except (OSError, RuntimeError):
         return None
+    finally:
+        for fd in opened:
+            os.close(fd)
 
 
-def prune(base):
+def prune(base_fd):
     """Remove folders Sabor created that are older than KEEP_SECONDS.
 
-    A folder qualifies only when its name is 32 lowercase hex, it is a real directory and
-    it holds Sabor's marker as a regular file. Links and every other entry stay.
+    A folder qualifies only when its name is 32 lowercase hex, it opens as a real directory
+    (no link) and it holds Sabor's marker as a regular file. Every other entry stays.
     """
     cutoff = time.time() - KEEP_SECONDS
-    with os.scandir(base) as entries:
-        for entry in entries:
+    with os.scandir(base_fd) as entries:
+        names = [entry.name for entry in entries if BUNDLE_NAME.fullmatch(entry.name)]
+    for name in names:
+        try:
+            fd = os.open(name, _DIR, dir_fd=base_fd)
+        except OSError:
+            continue
+        try:
+            sabor = (os.fstat(fd).st_mtime < cutoff
+                     and stat.S_ISREG(os.stat(MARKER, dir_fd=fd, follow_symlinks=False).st_mode))
+        except OSError:
+            sabor = False
+        finally:
+            os.close(fd)
+        if sabor:
             try:
-                if (BUNDLE_NAME.fullmatch(entry.name) and entry.is_dir(follow_symlinks=False)
-                        and entry.stat(follow_symlinks=False).st_mtime < cutoff
-                        and stat.S_ISREG(os.lstat(os.path.join(entry.path, MARKER)).st_mode)):
-                    # rmtree never follows links inside the folder (fd-based on this platform).
-                    shutil.rmtree(entry.path)
+                # Relative to .sabor-media and fd-based: links inside are removed, never followed.
+                shutil.rmtree(name, dir_fd=base_fd)
             except OSError:
                 continue
 
 
 def audio(path, folder):
-    """The soundtrack as AAC in folder/audio.m4a, or None."""
-    output = folder / 'audio.m4a'
-    try:
-        result = subprocess.run(['ffmpeg', '-nostdin', '-n', *DEMUXERS, '-i', str(path), '-vn',
-                                 '-c:a', 'aac', '-b:a', '96k', str(output)],
-                                capture_output=True, timeout=120, check=False)
-    except (OSError, subprocess.TimeoutExpired):
-        result = None
-    if result is not None and result.returncode == 0 and output.exists():
-        return str(output)
-    output.unlink(missing_ok=True)
-    return None
-
-
-def keep_file(folder, name, data):
-    """Write a new file in the bundle folder (never replacing or following a link)."""
-    fd = os.open(folder / name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, 'O_NOFOLLOW', 0), 0o600)
-    with open(fd, 'wb') as out:
-        out.write(data)
-    return str(folder / name)
+    """The soundtrack as AAC, written to the folder as audio.m4a (0600), or None."""
+    with TemporaryDirectory() as tmp:
+        output = Path(tmp) / 'audio.m4a'
+        try:
+            result = subprocess.run(['ffmpeg', '-nostdin', '-n', *DEMUXERS, '-i', str(path), '-vn',
+                                     '-c:a', 'aac', '-b:a', '96k', str(output)],
+                                    capture_output=True, timeout=120, check=False)
+        except (OSError, subprocess.TimeoutExpired):
+            return None
+        if result.returncode or not output.exists() or output.stat().st_size > MAX_BYTES:
+            return None
+        try:
+            return folder.write('audio.m4a', output.read_bytes())
+        except OSError:
+            return None
 
 
 def local_file(text, roots):
@@ -296,8 +347,12 @@ def local_bundle(text, roots, language, keep=True):
         if seconds is None:
             reject('unsupported_operation', 'Video exceeds media limits or has no bounded duration.')
         folder = media_folder(roots) if keep else None
-        images = frames(copy, seconds, keep=folder)
-        audio_path = audio(copy, folder) if folder else None
+        try:
+            images = frames(copy, seconds, keep=folder)
+            audio_path = audio(copy, folder) if folder else None
+        finally:
+            if folder:
+                folder.close()
     metadata = {'title': path.stem, 'uploader': None, 'duration': seconds, 'upload_date': None,
                 'source_url': None, 'source_path': str(path), 'platform': 'local', 'description': ''}
     limitations = [] if images else [{'code': 'no_frames', 'message': 'No video frames could be extracted.'}]
@@ -368,7 +423,10 @@ def frames(path, seconds=None, keep=None):
                     frame = {'index': index, 'time': round(at, 1), 'mime_type': 'image/jpeg',
                              'data': base64.b64encode(data).decode()}
                     if keep is not None:
-                        frame['path'] = keep_file(keep, f'frame-{index}.jpg', data)
+                        try:
+                            frame['path'] = keep.write(f'frame-{index}.jpg', data)
+                        except OSError:
+                            pass  # the attached image is kept without a path
                     images.append(frame)
             except (OSError, subprocess.TimeoutExpired):
                 continue

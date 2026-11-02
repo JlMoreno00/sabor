@@ -70,6 +70,9 @@ class MediaPathTests(unittest.TestCase):
             self.assertTrue(all(Path(f['path']).read_bytes() == b'jpeg' for f in data['frames']))
             for path in (self.media, folder):
                 self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o700, path)
+            # CodeRabbit on #125: every file, the audio included, is 0600 whatever the umask.
+            for path in (Path(data['audio_path']), *(Path(f['path']) for f in data['frames'])):
+                self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o600, path)
             self.assertIn('audio_path', data['next_step'])
             self.assertNotIn(str(self.root), data['next_step'], 'paths stay out of the instructions')
         self.assertEqual(len(self.bundle_dirs()), 2, 'one folder per import')
@@ -133,6 +136,42 @@ class MediaPathTests(unittest.TestCase):
         created = Path(data['audio_path']).parent
         self.assertTrue((created / v.MARKER).is_file())
         self.assertFalse((created / v.MARKER).is_symlink())
+
+    def test_writes_stay_in_the_checked_folder_after_a_swap(self):
+        # CodeRabbit on #125: once .sabor-media is checked, it is used by descriptor. Swapping
+        # it for a link afterwards never sends a write (or a prune) outside.
+        folder = v.media_folder((str(self.root),))
+        assert folder is not None
+        try:
+            name = folder.path.name
+            self.media.rename(self.root / 'moved')
+            self.media.symlink_to(self.outside, target_is_directory=True)
+            reported = folder.write('frame-0.jpg', b'jpeg')
+        finally:
+            folder.close()
+        self.assertEqual(reported, str(self.media / name / 'frame-0.jpg'))
+        self.assertEqual((self.root / 'moved' / name / 'frame-0.jpg').read_bytes(), b'jpeg')
+        self.assertEqual(list(self.outside.iterdir()), [])
+
+    def test_a_failed_frame_write_keeps_the_frame(self):
+        # CodeRabbit on #125: the attached image survives when its file cannot be written.
+        original = v.MediaFolder.write
+
+        def write(folder, name, data):
+            if name.startswith('frame-'):
+                raise OSError(28, 'No space left on device')
+            return original(folder, name, data)
+        with patch.object(v.MediaFolder, 'write', write):
+            data = self.run_import()
+        self.assertEqual(len(data['frames']), 8)
+        self.assertFalse(any('path' in f for f in data['frames']))
+
+    def test_a_failed_prune_still_creates_the_bundle(self):
+        # CodeRabbit on #125: pruning problems never cost the import its files.
+        with patch.object(v, 'prune', side_effect=PermissionError(13, 'denied')):
+            data = self.run_import()
+        self.assertIsNotNone(data['audio_path'])
+        self.assertTrue(all('path' in f for f in data['frames']))
 
     def test_a_linked_media_folder_is_never_used(self):
         self.media.symlink_to(self.outside, target_is_directory=True)

@@ -170,6 +170,10 @@ holding the marker as a regular file. It never follows links and never touches o
 entries, nor anything outside `.sabor-media`. When `.sabor-media` is a link, not a
 directory or owned by another user, nothing is written there and the bundle carries
 a `no_media_paths` limitation; a video without an audio track gives `no_audio`.
+`.sabor-media` is opened once without following links; pruning, the new folder and its
+files (all 0600) then go through that open directory, so replacing a directory on the
+path afterwards cannot redirect a write or a removal. This needs POSIX descriptor-relative
+calls: on Windows no files are left (`no_media_paths`) and the frames stay attached.
 Over HTTP `audio_path` is `null` and frames have no `path`.
 Frames need system ffmpeg and ffprobe on PATH (Docker includes
 them); without them only metadata and subtitles are fetched, with a `no_frames`
