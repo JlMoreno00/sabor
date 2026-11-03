@@ -17,7 +17,7 @@
   for the agent instead of candidates: `metadata` (title, uploader, duration, upload
   date, source URL, platform, description), `transcript` from the platform subtitles
   (original language first), 8 frames of 640 px at most as MCP `ImageContent`,
-  `limitations` and `next_step`. It writes nothing, so `dry_run` has no effect.
+  `limitations` and `next_step`. It writes no recipe, so `dry_run` has no effect.
   Without ffmpeg and ffprobe, metadata and subtitles still come, with a `no_frames`
   limitation.
 
@@ -28,6 +28,12 @@
   the Whisper weights are downloaded once from Hugging Face. `SABOR_TRANSCRIBE_MODEL`
   (`tiny`, `base` default, `small`; `[import] transcribe_model`). Docker images get it
   only with `--build-arg SABOR_TRANSCRIBE=1`.
+- Portable Agent Skill `skills/sabor-import` (#102): the agent's workflow for each
+  source (web page, text, photo, video URL or local file), how to read the video
+  bundle (metadata, transcript, frames) and what to do with each limitation. The agent
+  writes the recipe itself and saves it with `create_recipe`; with the Mealie store it
+  tells the user, before approval, that Mealie's ingredient parser may send the
+  ingredient lines to the AI provider configured in Mealie.
 - TikTok in `import_recipe` (#102): TikTok video URLs are tried with yt-dlp's TikTok
   extractor instead of being rejected up front (full video URLs only; `vm.` and
   `vt.tiktok.com` short links ask for the full URL). When a platform blocks the download,
@@ -41,6 +47,12 @@
   directories, `[import] media_roots`; default the user's home). No `..`, no symlink
   leaving the roots; Sabor reads a private copy. Explicit `text` or `image` with a
   local path now gets the `create_recipe` guidance instead of `invalid_argument`.
+- On stdio, video bundles also give their files (#102): `audio_path` (the soundtrack
+  as `audio.m4a`) and a `path` for each frame, in a 0700 folder
+  `.sabor-media/<id>/` inside the first `SABOR_MEDIA_ROOTS` directory. Sabor removes
+  only the folders it created there (marked with `.sabor-bundle`) after 24 hours,
+  never following links. Over HTTP nothing is
+  written and `audio_path` is `null`.
 - **Breaking (0.4.0, #102):** the AI settings are removed: `SABOR_LLM_BASE_URL`,
   `SABOR_LLM_MODEL`, `SABOR_LLM_API_KEY`, `GEMINI_API_KEY`, `VIDEO_RECIPE_GEMINI_MODEL`,
   `SABOR_VIDEO_PROVIDER`, the `[llm]` section, `[import] video_provider` and

@@ -306,9 +306,9 @@ def import_recipe(source: str, kind: str = 'auto', dry_run: bool = True,
     """Preview or import a recipe from a web page URL; Sabor uses no AI provider.
 
     A video URL, or an absolute path to a local video file when Sabor runs on the user's
-    machine, returns its metadata, subtitles and frames, and writes nothing: read the
-    recipe from them, then save it with create_recipe. For text or images, read the recipe
-    yourself and save it with create_recipe.
+    machine, returns its metadata, subtitles and frames (on stdio also as files) and writes
+    no recipe: read the recipe from them, then save it with create_recipe. For text or
+    images, read the recipe yourself and save it with create_recipe.
     """
     return _import_recipe(current_context(), source, kind, dry_run, language, max_recipes, min_confidence)
 
@@ -332,7 +332,9 @@ def _import_recipe(ctx, source, kind, dry_run, language, max_recipes, min_confid
             http_url(source)
             from .video import bundle
             return ok(dict(preview=True, kind='video', provider='sabor', candidates=[], dropped=0,
-                           created=[], skips=[]) | bundle(source, language, ctx.settings.transcribe_model))
+                           created=[], skips=[]) | bundle(source, language, ctx.settings.media_roots,
+                                                         keep=ctx.settings.local_media,
+                                                         transcribe_model=ctx.settings.transcribe_model))
         if kind == 'video' and local_path(source):
             if not ctx.settings.local_media:
                 reject('unsupported_operation', 'Local video files are read only when Sabor runs on your '
@@ -341,7 +343,7 @@ def _import_recipe(ctx, source, kind, dry_run, language, max_recipes, min_confid
             from .video import local_bundle
             return ok(dict(preview=True, kind='video', provider='sabor', candidates=[], dropped=0,
                            created=[], skips=[]) | local_bundle(source, ctx.settings.media_roots, language,
-                                                                ctx.settings.transcribe_model))
+                                                                transcribe_model=ctx.settings.transcribe_model))
         if kind != 'url':
             # Sabor has no AI provider (#102): the client agent reads text and images
             # itself and saves the recipe it extracts with create_recipe.
