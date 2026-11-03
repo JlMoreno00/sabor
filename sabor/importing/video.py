@@ -136,7 +136,7 @@ def transcript(root, languages):
     return None
 
 
-def bundle(source, language, roots=(), keep=False):
+def bundle(source, language, roots=(), keep=False, transcribe_model='base'):
     """Metadata, transcript and frames for the agent, which extracts the recipe itself.
     With keep (stdio), audio and frames are also left as files under the media roots."""
     media = all(shutil.which(name) for name in ('ffmpeg', 'ffprobe'))
@@ -152,6 +152,8 @@ def bundle(source, language, roots=(), keep=False):
         finally:
             if folder:
                 folder.close()
+        if text is None and path:
+            text = local_transcript(path, transcribe_model)
     date = str(info.get('upload_date') or '')
     metadata = {
         'title': info.get('title'), 'uploader': info.get('uploader') or info.get('channel'),
@@ -165,10 +167,23 @@ def bundle(source, language, roots=(), keep=False):
         limitations.append({'code': 'no_frames', 'message': 'No video frames: frame extraction needs ffmpeg and '
                             'ffprobe installed on the system.' if not media else 'No video frames could be extracted.'})
     if text is None:
-        limitations.append({'code': 'no_transcript', 'message': 'The video has no platform subtitles.'})
+        limitations.append(no_transcript('The video has no platform subtitles.'))
     limitations.extend(file_limitations(keep and path, folder, audio_problem))
     return dict(metadata=metadata, transcript=text, frames=images, limitations=limitations, **files,
                 next_step=next_step(language, metadata['source_url'], files['audio_path']))
+
+
+def local_transcript(path, model):
+    """Optional on-device transcription (sabor-mcp[transcribe]); None when not installed."""
+    from . import transcribe
+    return transcribe.transcribe(path, model) if transcribe.available() else None
+
+
+def no_transcript(reason):
+    from . import transcribe
+    hint = ('' if transcribe.available() else
+            ' Install the optional sabor-mcp[transcribe] extra to transcribe the audio on this computer.')
+    return {'code': 'no_transcript', 'message': reason + hint}
 
 
 def next_step(language, source, audio_path=None):
@@ -351,7 +366,7 @@ def private_copy(path, info, root):
     return copy
 
 
-def local_bundle(text, roots, language, keep=True):
+def local_bundle(text, roots, language, keep=True, transcribe_model='base'):
     """The media bundle of a local video file (stdio only; checked by the caller)."""
     if not all(shutil.which(name) for name in ('ffmpeg', 'ffprobe')):
         reject('provider_unconfigured', 'Local video files need ffmpeg and ffprobe installed on the system.')
@@ -368,12 +383,14 @@ def local_bundle(text, roots, language, keep=True):
         finally:
             if folder:
                 folder.close()
+        transcript = local_transcript(copy, transcribe_model)
     metadata = {'title': path.stem, 'uploader': None, 'duration': seconds, 'upload_date': None,
                 'source_url': None, 'source_path': str(path), 'platform': 'local', 'description': ''}
     limitations = [] if images else [{'code': 'no_frames', 'message': 'No video frames could be extracted.'}]
-    limitations.append({'code': 'no_transcript', 'message': 'A local video has no platform subtitles.'})
+    if transcript is None:
+        limitations.append(no_transcript('A local video has no platform subtitles.'))
     limitations.extend(file_limitations(keep, folder, audio_problem))
-    return dict(metadata=metadata, transcript=None, frames=images, limitations=limitations,
+    return dict(metadata=metadata, transcript=transcript, frames=images, limitations=limitations,
                 audio_path=audio_path,
                 # The file name is third-party text: it stays in metadata, never in instructions.
                 next_step=next_step(language, 'the local video file', audio_path))

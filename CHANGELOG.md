@@ -22,6 +22,12 @@
   limitation.
 
 ### Added
+- Optional local transcription (#102): the `sabor-mcp[transcribe]` extra
+  (`faster-whisper==1.2.1`, MIT) transcribes a video's audio on the CPU when it has
+  no platform subtitles (`transcript.source: 'local_asr'`). No AI provider is called;
+  the Whisper weights are downloaded once from Hugging Face. `SABOR_TRANSCRIBE_MODEL`
+  (`tiny`, `base` default, `small`; `[import] transcribe_model`). Docker images get it
+  only with `--build-arg SABOR_TRANSCRIBE=1`.
 - Portable Agent Skill `skills/sabor-import` (#102): the agent's workflow for each
   source (web page, text, photo, video URL or local file), how to read the video
   bundle (metadata, transcript, frames) and what to do with each limitation. The agent

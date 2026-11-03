@@ -81,6 +81,7 @@ Transport variables remain env-only.
 | `[mealie] base_url` | `MEALIE_BASE_URL` |
 | `[import] video_workdir` | `VIDEO_RECIPE_WORKDIR` |
 | `[import] media_roots` | `SABOR_MEDIA_ROOTS` |
+| `[import] transcribe_model` | `SABOR_TRANSCRIBE_MODEL` |
 | `[import] normalize` | `SABOR_NORMALIZE_IMPORTS` |
 | `[import] ingredient_parser` | `SABOR_INGREDIENT_PARSER` |
 | `[import] normalize_confidence` | `SABOR_NORMALIZE_CONFIDENCE` |
@@ -139,7 +140,7 @@ selected directory, not only the container filesystem.
 A video URL returns a media bundle (#102): `metadata` (title, uploader, duration,
 upload date, source URL, platform, description), `transcript` (platform subtitles,
 original-language track first, then the `language` argument, Spanish and English;
-`{source, language, text}` or `null`), `frames` (8 evenly spaced JPEG frames of 640 px
+`{source, language, text}` or `null`; see *Optional local transcription* below), `frames` (8 evenly spaced JPEG frames of 640 px
 at most, each with its `time`; on MCP they are `ImageContent` blocks and the JSON keeps
 only their times), `limitations` (`no_frames`, `no_transcript`) and `next_step`.
 No recipe is written; over HTTP nothing is written at all, and on stdio only the
@@ -299,11 +300,34 @@ The executable runtime, `.env.example`, and `mcp-manifest.json` all use
 | `SPOONACULAR_API_KEY` | Empty | Spoonacular tools and nutrition profile fetches | Secret |
 | `VIDEO_RECIPE_WORKDIR` | `/tmp/video-recipe-mcp` | Video URL processing | Temporary downloaded media |
 | `SABOR_MEDIA_ROOTS` | Empty (home) | Local video files, stdio only | Comma-separated absolute directories local videos may come from |
+| `SABOR_TRANSCRIBE_MODEL` | `base` | Optional local transcriber | `tiny`, `base` or `small` faster-whisper model |
 | `BRING_EMAIL` | Empty | Bring! tools | Account identifier; treat as sensitive |
 | `BRING_PASSWORD` | Empty | Bring! tools | Secret |
 | `BRING_CATALOG_DIR` | Empty | Optional Bring! catalog override | Directory searched before installed package data |
 | `MERCADONA_WAREHOUSE` | `mad1` | Mercadona tools | Public warehouse code |
 | `MEMORY_FILE` | `<data dir>/MEMORY.md` | Preference memory | Contains user data; back up and protect it |
+
+### Optional local transcription
+
+When a video has no platform subtitles, Sabor can transcribe its audio locally with
+[faster-whisper](https://github.com/SYSTRAN/faster-whisper) (MIT), on the CPU. No AI
+provider is called and no audio leaves the machine. It is off unless installed:
+
+```bash
+pip install 'sabor-mcp[transcribe]'          # or: uvx --from 'sabor-mcp[transcribe]' sabor-mcp
+docker build --build-arg SABOR_TRANSCRIBE=1 .  # Docker image with the transcriber
+```
+
+The extra adds about 120 MB of wheels (ctranslate2, av, onnxruntime, tokenizers). It
+keeps PyAV below 16, because faster-whisper 1.2.1 uses an `av.open()` argument that
+newer PyAV releases removed. On
+first use the Whisper weights (MIT) are downloaded once from Hugging Face: `base`
+(default) is about 145 MB, `tiny` smaller and `small` about 466 MB, chosen with
+`SABOR_TRANSCRIBE_MODEL` (`[import] transcribe_model`). Each transcription runs in its
+own process with a 300 s limit. The bundle's `transcript` is then
+`{source: 'local_asr', language, text}`, where `language` is the one Whisper detects.
+Platform subtitles are always preferred; without subtitles and without the extra,
+`transcript` is `null` with a `no_transcript` limitation that names the extra.
 
 ## Store and instance deployment (0.3)
 

@@ -58,8 +58,9 @@ class AgentSkillTests(unittest.TestCase):
             self.assertIn(words, text)
         # CodeRabbit on #127: it describes only bundle fields that exist today (#125 and the
         # transcriber add theirs), and discloses Mealie's own ingredient parser before saving.
-        for later in ('audio_path', 'local_asr'):
-            self.assertNotIn(later, text)
+        # #125 and the optional transcriber (#102 PR 4) are in: the skill describes them.
+        for field in ('audio_path', 'local_asr', 'sabor-mcp[transcribe]', 'audio_not_saved', 'no_media_paths'):
+            self.assertIn(field, text)
         for doc in (text, (ROOT / 'llms-install.md').read_text(encoding='utf-8')):
             self.assertIn("Mealie's ingredient parser", doc)
         for name in ('openai', 'gemini', 'llm', 'api key'):

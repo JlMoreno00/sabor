@@ -14,6 +14,7 @@ FILE_KEYS = {
     ('mealie', 'base_url'): 'MEALIE_BASE_URL',
     ('import', 'video_workdir'): 'VIDEO_RECIPE_WORKDIR',
     ('import', 'media_roots'): 'SABOR_MEDIA_ROOTS',
+    ('import', 'transcribe_model'): 'SABOR_TRANSCRIBE_MODEL',
     ('import', 'normalize'): 'SABOR_NORMALIZE_IMPORTS',
     ('import', 'ingredient_parser'): 'SABOR_INGREDIENT_PARSER',
     ('import', 'normalize_confidence'): 'SABOR_NORMALIZE_CONFIDENCE',

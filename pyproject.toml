@@ -22,6 +22,9 @@ dependencies = [
 
 [project.optional-dependencies]
 postgres = ["psycopg[binary]>=3.2"]
+# Optional local transcription (#102): runs on the CPU, no AI provider is called.
+# av stays below 16: faster-whisper 1.2.1 uses an av.open() argument that PyAV 19 removed.
+transcribe = ["faster-whisper==1.2.1", "av>=11,<16"]
 
 [project.scripts]
 sabor-mcp = "sabor.server:cli"

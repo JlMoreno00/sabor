@@ -103,6 +103,13 @@
       "default": "/tmp/video-recipe-mcp"
     },
     {
+      "name": "SABOR_TRANSCRIBE_MODEL",
+      "description": "Model of the optional local transcriber (sabor-mcp[transcribe]): tiny, base or small.",
+      "required": false,
+      "secret": false,
+      "default": "base"
+    },
+    {
       "name": "SABOR_MEDIA_ROOTS",
       "description": "Comma-separated absolute directories that local video files may come from (stdio only); empty means the user's home directory.",
       "required": false,

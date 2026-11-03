@@ -10,9 +10,10 @@ video to an AI service: it fetches or prepares the source, and **you** read it a
 the recipe. Nothing is saved until the user has seen a preview and agreed.
 
 **Mealie's ingredient parser.** When the recipe store is Mealie (`recipe_store.adapters`
-in `sabor_capabilities()` shows `mealie`), saving a recipe, with `create_recipe` or an
-`import_recipe` commit, also runs Mealie's ingredient parser by default. Depending on
-how Mealie is configured, it may send the ingredient lines to the AI provider set up in
+in `sabor_capabilities()` shows `mealie`), saving a recipe with ingredients through
+`create_recipe`, or committing an `import_recipe`, also runs Mealie's ingredient parser
+when Sabor's `SABOR_NORMALIZE_IMPORTS` setting is on (the default). Depending on how
+Mealie is configured, it may send the ingredient lines to the AI provider set up in
 Mealie. Tell the user this when you show the preview, before they approve. The parser
 is chosen in Sabor's configuration (`sabor-mcp setup`), never from the chat.
 
@@ -52,12 +53,18 @@ user") in the description; for videos also pass `source_url` and the tag `video-
 
 `import_recipe(kind='video', source=…)` returns a media bundle and writes no recipe:
 
-- `metadata`: title, uploader, duration, date, platform and the video's description,
-  which often lists the ingredients.
-- `transcript`: `{source, language, text}` from the platform's subtitles (`source` is
-  `subtitles`), or `null` when the video has none.
+- `metadata`: `title`, `uploader`, `duration`, `upload_date`, `source_url`, `platform`
+  and `description` (the video's own description,
+  which often lists the ingredients); local files have `source_path` instead of a URL.
+- `transcript`: `{source, language, text}`. `source` is `subtitles` (the platform's,
+  always preferred) or `local_asr` (Sabor's optional on-device transcriber, when the
+  `sabor-mcp[transcribe]` extra is installed; `language` is the one it detected). It is
+  `null` when neither is available.
 - `frames`: up to 8 frames, attached as images, each with its `time`. If fewer than 8
-  arrive, some could not be extracted: tell the user the visual check is partial.
+  arrive, some could not be extracted: tell the user the visual check is partial. When
+  Sabor runs on the computer (stdio), a frame may also have a `path` to its file.
+- `audio_path`: on stdio, the soundtrack as a file (`audio.m4a`), otherwise `null`. Use
+  it only if you can transcribe audio yourself; never send it to another service.
 - `limitations` and `next_step`: read them, then follow step 3.
 
 Combine the description, transcript and frames. When they disagree, prefer what is said
@@ -65,17 +72,25 @@ or written in the video over what is only seen, and tell the user what was uncle
 
 ### When the bundle is incomplete
 
-- `no_transcript` (always for local files, which have no platform subtitles): rely on
-  the description and frames. If they do not give the quantities, ask the user to read
-  them out or type them.
-- `no_frames`: ffmpeg and ffprobe are missing where Sabor runs. Continue with the
-  description and transcript, and tell the user frames need ffmpeg.
+- `no_transcript`: rely on the description and frames. If they do not give the
+  quantities, ask the user to read them out or type them. When the message names the
+  `sabor-mcp[transcribe]` extra, mention that it would transcribe the audio on this
+  computer; do not install it yourself.
+- `no_frames`: read its `message`. If it says ffmpeg and ffprobe must be installed, tell
+  the user frames need them; otherwise tell the user no frames could be extracted. In
+  both cases continue with the description and transcript.
 - A download error (`upstream_error` from `yt_dlp`), a TikTok short link or a platform
   Sabor does not fetch: ask the user to save the video on their computer and give you its
   absolute path. Sabor reads local files only when it runs on the same computer (stdio)
   and only under `SABOR_MEDIA_ROOTS` (their home folder by default).
 - `invalid_argument` for a local file: the path is not an absolute path to a video file
   under `SABOR_MEDIA_ROOTS`. Ask for the right path; do not try other folders.
+- `no_audio`, `audio_not_saved` or `no_media_paths` (stdio only): the audio or frame
+  files are missing; the attached frames and the rest of the bundle are still usable.
+- `provider_unconfigured` for a local file: ffmpeg or ffprobe is not installed where
+  Sabor runs. Tell the user to install both; do not ask for another path.
+- `unsupported_operation` for a local file: the video is over 100 MB or 10 minutes, or
+  its duration cannot be read. Explain these limits; do not ask for another path.
 
 ## Never
 
