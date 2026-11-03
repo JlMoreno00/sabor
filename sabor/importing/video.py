@@ -193,7 +193,8 @@ def next_step(language, source, audio_path=None):
     return step + (' If you can transcribe audio, the soundtrack is the file at audio_path.' if audio_path else '')
 
 
-AUDIO_PROBLEMS = {'no_audio': 'The video has no audio track that could be extracted.',
+AUDIO_PROBLEMS = {'no_audio': 'The video has no audio track.',
+                  'audio_failed': 'The video has an audio track, but it could not be extracted.',
                   'audio_not_saved': f'The soundtrack was extracted but could not be written to {MEDIA_DIR}.'}
 
 
@@ -303,8 +304,11 @@ def prune(base_fd):
 
 def audio(path, folder):
     """(path, None) for the soundtrack as AAC written to the folder as audio.m4a (0600),
-    else (None, reason): 'no_audio' when no audio could be extracted, 'audio_not_saved'
+    else (None, reason): 'no_audio' when the video has no audio track, 'audio_failed' when
+    it has one but ffmpeg could not extract it (or the probe failed), 'audio_not_saved'
     when it was extracted but could not be written."""
+    if not has_audio(path):
+        return None, 'no_audio'
     with TemporaryDirectory() as tmp:
         output = Path(tmp) / 'audio.m4a'
         try:
@@ -312,15 +316,27 @@ def audio(path, folder):
                                      '-c:a', 'aac', '-b:a', '96k', str(output)],
                                     capture_output=True, timeout=120, check=False)
         except (OSError, subprocess.TimeoutExpired):
-            return None, 'no_audio'
+            return None, 'audio_failed'
         if result.returncode or not output.exists():
-            return None, 'no_audio'
+            return None, 'audio_failed'
         if output.stat().st_size > MAX_BYTES:
             return None, 'audio_not_saved'
         try:
             return folder.write('audio.m4a', output.read_bytes()), None
         except OSError:
             return None, 'audio_not_saved'
+
+
+def has_audio(path):
+    """False only when ffprobe reports no audio stream; a failed probe counts as audio, so
+    the extraction is tried and a failure is reported as such."""
+    try:
+        probe = subprocess.run(['ffprobe', '-v', 'error', *DEMUXERS, '-select_streams', 'a',
+                                '-show_entries', 'stream=index', '-of', 'csv=p=0', str(path)],
+                               capture_output=True, timeout=15, check=False)
+    except (OSError, subprocess.TimeoutExpired):
+        return True
+    return bool(probe.returncode) or bool(probe.stdout.strip())
 
 
 def local_file(text, roots):
