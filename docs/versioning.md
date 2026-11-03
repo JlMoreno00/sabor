@@ -8,7 +8,7 @@ catalog data.
 
 | Version | Current code value | Meaning |
 |---|---|---|
-| Service release candidate | `mcp-manifest.json` `version` = `0.1.0` | Initial Sabor MCP/configuration release target; no release exists until tagged |
+| Service release | `sabor/server.py` `VERSION` = `0.4.0` (also `mcp-manifest.json` and `server.json`) | MCP/configuration contract; the package and registry versions, kept equal by tests |
 | Nutrition schema | `nutrition/db.py` migrations through `9` | SQLite storage compatibility |
 | Nutrition engine | `nutrition/service.py` `ENGINE_VERSION` = `3` | Calculation and evidence semantics/cache identity |
 | Catalog schema | Catalog `schema_version` = `1` | Manifest document shape |
