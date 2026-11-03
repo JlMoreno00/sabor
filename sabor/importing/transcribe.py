@@ -19,7 +19,11 @@ MAX_TEXT = 20000
 # sabor. sys.path is not touched: av, ctranslate2 and the rest still come from the
 # interpreter's own paths, in their own order.
 PACKAGE = str(Path(__file__).resolve().parents[1])
+# Any sabor module imported earlier (a sitecustomize or .pth) is dropped first, so no old
+# submodule is reused.
 BOOTSTRAP = ('import importlib.util, sys; '
+             '[sys.modules.pop(name) for name in list(sys.modules) '
+             'if name == "sabor" or name.startswith("sabor.")]; '
              f'spec = importlib.util.spec_from_file_location("sabor", {PACKAGE + "/__init__.py"!r}, '
              f'submodule_search_locations=[{PACKAGE!r}]); '
              'sys.modules["sabor"] = importlib.util.module_from_spec(spec); '

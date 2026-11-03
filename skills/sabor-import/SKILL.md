@@ -85,7 +85,7 @@ or written in the video over what is only seen, and tell the user what was uncle
   and only under `SABOR_MEDIA_ROOTS` (their home folder by default).
 - `invalid_argument` for a local file: the path is not an absolute path to a video file
   under `SABOR_MEDIA_ROOTS`. Ask for the right path; do not try other folders.
-- `no_audio`, `audio_not_saved` or `no_media_paths` (stdio only): the audio or frame
+- `no_audio`, `audio_failed`, `audio_not_saved` or `no_media_paths` (stdio only): the audio or frame
   files are missing; the attached frames and the rest of the bundle are still usable.
 - `provider_unconfigured` for a local file: ffmpeg or ffprobe is not installed where
   Sabor runs. Tell the user to install both; do not ask for another path.

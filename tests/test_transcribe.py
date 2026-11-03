@@ -62,6 +62,27 @@ class SubprocessTests(unittest.TestCase):
         self.assertEqual(Path(out[1]).resolve(), Path(tr.__file__).resolve())
         self.assertEqual(out[2], 'False')
 
+    def test_preloaded_sabor_submodules_are_replaced(self):
+        # CodeRabbit on #129: a sitecustomize (or .pth) that imports an old sabor.importing
+        # before the bootstrap must not leave that submodule in place.
+        import os
+        import tempfile
+        with tempfile.TemporaryDirectory() as extra:
+            stale = Path(extra) / 'sabor' / 'importing'
+            stale.mkdir(parents=True)
+            (stale.parent / '__init__.py').write_text('')
+            (stale / '__init__.py').write_text('STALE = True\n')
+            (Path(extra) / 'sitecustomize.py').write_text('import sabor.importing\n')
+            env = dict(os.environ, PYTHONPATH=extra)
+            probe = (tr.BOOTSTRAP + 'import sabor.importing.transcribe as t; print(t.__file__); '
+                     'print(hasattr(sys.modules["sabor.importing"], "STALE"))')
+            out = subprocess.run([sys.executable, '-P', '-c', probe], env=env, cwd=extra,
+                                 capture_output=True, text=True)
+        self.assertEqual(out.returncode, 0, out.stderr[-300:])
+        lines = out.stdout.splitlines()
+        self.assertEqual(Path(lines[0]).resolve(), Path(tr.__file__).resolve())
+        self.assertEqual(lines[1], 'False')
+
     def test_real_worker_imports_sabor_without_pythonpath(self):
         import os
         import tempfile
