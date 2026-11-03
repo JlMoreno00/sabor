@@ -21,10 +21,13 @@ from test_video_bundle import INFO, fake_yt_dlp
 BUNDLE = re.compile(r'[0-9a-f]{32}')
 
 
-def fake_ffmpeg(audio=True, extract=True):
-    """audio: the video has an audio track; extract: ffmpeg manages to extract it."""
+def fake_ffmpeg(audio=True, extract=True, probe=True):
+    """audio: the video has an audio track; extract: ffmpeg manages to extract it;
+    probe: the audio-stream query succeeds."""
     def run(args, **kwargs):
         if args[0] == 'ffprobe' and '-select_streams' in args:
+            if not probe:
+                return Mock(returncode=1, stdout=b'')
             return Mock(returncode=0, stdout=b'1\n' if audio else b'')
         if args[0] == 'ffprobe':
             return Mock(returncode=0, stdout=b'30')
@@ -49,12 +52,12 @@ class MediaPathTests(unittest.TestCase):
         self.video.write_bytes(b'video')
         self.media = self.root / '.sabor-media'
 
-    def run_import(self, source=None, local=True, audio=True, extract=True):
+    def run_import(self, source=None, local=True, audio=True, extract=True, probe=True):
         env = {'SABOR_STORE': 'sqlite', 'SABOR_MEDIA_ROOTS': f'{self.root}, {self.outside}'}
         ctx = build_context(replace(load_settings(env), local_media=local), store_factory=lambda s: FakeRecipeStore())
         fake, _ = fake_yt_dlp(INFO, ())
         with patch.dict(sys.modules, yt_dlp=fake), patch.object(v.shutil, 'which', return_value='/bin/tool'), \
-                patch.object(v.subprocess, 'run', side_effect=fake_ffmpeg(audio, extract)):
+                patch.object(v.subprocess, 'run', side_effect=fake_ffmpeg(audio, extract, probe)):
             result = t._import_recipe(ctx, source or str(self.video), 'auto', True, 'es', 8, .55)
         self.assertTrue(result['ok'], result)
         return result['data']
@@ -219,6 +222,14 @@ class MediaPathTests(unittest.TestCase):
             self.assertIn('audio_failed', codes, extract)
             self.assertNotIn('no_audio', codes)
             self.assertNotIn('audio_not_saved', codes)
+
+    def test_a_failed_probe_does_not_claim_an_audio_track(self):
+        # CodeRabbit on #130: when ffprobe fails too, nothing was checked: the message must
+        # not say the video has an audio track.
+        data = self.run_import(extract=False, probe=False)
+        [item] = [item for item in data['limitations'] if item['code'] == 'audio_failed']
+        self.assertNotIn('has an audio track', item['message'])
+        self.assertIn('could not be extracted', item['message'])
 
     def test_mcp_keeps_frame_paths_and_drops_bytes(self):
         frames = [{'index': 0, 'time': 1.0, 'mime_type': 'image/jpeg', 'data': 'AAAA', 'path': '/x/frame-0.jpg'}]

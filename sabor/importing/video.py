@@ -194,7 +194,8 @@ def next_step(language, source, audio_path=None):
 
 
 AUDIO_PROBLEMS = {'no_audio': 'The video has no audio track.',
-                  'audio_failed': 'The video has an audio track, but it could not be extracted.',
+                  'audio_failed': 'The soundtrack could not be extracted: ffmpeg failed, or ffprobe could '
+                                  'not tell whether the video has audio.',
                   'audio_not_saved': f'The soundtrack was extracted but could not be written to {MEDIA_DIR}.'}
 
 
