@@ -49,6 +49,13 @@ class ServerJsonTests(unittest.TestCase):
         self.assertEqual(label[1], self.server["name"])
         self.assertEqual(self.server["repository"]["url"], "https://github.com/JlMoreno00/sabor")
 
+    def test_versioning_doc_states_the_release_version(self):
+        # CodeRabbit on #131: docs/versioning.md stayed at 0.1.0 after two releases.
+        from sabor.server import VERSION
+        text = (ROOT / "docs" / "versioning.md").read_text(encoding="utf-8")
+        row = next(line for line in text.splitlines() if line.startswith("| Service release"))
+        self.assertIn(f"= `{VERSION}`", row)
+
     def test_ghcr_package_pinned_to_the_release_version(self):
         from sabor.server import VERSION
         self.assertEqual(len(self.server["packages"]), 2)
