@@ -6,7 +6,6 @@ so its time is bounded and its memory is released afterwards.
 """
 import importlib.util
 import json
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -15,9 +14,17 @@ from tempfile import TemporaryDirectory
 MODELS = ('tiny', 'base', 'small')
 TIMEOUT_SECONDS = 300
 MAX_TEXT = 20000
-# The directory holding the sabor package: the worker imports it from there even when
-# Sabor runs from a source tree that is not installed (the Docker image).
-PACKAGE_ROOT = str(Path(__file__).resolve().parents[2])
+# The worker loads this very sabor package by its path, so it runs the server's code even
+# from a source tree that is not installed (the Docker image) or next to another installed
+# sabor. sys.path is not touched: av, ctranslate2 and the rest still come from the
+# interpreter's own paths, in their own order.
+PACKAGE = str(Path(__file__).resolve().parents[1])
+BOOTSTRAP = ('import importlib.util, sys; '
+             f'spec = importlib.util.spec_from_file_location("sabor", {PACKAGE + "/__init__.py"!r}, '
+             f'submodule_search_locations=[{PACKAGE!r}]); '
+             'sys.modules["sabor"] = importlib.util.module_from_spec(spec); '
+             'spec.loader.exec_module(sys.modules["sabor"]); ')
+WORKER = BOOTSTRAP + 'from sabor.importing.transcribe import main; raise SystemExit(main(sys.argv[1:]))'
 
 
 def available():
@@ -29,14 +36,11 @@ def transcribe(path, model):
     """{source: 'local_asr', language, text} for a media file, or None."""
     if model not in MODELS:
         return None
-    env = dict(os.environ, PYTHONPATH=os.pathsep.join(
-        part for part in (PACKAGE_ROOT, os.environ.get('PYTHONPATH', '')) if part))
     with TemporaryDirectory() as cwd:
         try:
-            # -P keeps the (empty) working directory off sys.path.
-            result = subprocess.run([sys.executable, '-P', '-m', 'sabor.importing.transcribe', str(path), model],
-                                    capture_output=True, text=True, timeout=TIMEOUT_SECONDS, cwd=cwd, env=env,
-                                    check=False)
+            # -P keeps the (empty) working directory off sys.path; the environment is unchanged.
+            result = subprocess.run([sys.executable, '-P', '-c', WORKER, str(path), model],
+                                    capture_output=True, text=True, timeout=TIMEOUT_SECONDS, cwd=cwd, check=False)
         except (OSError, subprocess.TimeoutExpired):
             return None
     if result.returncode:

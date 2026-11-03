@@ -33,16 +33,44 @@ class SubprocessTests(unittest.TestCase):
         self.assertEqual(out, {'source': 'local_asr', 'language': 'es', 'text': 'Dos huevos'})
         args, kwargs = run.call_args
         # -P keeps the working directory off sys.path; the cwd is an empty private folder.
-        self.assertEqual(args[0], [sys.executable, '-P', '-m', 'sabor.importing.transcribe',
-                                   '/tmp/x/video.mp4', 'base'])
+        self.assertEqual(args[0], [sys.executable, '-P', '-c', tr.WORKER, '/tmp/x/video.mp4', 'base'])
         self.assertEqual(kwargs['timeout'], tr.TIMEOUT_SECONDS)
         self.assertEqual(list(Path(kwargs['cwd']).iterdir()) if Path(kwargs['cwd']).exists() else [], [])
         self.assertTrue(kwargs['capture_output'])
-        # CodeRabbit on #128: run from a source tree (Docker copies sabor/ without installing
-        # it), the empty cwd and -P hide the package; the worker gets its root explicitly.
-        import sabor
-        root = str(Path(sabor.__file__).resolve().parent.parent)
-        self.assertEqual(kwargs['env']['PYTHONPATH'].split(tr.os.pathsep)[0], root)
+        # CodeRabbit on #128: the environment is passed unchanged (no PYTHONPATH injected).
+        self.assertNotIn('env', kwargs)
+
+    def test_worker_loads_this_sabor_and_keeps_dependency_order(self):
+        # CodeRabbit on #128: the worker must import the same sabor package as the server,
+        # even from a source tree (Docker copies sabor/ without installing it) or when another
+        # sabor is installed, while sys.path, and so where av and ctranslate2 come from, is
+        # left exactly as the interpreter builds it.
+        import os
+        import tempfile
+        with tempfile.TemporaryDirectory() as extra:
+            # A stale `sabor` earlier on sys.path must not win.
+            stale = Path(extra) / 'sabor'
+            stale.mkdir()
+            (stale / '__init__.py').write_text('STALE = True\n')
+            env = dict(os.environ, PYTHONPATH=extra)
+            probe = ('import sys; before = list(sys.path); ' + tr.BOOTSTRAP
+                     + 'import sabor.importing.transcribe as t; '
+                     'print(sys.path == before); print(t.__file__); print(hasattr(sys.modules["sabor"], "STALE"))')
+            out = subprocess.run([sys.executable, '-P', '-c', probe], env=env, cwd=extra,
+                                 capture_output=True, text=True, check=True).stdout.splitlines()
+        self.assertEqual(out[0], 'True', 'sys.path is unchanged')
+        self.assertEqual(Path(out[1]).resolve(), Path(tr.__file__).resolve())
+        self.assertEqual(out[2], 'False')
+
+    def test_real_worker_imports_sabor_without_pythonpath(self):
+        import os
+        import tempfile
+        env = {k: v for k, v in os.environ.items() if k != 'PYTHONPATH'}
+        with tempfile.TemporaryDirectory() as cwd:
+            # An unknown model makes main() exit 2 right after sabor was imported.
+            result = subprocess.run([sys.executable, '-P', '-c', tr.WORKER, '/nonexistent.mp4', 'zz'],
+                                    env=env, cwd=cwd, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 2, result.stderr[-300:])
 
     def test_failures_give_no_transcript(self):
         for result, effect in ((Mock(returncode=1, stdout=''), None), (Mock(returncode=0, stdout='not json'), None),
