@@ -11,9 +11,9 @@ under the chosen version only when the release is created.
   when `MEALIE_BASE_URL` is empty: recipes, meal plans, shopping lists, tags,
   comments and cooking history (#36, #37).
 - **Import without Mealie**: URL (offline recipe-scrapers with JSON-LD
-  fallback), text, video, and image through a vision-capable compatible LLM;
-  conservative Spanish ingredient parsing that always keeps the original text
-  (#38).
+  fallback), with conservative Spanish ingredient parsing that always keeps the
+  original text (#38). Since 0.4.0 Sabor has no AI import: the agent reads text,
+  images and video itself and saves the recipe (#102; see the 0.4.0 CHANGELOG).
 - **One-command install**: `uvx sabor-mcp` (stdio) or `docker run` (HTTP), with
   "Sabor + Mealie" still available through the Compose `mealie` profile (#33,
   #39).

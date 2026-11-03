@@ -161,6 +161,6 @@ continuing.
 If restored data fails validation, keep Sabor stopped and repeat the restore
 procedure using `$ROLLBACK_ARCHIVE`. Do not attempt manual SQLite repair first;
 it can destroy evidence needed for diagnosis. A volume rollback does not revert
-nutrition already published to Mealie, Bring changes, provider-side Gemini
-uploads made by versions before 0.4.0, or any other external mutation. Those systems require their own
+nutrition already published to Mealie, Bring changes, media uploaded to an AI
+provider by versions before 0.4.0 (which had AI import), or any other external mutation. Those systems require their own
 reviewed recovery procedures.
