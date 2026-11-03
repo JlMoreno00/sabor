@@ -23,7 +23,7 @@ reachability, not token validity or authenticated permissions.
 The stable JSON key order and nesting are:
 
 ```json
-{"ok":true,"version":"0.3.0","config_path":"/path/config.toml","config":{"found":true,"source":"file","valid":true},"store":{"backend":"sqlite","reachable":true,"schema_version":3},"toolsets":["core","import"],"capabilities_summary":{"recipe_store":["sqlite"],"pricing":[],"import":["sabor"],"shopping_sync":[]},"missing_secrets":[],"warnings":[],"next_steps":[]}
+{"ok":true,"version":"0.4.0","config_path":"/path/config.toml","config":{"found":true,"source":"file","valid":true},"store":{"backend":"sqlite","reachable":true,"schema_version":3},"toolsets":["core","import"],"capabilities_summary":{"recipe_store":["sqlite"],"pricing":[],"import":["sabor"],"shopping_sync":[]},"missing_secrets":[],"warnings":[],"next_steps":[]}
 ```
 
 `schema_version` is null for Mealie or failed probes. Invalid configuration adds

@@ -401,7 +401,7 @@ uvx sabor-mcp
 **Only after the first PyPI release.** Until then, use
 `uvx --from git+https://github.com/JlMoreno00/sabor sabor-mcp`, or build a
 local wheel with `uv build` and run
-`uvx --from dist/sabor_mcp-0.3.0-py3-none-any.whl sabor-mcp`.
+`uvx --from dist/sabor_mcp-0.4.0-py3-none-any.whl sabor-mcp`.
 No Mealie configuration is needed. The console command defaults to stdio;
 `sabor-mcp --transport http` instead serves Streamable HTTP on loopback
 (`127.0.0.1:8080/mcp`) unless you set `SABOR_HOST` explicitly.
@@ -409,7 +409,7 @@ No Mealie configuration is needed. The console command defaults to stdio;
 For standalone Docker (HTTP), **only after the first GHCR release**:
 
 ```bash
-docker run -p 127.0.0.1:9170:8080 -v sabor-data:/data ghcr.io/jlmoreno00/sabor:0.3.0
+docker run -p 127.0.0.1:9170:8080 -v sabor-data:/data ghcr.io/jlmoreno00/sabor:0.4.0
 ```
 
 Until then build locally with `docker build -t sabor:local .` and use

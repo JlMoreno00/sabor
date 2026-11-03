@@ -28,7 +28,7 @@ class InstallTests(unittest.TestCase):
             if isinstance(node, ast.Assign) and any(
                 isinstance(target, ast.Name) and target.id == 'VERSION' for target in node.targets))
         self.assertEqual(metadata['tool']['hatch']['version']['path'], 'sabor/server.py')
-        self.assertEqual(version, '0.3.0')
+        self.assertEqual(version, '0.4.0')
         self.assertEqual(metadata['project']['name'], 'sabor-mcp')
         self.assertEqual(set(metadata['project']['dependencies']),
                          set((ROOT / 'requirements.txt').read_text().splitlines()))

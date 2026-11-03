@@ -37,7 +37,7 @@ class ServerRuntimeTests(unittest.TestCase):
         out = asyncio.run(server.call_tool("sabor_capabilities", {}))
         content = list(out[0] if isinstance(out, tuple) else out)
         data = json.loads(getattr(content[0], "text"))["data"]
-        self.assertEqual(data["version"], "0.3.0")
+        self.assertEqual(data["version"], "0.4.0")
 
 
 if __name__ == "__main__":

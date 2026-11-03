@@ -20,7 +20,7 @@ _registered = WeakKeyDictionary()
 # Contexts per registered server, so the runtime entrypoint can start side
 # effects (such as catalog warm-up) that registration itself must not trigger.
 _contexts = WeakKeyDictionary()
-VERSION = "0.3.0"
+VERSION = "0.4.0"
 
 from mcp.server.fastmcp import FastMCP
 

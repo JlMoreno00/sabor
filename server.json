@@ -8,11 +8,11 @@
     "source": "github",
     "id": "1425873570"
   },
-  "version": "0.3.0",
+  "version": "0.4.0",
   "packages": [
     {
       "registryType": "oci",
-      "identifier": "ghcr.io/jlmoreno00/sabor:0.3.0",
+      "identifier": "ghcr.io/jlmoreno00/sabor:0.4.0",
       "runtimeHint": "docker",
       "runtimeArguments": [
         {
@@ -114,7 +114,7 @@
     {
       "registryType": "pypi",
       "identifier": "sabor-mcp",
-      "version": "0.3.0",
+      "version": "0.4.0",
       "runtimeHint": "uvx",
       "transport": {
         "type": "stdio"
