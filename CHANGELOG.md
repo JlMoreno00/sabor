@@ -11,7 +11,8 @@ pages, prepares video media and stores recipes. Upgrading from 0.3:
 - `import_recipe` imports recipe web pages (`kind='url'`) as before. For text and
   images it returns `unsupported_operation` with guidance to save the recipe with
   `create_recipe`; for a video URL or local video file it returns a media bundle
-  (metadata, transcript, frames) instead of recipe candidates, and writes nothing.
+  (metadata, transcript, frames) instead of recipe candidates. It writes no recipe;
+  on stdio it leaves the audio and frame files in `.sabor-media/`, removed after 24 h.
 - The AI settings (`SABOR_LLM_*`, `GEMINI_API_KEY`, `VIDEO_RECIPE_GEMINI_MODEL`,
   `SABOR_VIDEO_PROVIDER`, the `[llm]` section and the AI secrets) are ignored. An old
   configuration keeps starting; `sabor-mcp doctor` names them so they can be removed.
@@ -158,10 +159,9 @@ pages, prepares video media and stores recipes. Upgrading from 0.3:
 - Standalone uvx/stdio and Docker/HTTP installation without Mealie, user data
   directory and ffmpeg guidance, dual registry packages, gated PyPI publishing,
   and installed-wheel/container MCP smoke tests in CI (#39).
-- SQLite URL import via offline recipe-scrapers and JSON-LD fallback, plus image
-  preview/commit through a vision-capable compatible LLM; shared SSRF-safe bounded
-  HTML/image fetching. Text/video imports retain store-based creation and native
-  Mealie import behavior is unchanged (#38).
+- SQLite URL import via offline recipe-scrapers and JSON-LD fallback, with shared
+  SSRF-safe bounded HTML/image fetching; native Mealie import behavior is
+  unchanged (#38).
 - Built-in SQLite recipe store, selected by default without a Mealie URL, with
   configurable `SABOR_STORE` / `SABOR_STORE_DB`, FTS search, meal plans and
   shopping lists usable through Bring! previews without Mealie (#37).
@@ -199,7 +199,7 @@ pages, prepares video media and stores recipes. Upgrading from 0.3:
   migration); nameless recipes keep numeric slugs; explicit slugs are unchanged.
   Postgres retries a slug taken concurrently by another process (#49).
 - `server.json`: the OCI package advertises only the essential environment
-  variables (store, Mealie, LLM, Bring, Mercadona, Open Prices, toolsets) and the `pypi`
+  variables (language, store, Mealie, Bring, Mercadona, Open Prices, toolsets) and the `pypi`
   package (`uvx sabor-mcp`, stdio) none; `mcp-manifest.json` still lists all.
   The README carries the hidden `mcp-name` marker for registry ownership, and a
   manual *Publish PyPI* run targets TestPyPI unless PyPI is chosen; version tags
@@ -345,8 +345,8 @@ pages, prepares video media and stores recipes. Upgrading from 0.3:
 - Mealie port operations translate legacy HTTP 404 failures to `not_found`
   rather than `upstream_error`; legacy tool response dictionaries are unchanged (#5).
 - `mcp-manifest.json` no longer advertises Spoonacular and now lists every
-  environment variable Sabor reads (adds `SABOR_TOOLSETS`, `SABOR_LLM_*`,
-  `SABOR_VIDEO_PROVIDER`, `SABOR_MERCADONA_ENABLED`) with real descriptions and
+  environment variable Sabor reads (adds `SABOR_TOOLSETS` and
+  `SABOR_MERCADONA_ENABLED`) with real descriptions and
   code defaults; `MEALIE_BASE_URL` no longer claims a default. A contract test
   keeps the manifest in sync with the configuration parsers and `.env.example` (#34).
 - Registered tools now isolate compatibility configuration,
