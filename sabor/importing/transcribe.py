@@ -6,6 +6,7 @@ so its time is bounded and its memory is released afterwards.
 """
 import importlib.util
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -14,6 +15,9 @@ from tempfile import TemporaryDirectory
 MODELS = ('tiny', 'base', 'small')
 TIMEOUT_SECONDS = 300
 MAX_TEXT = 20000
+# The directory holding the sabor package: the worker imports it from there even when
+# Sabor runs from a source tree that is not installed (the Docker image).
+PACKAGE_ROOT = str(Path(__file__).resolve().parents[2])
 
 
 def available():
@@ -25,11 +29,14 @@ def transcribe(path, model):
     """{source: 'local_asr', language, text} for a media file, or None."""
     if model not in MODELS:
         return None
+    env = dict(os.environ, PYTHONPATH=os.pathsep.join(
+        part for part in (PACKAGE_ROOT, os.environ.get('PYTHONPATH', '')) if part))
     with TemporaryDirectory() as cwd:
         try:
             # -P keeps the (empty) working directory off sys.path.
             result = subprocess.run([sys.executable, '-P', '-m', 'sabor.importing.transcribe', str(path), model],
-                                    capture_output=True, text=True, timeout=TIMEOUT_SECONDS, cwd=cwd, check=False)
+                                    capture_output=True, text=True, timeout=TIMEOUT_SECONDS, cwd=cwd, env=env,
+                                    check=False)
         except (OSError, subprocess.TimeoutExpired):
             return None
     if result.returncode:

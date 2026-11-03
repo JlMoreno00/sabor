@@ -474,6 +474,7 @@ locally on the CPU (faster-whisper; no AI provider, see `docs/operations.md`).
 ```bash
 python3 -m venv .venv
 . .venv/bin/activate
+# Optional, for videos without subtitles: pip install -e '.[transcribe]'
 pip install -r requirements.txt
 export SABOR_HOST=127.0.0.1
 export SABOR_PORT=9170

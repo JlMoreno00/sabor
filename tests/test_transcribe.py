@@ -38,6 +38,11 @@ class SubprocessTests(unittest.TestCase):
         self.assertEqual(kwargs['timeout'], tr.TIMEOUT_SECONDS)
         self.assertEqual(list(Path(kwargs['cwd']).iterdir()) if Path(kwargs['cwd']).exists() else [], [])
         self.assertTrue(kwargs['capture_output'])
+        # CodeRabbit on #128: run from a source tree (Docker copies sabor/ without installing
+        # it), the empty cwd and -P hide the package; the worker gets its root explicitly.
+        import sabor
+        root = str(Path(sabor.__file__).resolve().parent.parent)
+        self.assertEqual(kwargs['env']['PYTHONPATH'].split(tr.os.pathsep)[0], root)
 
     def test_failures_give_no_transcript(self):
         for result, effect in ((Mock(returncode=1, stdout=''), None), (Mock(returncode=0, stdout='not json'), None),
