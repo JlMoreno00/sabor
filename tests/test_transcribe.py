@@ -161,7 +161,8 @@ class BundleWiringTests(unittest.TestCase):
             root = Path(tmp).resolve()
             video = root / 'tortilla.mp4'
             video.write_bytes(b'video')
-            settings = replace(load_settings({'SABOR_STORE': 'sqlite', 'SABOR_MEDIA_ROOTS': str(root)}), local_media=True)
+            settings = replace(load_settings({'SABOR_STORE': 'sqlite', 'SABOR_MEDIA_ROOTS': str(root),
+                                              'SABOR_TRANSCRIBE_MODEL': 'tiny'}), local_media=True)
             ctx = build_context(settings, store_factory=lambda s: FakeRecipeStore())
             asr = {'source': 'local_asr', 'language': 'es', 'text': 'dos huevos'}
             with patch.object(v.shutil, 'which', return_value='/bin/tool'), \
@@ -172,3 +173,4 @@ class BundleWiringTests(unittest.TestCase):
         self.assertEqual(data['transcript'], asr)
         self.assertNotIn('no_transcript', [item['code'] for item in data['limitations']])
         self.assertNotEqual(Path(run.call_args.args[0]), video, 'the private copy is transcribed')
+        self.assertEqual(run.call_args.args[1], 'tiny', 'the model setting reaches local files')
