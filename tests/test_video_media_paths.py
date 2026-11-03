@@ -231,6 +231,15 @@ class MediaPathTests(unittest.TestCase):
         self.assertNotIn('has an audio track', item['message'])
         self.assertIn('could not be extracted', item['message'])
 
+    def test_a_failed_probe_still_extracts_the_audio(self):
+        # CodeRabbit on #130: when ffprobe cannot tell, the extraction is still tried; a saved
+        # soundtrack is returned and no audio limitation is added.
+        data = self.run_import(probe=False)
+        self.assertIsNotNone(data['audio_path'])
+        codes = [item['code'] for item in data['limitations']]
+        for code in ('no_audio', 'audio_failed', 'audio_not_saved'):
+            self.assertNotIn(code, codes)
+
     def test_mcp_keeps_frame_paths_and_drops_bytes(self):
         frames = [{'index': 0, 'time': 1.0, 'mime_type': 'image/jpeg', 'data': 'AAAA', 'path': '/x/frame-0.jpg'}]
         from mcp.types import CallToolResult

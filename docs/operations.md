@@ -177,7 +177,8 @@ directory when empty): `audio.m4a` (the soundtrack as AAC, given in `audio_path`
 up to eight `frame-<n>.jpg` files (a frame that was written gets a `path`; every
 extracted frame is still attached as an image). Any of them may be missing: without
 an audio track `audio_path` is `null` (`no_audio`; `audio_failed` when ffmpeg could
-not extract the soundtrack, or ffprobe could not tell whether there is one; `audio_not_saved` when the soundtrack was
+not extract the soundtrack; if ffprobe cannot tell whether there is one, the extraction
+is still tried and a saved file is returned in `audio_path`; `audio_not_saved` when the soundtrack was
 extracted but could not be written), a frame whose file could not be
 written has no `path`, and when the folder cannot be used no file is written
 (`no_media_paths`). Both folders are created with mode 0700, and each bundle folder
