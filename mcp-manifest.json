@@ -1,7 +1,7 @@
 {
   "manifest_version": "1.0",
   "name": "sabor",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Cooking MCP server with SQLite or optional Mealie: search, read, create and edit recipes, plan meals and manage shopping lists, plus recipe import from URLs, text and video. Optional integrations: Bring! shopping sync and Mercadona price estimates.",
   "transport": "streamable-http",
   "port": 8080,

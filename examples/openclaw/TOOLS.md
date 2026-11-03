@@ -59,8 +59,9 @@ Nutrición conserva los flags `apply`, `publish`, `execute`.
 Pricing requiere `pricing` en `SABOR_TOOLSETS` y `SABOR_MERCADONA_ENABLED=true`.
 `search_pricing_products` busca candidatos y `get_product_price` lee precios de
 paquete/unidad; `estimate_cost` separa consumo de compra. `legacy_pricing` solo
-conserva bajadas de precio y novedades. Open Prices y Todoist no están disponibles
-en 0.3.0. Consulta discovery; no inventes adaptadores.
+conserva bajadas de precio y novedades. Open Prices requiere
+`SABOR_OPEN_PRICES_ENABLED=true`; Todoist no está disponible. Consulta discovery; no
+inventes adaptadores.
 Para feedback usa `save_feedback` solo si está registrado; comentarios e historial
 Mealie usan `add_recipe_comment` y `log_cooking_event`.
 
