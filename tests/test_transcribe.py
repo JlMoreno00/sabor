@@ -94,11 +94,13 @@ class PackagingTests(unittest.TestCase):
     def test_extra_and_docker_build_argument(self):
         import tomllib
         project = tomllib.loads((self.ROOT / 'pyproject.toml').read_text())['project']
-        self.assertEqual(project['optional-dependencies']['transcribe'], ['faster-whisper==1.2.1'])
+        # faster-whisper 1.2.1 calls av.open(metadata_errors=...), which newer PyAV (19.x)
+        # rejects; checked working with av 15.1.0, so av stays below 16.
+        self.assertEqual(project['optional-dependencies']['transcribe'], ['faster-whisper==1.2.1', 'av>=11,<16'])
         self.assertNotIn('faster-whisper', ' '.join(project['dependencies']))
         dockerfile = (self.ROOT / 'Dockerfile').read_text()
         self.assertIn('ARG SABOR_TRANSCRIBE=0', dockerfile)
-        self.assertIn('faster-whisper==1.2.1', dockerfile)
+        self.assertIn("faster-whisper==1.2.1 'av>=11,<16'", dockerfile)
 
 
 if __name__ == '__main__':

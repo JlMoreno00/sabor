@@ -318,7 +318,9 @@ pip install 'sabor-mcp[transcribe]'          # or: uvx --from 'sabor-mcp[transcr
 docker build --build-arg SABOR_TRANSCRIBE=1 .  # Docker image with the transcriber
 ```
 
-The extra adds about 120 MB of wheels (ctranslate2, av, onnxruntime, tokenizers). On
+The extra adds about 120 MB of wheels (ctranslate2, av, onnxruntime, tokenizers). It
+keeps PyAV below 16, because faster-whisper 1.2.1 uses an `av.open()` argument that
+newer PyAV releases removed. On
 first use the Whisper weights (MIT) are downloaded once from Hugging Face: `base`
 (default) is about 145 MB, `tiny` smaller and `small` about 466 MB, chosen with
 `SABOR_TRANSCRIBE_MODEL` (`[import] transcribe_model`). Each transcription runs in its

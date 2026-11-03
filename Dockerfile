@@ -11,7 +11,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 # Optional local transcription (#102): docker build --build-arg SABOR_TRANSCRIBE=1 .
 ARG SABOR_TRANSCRIBE=0
-RUN if [ "$SABOR_TRANSCRIBE" = "1" ]; then pip install --no-cache-dir faster-whisper==1.2.1; fi
+RUN if [ "$SABOR_TRANSCRIBE" = "1" ]; then pip install --no-cache-dir faster-whisper==1.2.1 'av>=11,<16'; fi
 
 COPY sabor_mcp.py .
 COPY sabor ./sabor
