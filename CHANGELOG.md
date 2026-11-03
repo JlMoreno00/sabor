@@ -2,6 +2,25 @@
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-03
+
+**Breaking release: Sabor no longer contains any AI provider** (#102). The client
+agent reads text, images and video and writes the recipe itself; Sabor fetches recipe
+pages, prepares video media and stores recipes. Upgrading from 0.3:
+
+- `import_recipe` imports recipe web pages (`kind='url'`) as before. For text and
+  images it returns `unsupported_operation` with guidance to save the recipe with
+  `create_recipe`; for a video URL or local video file it returns a media bundle
+  (metadata, transcript, frames) instead of recipe candidates, and writes nothing.
+- The AI settings (`SABOR_LLM_*`, `GEMINI_API_KEY`, `VIDEO_RECIPE_GEMINI_MODEL`,
+  `SABOR_VIDEO_PROVIDER`, the `[llm]` section and the AI secrets) are ignored. An old
+  configuration keeps starting; `sabor-mcp doctor` names them so they can be removed.
+- Mealie's image import is gone. With the Mealie store, a saved recipe still runs
+  Mealie's own ingredient parser (`SABOR_INGREDIENT_PARSER`, default unchanged), which
+  may use the AI provider configured in Mealie.
+- New optional pieces: local video files on stdio (`SABOR_MEDIA_ROOTS`), on-device
+  transcription (`sabor-mcp[transcribe]`) and the `sabor-import` Agent Skill.
+
 ### Removed
 - **Breaking (0.4.0, #102):** Sabor no longer contains any AI provider client. The
   client agent does the extraction. Removed: the OpenAI-compatible LLM import
@@ -20,6 +39,17 @@
   `limitations` and `next_step`. It writes no recipe, so `dry_run` has no effect.
   Without ffmpeg and ffprobe, metadata and subtitles still come, with a `no_frames`
   limitation.
+- **Breaking (0.4.0, #102):** the AI settings are removed: `SABOR_LLM_BASE_URL`,
+  `SABOR_LLM_MODEL`, `SABOR_LLM_API_KEY`, `GEMINI_API_KEY`, `VIDEO_RECIPE_GEMINI_MODEL`,
+  `SABOR_VIDEO_PROVIDER`, the `[llm]` section, `[import] video_provider` and
+  `gemini_model`, the `llm_api_key` / `gemini_api_key` secrets, the `sabor-mcp setup`
+  options `--llm`, `--llm-base-url`, `--llm-model` and `--gemini-model` (and the
+  interactive «LLM» step), and their entries in `server.json` and
+  `mcp-manifest.json`. **Migration:** nothing to do. A configuration that still sets
+  them keeps starting (they are no longer validated, so a malformed old URL no longer
+  stops startup); they are ignored, and `sabor-mcp doctor` gives one warning:
+  «removed in 0.4.0, the agent does extraction» with their names. Remove them when
+  convenient; `sabor-mcp setup secret` no longer accepts the two AI secret names.
 
 ### Added
 - Optional local transcription (#102): the `sabor-mcp[transcribe]` extra
@@ -53,17 +83,151 @@
   only the folders it created there (marked with `.sabor-bundle`) after 24 hours,
   never following links. Over HTTP nothing is
   written and `audio_path` is `null`.
-- **Breaking (0.4.0, #102):** the AI settings are removed: `SABOR_LLM_BASE_URL`,
-  `SABOR_LLM_MODEL`, `SABOR_LLM_API_KEY`, `GEMINI_API_KEY`, `VIDEO_RECIPE_GEMINI_MODEL`,
-  `SABOR_VIDEO_PROVIDER`, the `[llm]` section, `[import] video_provider` and
-  `gemini_model`, the `llm_api_key` / `gemini_api_key` secrets, the `sabor-mcp setup`
-  options `--llm`, `--llm-base-url`, `--llm-model` and `--gemini-model` (and the
-  interactive «LLM» step), and their entries in `server.json` and
-  `mcp-manifest.json`. **Migration:** nothing to do. A configuration that still sets
-  them keeps starting (they are no longer validated, so a malformed old URL no longer
-  stops startup); they are ignored, and `sabor-mcp doctor` gives one warning:
-  «removed in 0.4.0, the agent does extraction» with their names. Remove them when
-  convenient; `sabor-mcp setup secret` no longer accepts the two AI secret names.
+- URL imports into SQLite or Postgres download the recipe image and keep it with
+  its original URL (new `recipe_images` table; SQLite migration 4, Postgres
+  migration 3). Public addresses only at every redirect, 5 MB, real JPEG/PNG/WebP/GIF
+  by file signature, 30 s total deadline (DNS lookups and trickled response headers
+  included). A failed download still imports the recipe,
+  keeps the URL and adds an `image_warning`; `import_recipe` reports `images`. Mealie
+  keeps using its native image import (#49).
+- Setup CLI: terminal onboarding, JSON automation, language configuration and secret
+  references; system keyring preferred with an owner-only local fallback; no MCP
+  configuration tools (#64).
+- Structured preferences use Postgres when selected (private migration v2), with
+  shared file/Postgres behavior and `preferences import-file [--apply]` for an
+  optional, non-destructive local JSON merge; SQLite/Mealie stay unchanged (#70).
+- `sabor-mcp setup supabase [--create-role]`: the Postgres/Supabase connection string
+  is typed only in a terminal (hidden input). With `--create-role` the `postgres`
+  string is used once, in memory, to create or rotate the `sabor_app` role that
+  owns only the `sabor` schema; only that role's string is stored (keychain or
+  0600 file). Supabase transaction pooler strings are rejected and `sslmode=require`
+  is added. `doctor` warns about Free-plan pauses, missing backups and IPv6-only
+  direct hosts. New agent guide `docs/supabase-agentes.md` (#69).
+- Optional generic Postgres recipe store (`sabor-mcp[postgres]`) with secret
+  `SABOR_DATABASE_URL`, private schema migrations, RLS on every table and
+  extension-free phrase search. Setup, doctor and discovery support `postgres`;
+  the shared capability contract runs against Postgres 16 in CI (#68).
+- `sabor-mcp setup` enables the `preferences` toolset when config.toml does not
+  choose toolsets yet, so onboarding can save the cooking profile; existing
+  toolsets and the runtime default without config.toml are unchanged (#67).
+- Portable Agent Skill `skills/sabor-onboarding/SKILL.md`: the cooking-profile
+  interview for any client that supports Agent Skills. It separates the profile
+  (preference tools, when the opt-in `preferences` toolset is registered) from
+  configuration (`sabor-mcp setup` in a terminal only). A test checks the skill
+  frontmatter and that skills and `llms-install.md` name only real tools (#67).
+- `llms-install.md` (English and Spanish): agent-driven install that asks one
+  question at a time, configures only through `sabor-mcp setup`, keeps secrets out
+  of the chat (`setup secret` in a terminal), merges the client entry and verifies
+  with `doctor --json` and `sabor_capabilities`. README gains an *Install* section:
+  with your AI, one-click links (Cursor, VS Code, Kiro, LM Studio, Goose) and the
+  `claude`/`codex`/`gemini`/`code` commands; Docker becomes the advanced path (#66).
+- Terminal `doctor [--json]` health checks and `config show [--json]` with
+  per-key origins, masked secrets and actionable exit codes; no MCP tools (#65).
+- Optional non-secret `config.toml` with OS paths, `SABOR_CONFIG` override,
+  environment > file > defaults precedence and `data.config_source` discovery.
+  Invalid files fail startup with redacted errors; secrets remain env-only (#63).
+- Opt-in Open Prices pricing provider (`SABOR_OPEN_PRICES_ENABLED=true` plus
+  `pricing` toolset): barcode search and country-scoped crowd observations,
+  observation/store provenance, stale/discount/single-observation uncertainty,
+  canonical package units and instance-owned ten-minute cache. Spanish coverage
+  is sparse/old. Attribution: Open Prices (Open Food Facts), ODbL (#2).
+- The shared store contract runs against the real Mealie adapter using a stateful
+  offline Mealie contract double, alongside Fake and SQLite (#5).
+- Pantry-aware `estimate_cost` sources accept `exclude_pantry: true`, excluding
+  matched lines with `in_pantry` reasons and additive pantry counts. List building
+  reports advisory `pantry_matches` from source lines without skipping additions;
+  both read instance preferences independently of the preferences toolset (#13).
+- Spanish catalog CLI: `sabor-mcp catalog status|apply` and
+  `python -m sabor catalog status|apply`, with instance-bound Mealie settings,
+  read-only status, create-only apply and JSON output. Existing catalog MCP
+  tools remain unchanged, deprecated in documentation pending a future major (#14).
+- Opt-in `preferences`: `get_preferences` and preview/confirmed `update_preferences`,
+  validated household JSON storage and `sabor-mcp preferences import-memory`
+  dry-run/apply migration. Legacy memory behavior is unchanged.
+  MINOR contract baseline extension: 50 → 52 application tools (#13).
+- Recipe search supports created/updated dates, rating, last made and daily
+  seeded random ordering; SQLite persists search timestamps with migration v3
+  and reports rating ordering as unsupported (#16).
+- `sabor_capabilities` adds `data.mealie_only`: Mealie-only toolsets unavailable
+  in this instance with a `reason` (`requires_mealie_store` for
+  `legacy_nutrition`, `requires_mealie` for `legacy_catalog`) and `detail`.
+  Additive; `disabled_toolsets` is unchanged. Beta installation guide
+  (`docs/install-beta.md`) and draft release/migration notes
+  (`docs/release-notes-beta.md`); README lists cookbooks and the Mealie web UI
+  as Mealie-only (#40).
+- Standalone uvx/stdio and Docker/HTTP installation without Mealie, user data
+  directory and ffmpeg guidance, dual registry packages, gated PyPI publishing,
+  and installed-wheel/container MCP smoke tests in CI (#39).
+- SQLite URL import via offline recipe-scrapers and JSON-LD fallback, plus image
+  preview/commit through a vision-capable compatible LLM; shared SSRF-safe bounded
+  HTML/image fetching. Text/video imports retain store-based creation and native
+  Mealie import behavior is unchanged (#38).
+- Built-in SQLite recipe store, selected by default without a Mealie URL, with
+  configurable `SABOR_STORE` / `SABOR_STORE_DB`, FTS search, meal plans and
+  shopping lists usable through Bring! previews without Mealie (#37).
+- CI `Lint (ruff)` job with a repository `ruff.toml` (pyflakes `F` and syntax
+  errors `E9`, ruff pinned to 0.17.1); existing findings fixed without behavior
+  changes (#32).
+- One-command install: `docker compose --profile mealie up -d` also starts a
+  pinned Mealie 3.22.0; without the profile `docker compose up -d` keeps the
+  Sabor-only behavior. Three-step README quickstart, `scripts/check-compose.py`
+  in CI, and a GHCR publish workflow that runs only manually or on `v*` tags (#33).
+- `server.json` for the official MCP registry (`io.github.JlMoreno00/sabor`,
+  OCI package `ghcr.io/jlmoreno00/sabor`), validated offline against the
+  registry schema and kept in sync with `mcp-manifest.json`; the image carries
+  the registry ownership label. Not submitted to the registry yet (#35).
+
+### Changed
+- Dependencies: `urllib3>=2.2` is now declared directly. Recipe image downloads read
+  one socket read at a time (`HTTPResponse.read1`, added in urllib3 2.2.0) to keep their
+  30 s limit, and `requests` alone still allowed urllib3 1.26, where every image
+  download would have been skipped (#49).
+- Free-text ingredient names also drop English unit words (`300 grams of rice` gives
+  `rice` instead of `grams of rice`: gram(s), kilogram(s), liter(s)/litre(s),
+  milliliter(s)/millilitre(s), unit(s), piece(s), dozen(s)). This changes the names
+  used for pricing searches, pantry matching and shopping hints with every store,
+  **Mealie included**, for lines written with those English words; Spanish lines keep
+  their previous names (#49).
+- SQLite/Postgres import normalization splits Spanish ingredient enumerations into
+  one row per food (`2 g de harina y azúcar` becomes `harina` and `azúcar`). A
+  shared amount is assigned to each food and flagged with the note `cantidad dudosa:
+  línea con varios ingredientes`; compound names, preparations and lines without an
+  amount are not split, and Mealie is unchanged (#49).
+- SQLite and Postgres: new recipes without an explicit slug get one derived from
+  their name (`tortilla-de-patatas`), with `-2`, `-3`... on collision, instead of a
+  numeric identifier. Existing recipes keep their numeric slug and links (no data
+  migration); nameless recipes keep numeric slugs; explicit slugs are unchanged.
+  Postgres retries a slug taken concurrently by another process (#49).
+- `server.json`: the OCI package advertises only the essential environment
+  variables (store, Mealie, LLM, Bring, Mercadona, Open Prices, toolsets) and the `pypi`
+  package (`uvx sabor-mcp`, stdio) none; `mcp-manifest.json` still lists all.
+  The README carries the hidden `mcp-name` marker for registry ownership, and a
+  manual *Publish PyPI* run targets TestPyPI unless PyPI is chosen; version tags
+  still target PyPI. Nothing is published (#62).
+- Store contract tests declare capability groups and backend-specific rating-sort
+  and occurrence-ID behavior, with well-formed missing IDs supplied by fixtures (#5).
+- Mercadona ranking prefers staples over equally close derivative products,
+  without penalizing explicitly requested modifiers (#9).
+- Cheapest pricing evaluates repeated ingredient quantities together, choosing a
+  common product only for a strict procurement saving; mixed selections survive
+  ties, overrides and strict policy are unchanged. Changed lines expose grouped
+  selection reasons and combined-quantity alternatives; missing prices stay unknown.
+  Each estimate reads the source once and uses a single per-call provider snapshot,
+  so trial selections never mix catalog refreshes or repeat provider calls (#9).
+- `mcp-manifest.json` and both `server.json` packages mark `MEALIE_BASE_URL` and
+  `MEALIE_API_TOKEN` as optional (`required`/`isRequired: false`): they are only
+  needed for the optional Mealie adapter, since SQLite is the default store.
+  Runtime behavior with Mealie configured is unchanged (#36).
+- Core readiness and tools now use the instance RecipeStore rather than requiring
+  Mealie. Tags/comments/history and scheduling HTTP live in the Mealie adapter;
+  list preview/clear and ID validation belong to stores. An injected Fake store
+  exercises all 22 core tools without Mealie; Mealie remains the only production
+  backend, with unchanged tool signatures and Mealie behavior (#36).
+- Context-aware tools receive their `AppContext` explicitly per call through
+  `bind_context`/`use_context` and `current_context()`, instead of returning a
+  deferred `lambda ctx` that the binder executed. Public signatures, docstrings
+  and MCP schemas are unchanged; direct Python calls still build a fresh
+  compatibility context (#4).
 
 ### Fixed
 - Video import from YouTube: videos served only as separate DASH video and audio
@@ -156,162 +320,6 @@
   products are still used when nothing else matches or when the query asks for them.
   Mercadona search ranks unprocessed products first. Applies to every pricing
   provider; recipe stores are unaffected.
-
-### Changed
-- Dependencies: `urllib3>=2.2` is now declared directly. Recipe image downloads read
-  one socket read at a time (`HTTPResponse.read1`, added in urllib3 2.2.0) to keep their
-  30 s limit, and `requests` alone still allowed urllib3 1.26, where every image
-  download would have been skipped (#49).
-- Free-text ingredient names also drop English unit words (`300 grams of rice` gives
-  `rice` instead of `grams of rice`: gram(s), kilogram(s), liter(s)/litre(s),
-  milliliter(s)/millilitre(s), unit(s), piece(s), dozen(s)). This changes the names
-  used for pricing searches, pantry matching and shopping hints with every store,
-  **Mealie included**, for lines written with those English words; Spanish lines keep
-  their previous names (#49).
-- SQLite/Postgres import normalization splits Spanish ingredient enumerations into
-  one row per food (`2 g de harina y azúcar` becomes `harina` and `azúcar`). A
-  shared amount is assigned to each food and flagged with the note `cantidad dudosa:
-  línea con varios ingredientes`; compound names, preparations and lines without an
-  amount are not split, and Mealie is unchanged (#49).
-- SQLite and Postgres: new recipes without an explicit slug get one derived from
-  their name (`tortilla-de-patatas`), with `-2`, `-3`... on collision, instead of a
-  numeric identifier. Existing recipes keep their numeric slug and links (no data
-  migration); nameless recipes keep numeric slugs; explicit slugs are unchanged.
-  Postgres retries a slug taken concurrently by another process (#49).
-- `server.json`: the OCI package advertises only the essential environment
-  variables (store, Mealie, LLM, Bring, Mercadona, Open Prices, toolsets) and the `pypi`
-  package (`uvx sabor-mcp`, stdio) none; `mcp-manifest.json` still lists all.
-  The README carries the hidden `mcp-name` marker for registry ownership, and a
-  manual *Publish PyPI* run targets TestPyPI unless PyPI is chosen; version tags
-  still target PyPI. Nothing is published (#62).
-- Store contract tests declare capability groups and backend-specific rating-sort
-  and occurrence-ID behavior, with well-formed missing IDs supplied by fixtures (#5).
-- Mercadona ranking prefers staples over equally close derivative products,
-  without penalizing explicitly requested modifiers (#9).
-- Cheapest pricing evaluates repeated ingredient quantities together, choosing a
-  common product only for a strict procurement saving; mixed selections survive
-  ties, overrides and strict policy are unchanged. Changed lines expose grouped
-  selection reasons and combined-quantity alternatives; missing prices stay unknown.
-  Each estimate reads the source once and uses a single per-call provider snapshot,
-  so trial selections never mix catalog refreshes or repeat provider calls (#9).
-- `mcp-manifest.json` and both `server.json` packages mark `MEALIE_BASE_URL` and
-  `MEALIE_API_TOKEN` as optional (`required`/`isRequired: false`): they are only
-  needed for the optional Mealie adapter, since SQLite is the default store.
-  Runtime behavior with Mealie configured is unchanged (#36).
-
-### Added
-- URL imports into SQLite or Postgres download the recipe image and keep it with
-  its original URL (new `recipe_images` table; SQLite migration 4, Postgres
-  migration 3). Public addresses only at every redirect, 5 MB, real JPEG/PNG/WebP/GIF
-  by file signature, 30 s total deadline (DNS lookups and trickled response headers
-  included). A failed download still imports the recipe,
-  keeps the URL and adds an `image_warning`; `import_recipe` reports `images`. Mealie
-  keeps using its native image import (#49).
-
-### Security
-- The import download guard (URL/image import and the new recipe images) now also
-  refuses multicast addresses and IPv4 embedded in IPv6 (mapped, NAT64, 6to4, Teredo)
-  that point to private or loopback space; Python reports several of these as global (#49).
-- Setup CLI: terminal onboarding, JSON automation, language configuration and secret
-  references; system keyring preferred with an owner-only local fallback; no MCP
-  configuration tools (#64).
-- Structured preferences use Postgres when selected (private migration v2), with
-  shared file/Postgres behavior and `preferences import-file [--apply]` for an
-  optional, non-destructive local JSON merge; SQLite/Mealie stay unchanged (#70).
-- `sabor-mcp setup supabase [--create-role]`: the Postgres/Supabase connection string
-  is typed only in a terminal (hidden input). With `--create-role` the `postgres`
-  string is used once, in memory, to create or rotate the `sabor_app` role that
-  owns only the `sabor` schema; only that role's string is stored (keychain or
-  0600 file). Supabase transaction pooler strings are rejected and `sslmode=require`
-  is added. `doctor` warns about Free-plan pauses, missing backups and IPv6-only
-  direct hosts. New agent guide `docs/supabase-agentes.md` (#69).
-- Optional generic Postgres recipe store (`sabor-mcp[postgres]`) with secret
-  `SABOR_DATABASE_URL`, private schema migrations, RLS on every table and
-  extension-free phrase search. Setup, doctor and discovery support `postgres`;
-  the shared capability contract runs against Postgres 16 in CI (#68).
-- `sabor-mcp setup` enables the `preferences` toolset when config.toml does not
-  choose toolsets yet, so onboarding can save the cooking profile; existing
-  toolsets and the runtime default without config.toml are unchanged (#67).
-- Portable Agent Skill `skills/sabor-onboarding/SKILL.md`: the cooking-profile
-  interview for any client that supports Agent Skills. It separates the profile
-  (preference tools, when the opt-in `preferences` toolset is registered) from
-  configuration (`sabor-mcp setup` in a terminal only). A test checks the skill
-  frontmatter and that skills and `llms-install.md` name only real tools (#67).
-- `llms-install.md` (English and Spanish): agent-driven install that asks one
-  question at a time, configures only through `sabor-mcp setup`, keeps secrets out
-  of the chat (`setup secret` in a terminal), merges the client entry and verifies
-  with `doctor --json` and `sabor_capabilities`. README gains an *Install* section:
-  with your AI, one-click links (Cursor, VS Code, Kiro, LM Studio, Goose) and the
-  `claude`/`codex`/`gemini`/`code` commands; Docker becomes the advanced path (#66).
-- Terminal `doctor [--json]` health checks and `config show [--json]` with
-  per-key origins, masked secrets and actionable exit codes; no MCP tools (#65).
-- Optional non-secret `config.toml` with OS paths, `SABOR_CONFIG` override,
-  environment > file > defaults precedence and `data.config_source` discovery.
-  Invalid files fail startup with redacted errors; secrets remain env-only (#63).
-- Opt-in Open Prices pricing provider (`SABOR_OPEN_PRICES_ENABLED=true` plus
-  `pricing` toolset): barcode search and country-scoped crowd observations,
-  observation/store provenance, stale/discount/single-observation uncertainty,
-  canonical package units and instance-owned ten-minute cache. Spanish coverage
-  is sparse/old. Attribution: Open Prices (Open Food Facts), ODbL (#2).
-- The shared store contract runs against the real Mealie adapter using a stateful
-  offline Mealie contract double, alongside Fake and SQLite (#5).
-- Pantry-aware `estimate_cost` sources accept `exclude_pantry: true`, excluding
-  matched lines with `in_pantry` reasons and additive pantry counts. List building
-  reports advisory `pantry_matches` from source lines without skipping additions;
-  both read instance preferences independently of the preferences toolset (#13).
-- Spanish catalog CLI: `sabor-mcp catalog status|apply` and
-  `python -m sabor catalog status|apply`, with instance-bound Mealie settings,
-  read-only status, create-only apply and JSON output. Existing catalog MCP
-  tools remain unchanged, deprecated in documentation pending a future major (#14).
-- Opt-in `preferences`: `get_preferences` and preview/confirmed `update_preferences`,
-  validated household JSON storage and `sabor-mcp preferences import-memory`
-  dry-run/apply migration. Legacy memory behavior is unchanged.
-  MINOR contract baseline extension: 50 → 52 application tools (#13).
-- Recipe search supports created/updated dates, rating, last made and daily
-  seeded random ordering; SQLite persists search timestamps with migration v3
-  and reports rating ordering as unsupported (#16).
-- `sabor_capabilities` adds `data.mealie_only`: Mealie-only toolsets unavailable
-  in this instance with a `reason` (`requires_mealie_store` for
-  `legacy_nutrition`, `requires_mealie` for `legacy_catalog`) and `detail`.
-  Additive; `disabled_toolsets` is unchanged. Beta installation guide
-  (`docs/install-beta.md`) and draft release/migration notes
-  (`docs/release-notes-beta.md`); README lists cookbooks and the Mealie web UI
-  as Mealie-only (#40).
-- Standalone uvx/stdio and Docker/HTTP installation without Mealie, user data
-  directory and ffmpeg guidance, dual registry packages, gated PyPI publishing,
-  and installed-wheel/container MCP smoke tests in CI (#39).
-- SQLite URL import via offline recipe-scrapers and JSON-LD fallback, plus image
-  preview/commit through a vision-capable compatible LLM; shared SSRF-safe bounded
-  HTML/image fetching. Text/video imports retain store-based creation and native
-  Mealie import behavior is unchanged (#38).
-- Built-in SQLite recipe store, selected by default without a Mealie URL, with
-  configurable `SABOR_STORE` / `SABOR_STORE_DB`, FTS search, meal plans and
-  shopping lists usable through Bring! previews without Mealie (#37).
-- CI `Lint (ruff)` job with a repository `ruff.toml` (pyflakes `F` and syntax
-  errors `E9`, ruff pinned to 0.17.1); existing findings fixed without behavior
-  changes (#32).
-- One-command install: `docker compose --profile mealie up -d` also starts a
-  pinned Mealie 3.22.0; without the profile `docker compose up -d` keeps the
-  Sabor-only behavior. Three-step README quickstart, `scripts/check-compose.py`
-  in CI, and a GHCR publish workflow that runs only manually or on `v*` tags (#33).
-- `server.json` for the official MCP registry (`io.github.JlMoreno00/sabor`,
-  OCI package `ghcr.io/jlmoreno00/sabor`), validated offline against the
-  registry schema and kept in sync with `mcp-manifest.json`; the image carries
-  the registry ownership label. Not submitted to the registry yet (#35).
-
-### Changed
-- Core readiness and tools now use the instance RecipeStore rather than requiring
-  Mealie. Tags/comments/history and scheduling HTTP live in the Mealie adapter;
-  list preview/clear and ID validation belong to stores. An injected Fake store
-  exercises all 22 core tools without Mealie; Mealie remains the only production
-  backend, with unchanged tool signatures and Mealie behavior (#36).
-- Context-aware tools receive their `AppContext` explicitly per call through
-  `bind_context`/`use_context` and `current_context()`, instead of returning a
-  deferred `lambda ctx` that the binder executed. Public signatures, docstrings
-  and MCP schemas are unchanged; direct Python calls still build a fresh
-  compatibility context (#4).
-
-### Fixed
 - With the built-in stores (SQLite, Postgres, Fake), cost estimates name a structured
   ingredient that has no food, display or note from its text (`300 g de arroz` becomes
   `arroz`), as free-text rows already do, so `exclude_pantry` matches it. Rows with a
@@ -341,7 +349,7 @@
   `SABOR_VIDEO_PROVIDER`, `SABOR_MERCADONA_ENABLED`) with real descriptions and
   code defaults; `MEALIE_BASE_URL` no longer claims a default. A contract test
   keeps the manifest in sync with the configuration parsers and `.env.example` (#34).
-- Registered tools now isolate compatibility configuration, Gemini/video tagging,
+- Registered tools now isolate compatibility configuration,
   nutrition services and keyed/provider locks, correction stages, Bring catalog
   overrides and memory paths per AppContext (#3). Every registered tool binds
   context; workers copy it explicitly. Direct calls retain patchable defaults
@@ -351,18 +359,20 @@
   name, required quantity and base unit), so catalog refreshes no longer change
   it. The new `quote_digest` covers quote observations (#8).
 - `import_recipe(dry_run=False)` now applies the same ingredient normalization
-  and nutrition-after-import gate as `create_recipe` for url, text, video and
-  image imports, reported per slug in `normalization`, `nutrition` and
+  and nutrition-after-import gate as `create_recipe` for URL
+  imports, reported per slug in `normalization`, `nutrition` and
   `warnings` (#7).
-- TikTok video imports no longer suggest uploading a file, which `import_recipe`
-  cannot accept; the error now suggests pasting the caption or transcript with
-  `kind='text'` (#10).
 - `import_recipe` `partial_failure` now runs the same normalization and
   nutrition hooks on the recipes it already created and reports them in
   `data.normalization`, `data.nutrition` and `data.warnings`; a hook crash adds
   a `post_commit_hooks_failed` warning instead of hiding the partial result. On
   a complete import a hook crash no longer re-runs the hooks or reports
   `partial_failure`/`upstream_error`: the import stays `ok` with that warning (#25).
+
+### Security
+- The import download guard (URL/image import and the new recipe images) now also
+  refuses multicast addresses and IPv4 embedded in IPv6 (mapped, NAT64, 6to4, Teredo)
+  that point to private or loopback space; Python reports several of these as global (#49).
 
 ## [0.3.0] - 2026-10-20
 
