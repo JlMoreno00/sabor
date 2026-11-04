@@ -58,6 +58,21 @@ class NoAIProviderTests(unittest.TestCase):
         for name in ('gemini', 'openai', 'llm'):
             self.assertNotIn(name, text.casefold())
 
+    def test_tool_descriptions_promise_no_ai_provider(self):
+        # Paleta on 0.4.0: an MCP client showed `import_recipe` as "may ... incur LLM costs"
+        # (the 0.3.0 docstring). No tool description, the text an agent reads, may mention
+        # an LLM, an AI provider by name or AI costs.
+        from importlib import import_module
+        from sabor.core.toolsets import catalog
+        from sabor.server import TOOL_MODULES
+        for name in TOOL_MODULES:
+            import_module(name)
+        self.assertTrue(catalog)
+        for _toolset, fn, _requires in catalog:
+            text = (fn.__doc__ or '').casefold()
+            for word in ('llm', 'openai', 'gemini', 'costs', 'vision model'):
+                self.assertNotIn(word, text, fn.__name__)
+
     def test_no_ai_provider_client_ships(self):
         self.assertIsNone(importlib.util.find_spec('sabor.importing.gemini_client'))
         from sabor.importing import video

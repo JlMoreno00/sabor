@@ -85,6 +85,46 @@ class VideoTests(unittest.TestCase):
             self.assertEqual(tuple(f['format_id'] for f in picked), expected)
             self.assertFalse(any('requested_formats' in f for f in picked), expected)
 
+    def test_vertical_videos_are_limited_by_their_short_side(self):
+        # Paleta on 0.4.0: TikTok videos are vertical (576x1024, 720x1280), so `height<=720`
+        # dropped every format. The limit is on the short side: 720p landscape or portrait.
+        # Formats go through yt-dlp's own processing, which fills aspect_ratio.
+        import yt_dlp
+        from sabor.importing import video as v
+        ydl = yt_dlp.YoutubeDL({'quiet': True})
+
+        def pick(spec, formats):
+            info = ydl.process_ie_result({'id': 'x', 'title': 'x', 'extractor': 'test', 'extractor_key': 'Test',
+                                          'webpage_url': 'https://example.invalid', 'formats': formats},
+                                         download=False)
+            selected = ydl.build_format_selector(spec)({'formats': info['formats'], 'has_merged_format': False,
+                                                         'incomplete_formats': False})
+            return tuple(f['format_id'] for f in selected)
+
+        def muxed(fid, width, height):
+            return dict(format_id=fid, ext='mp4', width=width, height=height, vcodec='h264', acodec='aac',
+                        url='https://example.invalid/' + fid, protocol='https', tbr=height)
+        tiktok = [muxed('576p', 576, 1024), muxed('720p', 720, 1280), muxed('1080p', 1080, 1920)]
+        self.assertEqual(pick(v.MUXED, tiktok), ('720p',))
+        self.assertEqual(pick(v.FORMAT, tiktok), ('720p',))
+        self.assertEqual(pick(v.MUXED, [muxed('576p', 576, 1024)]), ('576p',))
+        # CodeRabbit on #133: yt-dlp rounds aspect_ratio (720x722 gives 1.0), so the
+        # orientation comes from the sizes themselves.
+        self.assertEqual(pick(v.MUXED, [muxed('near-square', 720, 722)]), ('near-square',))
+        self.assertEqual(pick(v.MUXED, [muxed('360p', 360, 640), muxed('720p', 720, 1280)]), ('720p',))
+        self.assertEqual(pick(v.MUXED, [muxed('360p', 360, 640)]), ('360p',))
+        # Landscape and square keep the 720p limit on their height.
+        landscape = [muxed('480p', 854, 480), muxed('720p', 1280, 720), muxed('1080p', 1920, 1080)]
+        self.assertEqual(pick(v.MUXED, landscape), ('720p',))
+        self.assertEqual(pick(v.MUXED, [muxed('sq', 720, 720), muxed('sq-big', 1080, 1080)]), ('sq',))
+        # Separate DASH streams of a vertical video: the 720-wide video plus the audio.
+        dash = [dict(format_id=fid, ext=ext, width=w, height=h, vcodec=vc, acodec=ac, url='https://example.invalid/'
+                     + fid, protocol='https', tbr=h or 128)
+                for fid, ext, w, h, vc, ac in (('v720', 'mp4', 720, 1280, 'avc1', 'none'),
+                                               ('v1080', 'mp4', 1080, 1920, 'avc1', 'none'),
+                                               ('a', 'm4a', None, None, 'none', 'mp4a'))]
+        self.assertEqual(pick(v.FORMAT, dash), ('v720', 'a'))
+
     def test_partial_stream_selection_falls_back_to_a_complete_file(self):
         # CodeRabbit on #119: a group can still yield one stream only (audio-only formats next
         # to muxed ones); the download is retried as one muxed file, never kept partial.
