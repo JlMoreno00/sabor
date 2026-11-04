@@ -18,15 +18,17 @@ MAX_BYTES = 100 * 1024 * 1024
 MAX_SECONDS = 600
 FRAME_COUNT = 8
 # YouTube may serve only separate DASH video and audio streams (#102): take the best of
-# each up to 720p (mp4 + m4a first), else one muxed file. 720p is the short side: height
-# for landscape and square video, width for vertical video (TikTok's 720x1280), using the
-# aspect_ratio yt-dlp computes; formats without both sizes keep the plain height limit.
+# each up to 720p (mp4 + m4a first), else one muxed file. 720p is the short side: a tall
+# format (height above 720) is kept when its width is at most 720 (TikTok's 720x1280),
+# and that alternative comes first so a vertical video gets its 720-wide version, not a
+# smaller one; otherwise the height is at most 720. Sizes, not yt-dlp's rounded
+# aspect_ratio, decide (720x722 rounds to 1.0); without a width, the height limit applies.
 # ',' makes them independent
 # downloads: '+' would ask yt-dlp for an unbounded ffmpeg merge, and without ffmpeg it
 # aborts before downloading. Sabor merges them in merge() within the time budget. Each
 # stream falls back on its own (mp4 video with WebM audio still gets both); a selection
 # that still lacks video or audio is retried as one muxed file (MUXED), never kept.
-_SHORT_SIDE = ('[height<=720][aspect_ratio>=1]', '[width<=720][aspect_ratio<1]', '[height<=720]')
+_SHORT_SIDE = ('[width<=720][height>720]', '[height<=720]')
 
 
 def _up_to_720p(kind, ext=''):

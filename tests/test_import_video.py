@@ -108,6 +108,11 @@ class VideoTests(unittest.TestCase):
         self.assertEqual(pick(v.MUXED, tiktok), ('720p',))
         self.assertEqual(pick(v.FORMAT, tiktok), ('720p',))
         self.assertEqual(pick(v.MUXED, [muxed('576p', 576, 1024)]), ('576p',))
+        # CodeRabbit on #133: yt-dlp rounds aspect_ratio (720x722 gives 1.0), so the
+        # orientation comes from the sizes themselves.
+        self.assertEqual(pick(v.MUXED, [muxed('near-square', 720, 722)]), ('near-square',))
+        self.assertEqual(pick(v.MUXED, [muxed('360p', 360, 640), muxed('720p', 720, 1280)]), ('720p',))
+        self.assertEqual(pick(v.MUXED, [muxed('360p', 360, 640)]), ('360p',))
         # Landscape and square keep the 720p limit on their height.
         landscape = [muxed('480p', 854, 480), muxed('720p', 1280, 720), muxed('1080p', 1920, 1080)]
         self.assertEqual(pick(v.MUXED, landscape), ('720p',))
