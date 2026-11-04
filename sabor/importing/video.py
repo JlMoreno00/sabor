@@ -18,13 +18,24 @@ MAX_BYTES = 100 * 1024 * 1024
 MAX_SECONDS = 600
 FRAME_COUNT = 8
 # YouTube may serve only separate DASH video and audio streams (#102): take the best of
-# each up to 720p (mp4 + m4a first), else one muxed file. ',' makes them independent
+# each up to 720p (mp4 + m4a first), else one muxed file. 720p is the short side: height
+# for landscape and square video, width for vertical video (TikTok's 720x1280), using the
+# aspect_ratio yt-dlp computes; formats without both sizes keep the plain height limit.
+# ',' makes them independent
 # downloads: '+' would ask yt-dlp for an unbounded ffmpeg merge, and without ffmpeg it
 # aborts before downloading. Sabor merges them in merge() within the time budget. Each
 # stream falls back on its own (mp4 video with WebM audio still gets both); a selection
 # that still lacks video or audio is retried as one muxed file (MUXED), never kept.
-FORMAT = '(bv[height<=720][ext=mp4]/bv[height<=720],ba[ext=m4a]/ba)/b[height<=720]'
-MUXED = 'b[height<=720]'
+_SHORT_SIDE = ('[height<=720][aspect_ratio>=1]', '[width<=720][aspect_ratio<1]', '[height<=720]')
+
+
+def _up_to_720p(kind, ext=''):
+    return '/'.join(f'{kind}{limit}{ext}' for limit in _SHORT_SIDE)
+
+
+VIDEO = _up_to_720p('bv', '[ext=mp4]') + '/' + _up_to_720p('bv')
+MUXED = _up_to_720p('b')
+FORMAT = f'({VIDEO},ba[ext=m4a]/ba)/{MUXED}'
 # Only video platforms are fetched, by their own extractors: yt-dlp's generic extractor
 # would request any URL, private addresses included, outside the import SSRF guard.
 PLATFORMS = ('youtube.com', 'youtu.be', 'vimeo.com', 'instagram.com', 'tiktok.com')
