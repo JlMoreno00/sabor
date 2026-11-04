@@ -1,6 +1,6 @@
 ---
 name: sabor-import
-description: Import a recipe into Sabor from a web page, pasted text, a photo or screenshot, or a video (YouTube, Vimeo, Instagram, TikTok or a file on the computer). Use when the user shares a recipe link, text, image or video and wants it saved. Sabor contains no AI model; you, the agent, read the source and save the recipe yourself.
+description: Import a recipe into Sabor from a web page, pasted text, a photo or screenshot, or a video (YouTube, Vimeo, TikTok, or a file on the computer, which is the way for Instagram). Use when the user shares a recipe link, text, image or video and wants it saved. Sabor contains no AI model; you, the agent, read the source and save the recipe yourself.
 ---
 
 # Sabor import: recipes from any source
@@ -79,6 +79,9 @@ or written in the video over what is only seen, and tell the user what was uncle
 - `no_frames`: read its `message`. If it says ffmpeg and ffprobe must be installed, tell
   the user frames need them; otherwise tell the user no frames could be extracted. In
   both cases continue with the description and transcript.
+- Instagram links usually fail: without a logged-in session (Sabor sends none) Instagram
+  gives no video duration, and Sabor refuses a video without one (`unsupported_operation`).
+  Ask for the saved file instead, as below.
 - A download error (`upstream_error` from `yt_dlp`), a TikTok short link or a platform
   Sabor does not fetch: ask the user to save the video on their computer and give you its
   absolute path. Sabor reads local files only when it runs on the same computer (stdio)

@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+### Fixed
+- Vertical videos (TikTok's 576x1024 or 720x1280) found no downloadable format: the
+  720p limit applied to the height. It now applies to the short side, height for
+  landscape and square video and width for vertical video, so a vertical video gets
+  its 720-wide version. Formats without both sizes keep the height limit.
+- Documentation and the `sabor-import` skill no longer present Instagram links as a
+  working source: Sabor sends no login cookies, and Instagram without a session usually
+  gives no duration, so the import is refused. The way for Instagram is to save the
+  video and pass its absolute path (stdio).
+- A test now checks that no tool description mentions an LLM, an AI provider or AI
+  costs (0.3.0's `import_recipe` said "may ... incur LLM costs"; 0.4.0 already removed it).
+
 ## [0.4.0] - 2026-11-03
 
 **Breaking release: Sabor no longer contains any AI provider** (#102). The client
