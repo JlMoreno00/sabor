@@ -96,7 +96,7 @@ configuration/reconciliation failure, 2 for invalid arguments. Review nested
 | Capability | Provider / requirements | Limits |
 |---|---|---|
 | Core | Built-in SQLite, or Mealie URL + token | Recipes, suggestions, planning, shopping items and history; API baseline Mealie 3.22.0 |
-| Import: URL | SQLite: offline recipe-scrapers + schema.org JSON-LD; Mealie: native scraper | Read-only preview; pages without a recipe return `not_found`; no paid-provider fallback |
+| Import: URL | SQLite: offline recipe-scrapers + schema.org JSON-LD; Mealie: native scraper | Read-only preview; pages without a recipe return `not_found`. Sabor never falls back to an AI provider; with Mealie, Mealie's own URL import may fall back to the AI provider configured in Mealie when its scraper fails |
 | Import: text, image | None: Sabor contains no AI provider | `import_recipe` returns `unsupported_operation`; the agent reads the source and saves it with `create_recipe` |
 | Import: video URL | A recipe store; `ffmpeg` and `ffprobe` for frames | Media bundle for the agent: metadata, platform subtitles and 8 frames as images; writes no recipe (on stdio it leaves audio and frame files in `.sabor-media/`) |
 | Shopping sync | Bring! email + password **and a recipe store** | Only unchecked source items; does not check off Mealie items |
