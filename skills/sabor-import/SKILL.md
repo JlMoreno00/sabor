@@ -19,7 +19,8 @@ provider set up, Mealie's own URL import (`import_recipe` with `kind='url'`) can
 to it when its scraper fails. So with the Mealie store, always tell the user, when you
 show the preview and before they approve, that Mealie may send the ingredient lines or
 the page to the AI provider configured in Mealie. The
-parser is chosen in Sabor's configuration (`sabor-mcp setup`), never from the chat.
+parser is chosen in Sabor's configuration (`SABOR_INGREDIENT_PARSER` or
+`[import] ingredient_parser` in `config.toml`), never from the chat.
 
 ## 1. Check what is available
 
