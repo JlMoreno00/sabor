@@ -558,7 +558,7 @@ configuration.
 | `SABOR_OPEN_PRICES_ENABLED` | `false` | Enable Open Prices observations; accepts true/false, case-insensitive; select pricing toolset |
 
 Sabor itself calls no AI provider: the client agent extracts recipes from text,
-images and video and saves them with `create_recipe`. With Mealie, a committed import runs Mealie's ingredient parser (`SABOR_INGREDIENT_PARSER`, default `nlp`, Mealie's local parser). Only if it is set to `openai` does Mealie send the ingredient text to the AI provider configured in Mealie.
+images and video and saves them with `create_recipe`. With Mealie, a committed import runs Mealie's ingredient parser (`SABOR_INGREDIENT_PARSER` or `[import] ingredient_parser`, default `nlp`, Mealie's local parser); only `openai` sends the ingredient text to the AI provider configured in Mealie. Separately, when Mealie has an AI provider configured, Mealie's native URL import can fall back to it if its scraper fails, whatever the parser.
 
 For Spanish catalog setup, prefer the CLI; the MCP tools will be retired in a future major version.
 The existing `spanish_catalog_status` and `apply_spanish_catalog` MCP tools remain

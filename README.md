@@ -325,8 +325,10 @@ MCP schema validation can reject a call before a tool runs.
   lists, clear calendar ranges and both sync modes. Show preview → ask → confirm.
 - Import defaults to `dry_run=True`; preview fetches the recipe page but does not
   create recipes. Sabor itself calls no AI provider. With Mealie, a committed import
-  runs Mealie's ingredient parser (`SABOR_INGREDIENT_PARSER`, default `nlp`, local). Only
-  if it is set to `openai` does Mealie send ingredient text to its configured AI provider.
+  runs Mealie's ingredient parser (`SABOR_INGREDIENT_PARSER`, default `nlp`, local); only
+  `openai` sends ingredient text to Mealie's configured AI provider. If Mealie has an AI
+  provider configured, Mealie's native URL import can also fall back to it when its
+  scraper fails, whatever the parser.
 - Other writes require client-side approval even without a server flag.
   Legacy `apply`, `publish` and `execute` gates retain their separate meanings.
 - Sync accepts optional `preview_digest`. Supplying the approved preview's digest

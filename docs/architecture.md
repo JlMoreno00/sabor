@@ -144,7 +144,7 @@ stored in the process, but instance provider caches, the legacy Mercadona cache
 and the local data files are still operational state.
 
 Sabor contains no AI provider client (#102) and uploads no recipe content, image or
-video to any AI service. With Mealie, a committed import runs Mealie's ingredient parser (`SABOR_INGREDIENT_PARSER`, default `nlp`, Mealie's local parser). Only if it is set to `openai` does Mealie send the ingredient text to the AI provider configured in Mealie.
+video to any AI service. With Mealie, a committed import runs Mealie's ingredient parser (`SABOR_INGREDIENT_PARSER` or `[import] ingredient_parser`, default `nlp`, Mealie's local parser); only `openai` sends the ingredient text to the AI provider configured in Mealie. Separately, when Mealie has an AI provider configured, Mealie's native URL import can fall back to it if its scraper fails, whatever the parser.
 
 ## Capability registry and public envelopes (0.3)
 

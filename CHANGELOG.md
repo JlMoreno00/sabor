@@ -3,9 +3,12 @@
 ## [Unreleased]
 
 ### Changed
-- **Mealie's ingredient parser defaults to `nlp`** (José's decision): without
-  `SABOR_INGREDIENT_PARSER`, Sabor now asks Mealie for its local `nlp` parser instead of
-  `openai`, so normalizing a saved recipe sends no ingredient text to an AI provider.
+- **Mealie's ingredient parser defaults to `nlp`** (José's decision): when neither
+  `SABOR_INGREDIENT_PARSER` nor `[import] ingredient_parser` in `config.toml` chooses a
+  parser, Sabor now asks Mealie for its local `nlp` parser instead of `openai`, so
+  normalizing a saved recipe sends no ingredient text to an AI provider. (Mealie's own URL
+  import can still fall back to the AI provider configured in Mealie when its scraper
+  fails; that does not depend on the parser.)
   **Migration:** with the Mealie store, set `SABOR_INGREDIENT_PARSER=openai` (or
   `[import] ingredient_parser`) to keep the previous behaviour; `brute` is also available.
   The manifest, `.env.example`, the docs and the `sabor-import` skill follow.
