@@ -109,7 +109,7 @@ See [Postgres operations](operations.md#postgres--supabase-store).
 | MCP client | Expose tools at `/mcp` over Streamable HTTP | Choose tools and supply explicit mutation arguments |
 | Mealie | Read and mutate recipes, planning, tags, comments, shopping lists, foods, units, and cookbooks through REST | Persist canonical cooking data and run the configured ingredient parser |
 | Spoonacular | Search recipes and fetch exact-match ingredient profiles | Supply external recipe and per-100-g nutrient data |
-| OpenAI parser | Send parser name and ingredient text to Mealie | Mealie selects and operates its `openai` parser; Sabor has no direct OpenAI client or key |
+| Mealie ingredient parser | Send parser name and ingredient text to Mealie | Mealie runs the selected parser: `nlp` (default, local), `brute`, or `openai`, which uses the AI provider configured in Mealie; Sabor has no AI client or key |
 | Bring! | Authenticate and synchronize shopping-list items | Persist Bring! account and list data |
 | Mercadona | Read public product catalog and prices into an in-memory cache | Supply public product data |
 | Local memory | Read and write configured `MEMORY_FILE` | Docker volume persists the file |
@@ -144,7 +144,7 @@ stored in the process, but instance provider caches, the legacy Mercadona cache
 and the local data files are still operational state.
 
 Sabor contains no AI provider client (#102) and uploads no recipe content, image or
-video to any AI service. With Mealie, a committed import runs Mealie's ingredient parser (`SABOR_INGREDIENT_PARSER`, default `openai`), which may use the AI provider configured in Mealie.
+video to any AI service. With Mealie, a committed import runs Mealie's ingredient parser (`SABOR_INGREDIENT_PARSER`, default `nlp`, Mealie's local parser). Only if it is set to `openai` does Mealie send the ingredient text to the AI provider configured in Mealie.
 
 ## Capability registry and public envelopes (0.3)
 
@@ -317,8 +317,8 @@ normalization failure is attached as a warning and does not turn a successful
 recipe import into a failure. Placeholder-only legacy recipes skip
 normalization.
 
-`SABOR_INGREDIENT_PARSER=openai` selects a Mealie parser for the legacy
-normalization path. Unified URL import commits (`dry_run=False`) run
+`SABOR_INGREDIENT_PARSER` (default `nlp`) selects the Mealie parser for the
+legacy normalization path. Unified URL import commits (`dry_run=False`) run
 the same instance-owned normalization (`SABOR_NORMALIZE_IMPORTS`) and
 nutrition-after-import gate as `create_recipe`, reported per slug in
 `normalization`, `nutrition` and `warnings`; hook failures never fail the

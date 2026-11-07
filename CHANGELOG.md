@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Changed
+- **Mealie's ingredient parser defaults to `nlp`** (José's decision): without
+  `SABOR_INGREDIENT_PARSER`, Sabor now asks Mealie for its local `nlp` parser instead of
+  `openai`, so normalizing a saved recipe sends no ingredient text to an AI provider.
+  **Migration:** with the Mealie store, set `SABOR_INGREDIENT_PARSER=openai` (or
+  `[import] ingredient_parser`) to keep the previous behaviour; `brute` is also available.
+  The manifest, `.env.example`, the docs and the `sabor-import` skill follow.
+
 ### Fixed
 - Vertical videos (TikTok's 576x1024 or 720x1280) found no downloadable format: the
   720p limit applied to the height. It now applies to the short side, height for

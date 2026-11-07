@@ -46,7 +46,7 @@ def load_legacy_config(env: Mapping[str, str]) -> LegacyConfig:
     SABOR_NORMALIZE_IMPORTS = env.get("SABOR_NORMALIZE_IMPORTS", "true").strip().casefold() in {
         "1", "true", "yes", "on"
     }
-    SABOR_INGREDIENT_PARSER = env.get("SABOR_INGREDIENT_PARSER", "openai").strip() or "openai"
+    SABOR_INGREDIENT_PARSER = env.get("SABOR_INGREDIENT_PARSER", "nlp").strip() or "nlp"
     SABOR_NORMALIZE_CONFIDENCE = float(env.get("SABOR_NORMALIZE_CONFIDENCE", "0.75"))
     CATALOG_DIR = catalog_dir()
 

@@ -34,7 +34,8 @@ class Settings:
     store: str = 'sqlite'
     store_db: str = field(default='/data/sabor.db', repr=False)
     normalize_imports: bool = True
-    ingredient_parser: str = 'openai'
+    # Mealie's local `nlp` parser by default: no AI provider (José's decision).
+    ingredient_parser: str = 'nlp'
     normalize_confidence: float = 0.75
     open_prices_enabled: bool = False
     config_source: str = 'defaults'

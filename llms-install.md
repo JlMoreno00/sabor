@@ -120,8 +120,9 @@ To import recipes (web pages, text, photos and videos), follow the portable skil
 [skills/sabor-import/SKILL.md](skills/sabor-import/SKILL.md): you read the source and save
 the recipe yourself; Sabor itself never sends it to an AI service. With the Mealie store,
 saving a recipe with ingredients also runs Mealie's ingredient parser when
-`SABOR_NORMALIZE_IMPORTS` is on (the default), and it may send the ingredient lines to the
-AI provider configured in Mealie; the skill tells the user before they approve.
+`SABOR_NORMALIZE_IMPORTS` is on (the default). By default it is Mealie's local `nlp` parser;
+only `SABOR_INGREDIENT_PARSER=openai` makes Mealie send the ingredient lines to its
+configured AI provider, and the skill then tells the user before they approve.
 
 ---
 
