@@ -59,3 +59,43 @@ class NormalizationContext(unittest.TestCase):
         self.assertEqual([c.kwargs["headers"]["Authorization"] for c in calls], ["Bearer one", "Bearer two"])
         self.assertEqual([c.kwargs["json"]["parser"] for c in calls], ["one", "two"])
         self.assertEqual(patcher.call_count, 1)
+
+
+class DefaultParserTests(unittest.TestCase):
+    """José's decision: without SABOR_INGREDIENT_PARSER, Sabor asks Mealie for its local
+    `nlp` parser, never an AI one."""
+
+    def test_default_is_mealies_local_nlp_parser(self):
+        import json
+        from pathlib import Path
+        from sabor.core.config import load_settings
+        from sabor.core.legacy_config import load_legacy_config
+        self.assertEqual(load_settings({}).ingredient_parser, "nlp")
+        self.assertEqual(load_legacy_config({}).SABOR_INGREDIENT_PARSER, "nlp")
+        self.assertEqual(load_legacy_config({"SABOR_INGREDIENT_PARSER": "  "}).SABOR_INGREDIENT_PARSER, "nlp")
+        # An explicit choice is still honoured.
+        self.assertEqual(load_settings({"SABOR_INGREDIENT_PARSER": "openai"}).ingredient_parser, "openai")
+        root = Path(__file__).resolve().parents[1]
+        manifest = json.loads((root / "mcp-manifest.json").read_text())
+        [entry] = [e for e in manifest["env_vars"] if e["name"] == "SABOR_INGREDIENT_PARSER"]
+        self.assertEqual(entry["default"], "nlp")
+        self.assertIn("SABOR_INGREDIENT_PARSER=nlp", (root / ".env.example").read_text().splitlines())
+
+    def test_registered_tool_sends_nlp_by_default(self):
+        server = FastMCP("default-parser")
+        register_tools(server, {"SABOR_TOOLSETS": "core", "MEALIE_BASE_URL": "https://default.invalid",
+                                "MEALIE_API_TOKEN": "t", "SABOR_NORMALIZE_IMPORTS": "true"})
+        created = Mock(status_code=201, text='"soup"')
+        created.json.return_value = "soup"
+        parsed = Mock(status_code=200)
+        parsed.json.return_value = [{"ingredient": {"food": {"id": "food"}}, "confidence": 0.8}]
+        recipe = Mock(status_code=200)
+        recipe.json.return_value = {"recipeIngredient": [{"originalText": "salt"}]}
+        with patch("requests.Session.post", side_effect=lambda url, **kw: parsed if "/parser/" in url else created) as post, \
+             patch("requests.Session.get", return_value=recipe), \
+             patch("requests.Session.patch", return_value=Mock(status_code=200)):
+            tool = server._tool_manager.get_tool("create_recipe")
+            assert tool is not None
+            tool.fn("Soup", ingredients=["salt"])
+        [call] = [c for c in post.call_args_list if "/parser/" in c.args[0]]
+        self.assertEqual(call.kwargs["json"]["parser"], "nlp")

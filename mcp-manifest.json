@@ -168,10 +168,10 @@
     },
     {
       "name": "SABOR_INGREDIENT_PARSER",
-      "description": "Mealie ingredient parser used for normalization (sent to Mealie).",
+      "description": "Mealie ingredient parser used for normalization (sent to Mealie): nlp (local, default), brute or openai (uses the AI provider configured in Mealie).",
       "required": false,
       "secret": false,
-      "default": "openai"
+      "default": "nlp"
     },
     {
       "name": "SABOR_NORMALIZE_CONFIDENCE",

@@ -12,10 +12,15 @@ the recipe. Nothing is saved until the user has seen a preview and agreed.
 **Mealie's ingredient parser.** When the recipe store is Mealie (`recipe_store.adapters`
 in `sabor_capabilities()` shows `mealie`), saving a recipe with ingredients through
 `create_recipe`, or committing an `import_recipe`, also runs Mealie's ingredient parser
-when Sabor's `SABOR_NORMALIZE_IMPORTS` setting is on (the default). Depending on how
-Mealie is configured, it may send the ingredient lines to the AI provider set up in
-Mealie. Tell the user this when you show the preview, before they approve. The parser
-is chosen in Sabor's configuration (`sabor-mcp setup`), never from the chat.
+when Sabor's `SABOR_NORMALIZE_IMPORTS` setting is on (the default). By default that is
+Mealie's local `nlp` parser, which sends nothing to an AI service. But you cannot see the
+configuration: the operator may have chosen an AI-backed parser, and if Mealie has an AI
+provider set up, Mealie's own URL import (`import_recipe` with `kind='url'`) can fall back
+to it when its scraper fails. So with the Mealie store, always tell the user, when you
+show the preview and before they approve, that Mealie may send the ingredient lines or
+the page to the AI provider configured in Mealie. The
+parser is chosen in Sabor's configuration (`SABOR_INGREDIENT_PARSER` or
+`[import] ingredient_parser` in `config.toml`), never from the chat.
 
 ## 1. Check what is available
 
