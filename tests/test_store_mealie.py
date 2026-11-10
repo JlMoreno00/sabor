@@ -218,7 +218,10 @@ class MealieWrites(unittest.TestCase):
         created.json.return_value = "soup"
         read = Mock(status_code=200)
         read.json.return_value = {"name": "Old", "tags": [{"id": "old", "name": "Old"}]}
-        with patch("requests.Session.post", return_value=created) as post, \
+        tag = Mock(status_code=201)
+        tag.json.return_value = {"id": "hot", "name": "hot", "slug": "hot"}
+        with patch("requests.Session.post",
+                   side_effect=lambda url, **kw: tag if url.endswith("/organizers/tags") else created) as post, \
              patch("requests.Session.get", return_value=read), \
              patch("requests.Session.patch", return_value=Mock(status_code=204)) as patcher, \
              patch("requests.Session.put") as put, \
@@ -229,23 +232,26 @@ class MealieWrites(unittest.TestCase):
                 assert tool is not None
                 result = tool.fn(name="Soup", ingredients=["1 tomato"], tags=["hot"])
                 self.assertEqual(result, {"ok": True, "status": 201, "body": '"soup"', "slug": "soup"})
-                payload = json.loads(post.call_args.kwargs["json"]["data"])
-                self.assertEqual(payload["recipeIngredient"], ["1 tomato"])
-                self.assertEqual(payload["keywords"], ["hot"])
+                # Created through the CRUD API (#102): name, then fields, then tags.
+                self.assertEqual(post.call_args_list[-2].kwargs["json"], {"name": "Soup"})
+                self.assertEqual(patcher.call_args_list[-2].kwargs["json"]["recipeIngredient"],
+                                 [{"note": "1 tomato", "originalText": "1 tomato"}])
+                self.assertEqual(patcher.call_args.kwargs["json"]["tags"][-1]["name"], "hot")
+                filled = patcher.call_count
                 update = server._tool_manager.get_tool("update_recipe")
                 assert update is not None
                 result = update.fn("soup", {"tags": []})
                 self.assertEqual(result["data"]["changes"]["tags"],
                     {"before": [{"id": "old", "name": "Old"}], "after": [], "full_replacement": True})
-            patcher.assert_not_called()
+                self.assertEqual(patcher.call_count, filled)
+            creates = [c.args[0] for c in post.call_args_list if not c.args[0].endswith("/organizers/tags")]
+            patcher.reset_mock()
             for server in servers:
                 update = server._tool_manager.get_tool("update_recipe")
                 assert update is not None
                 self.assertEqual(update.fn("soup", {"name": "New", "tags": []}, True),
                     {"ok": True, "data": {"slug": "soup", "changed_fields": ["name", "tags"]}})
-            self.assertEqual([c.args[0] for c in post.call_args_list],
-                ["https://one.invalid/api/recipes/create/html-or-json",
-                 "https://two.invalid/api/recipes/create/html-or-json"])
+            self.assertEqual(creates, ["https://one.invalid/api/recipes", "https://two.invalid/api/recipes"])
             self.assertEqual([c.kwargs["headers"]["Authorization"] for c in patcher.call_args_list],
                 ["Bearer one", "Bearer two"])
             self.assertTrue(all(c.kwargs["json"] == {"name": "New", "tags": []}

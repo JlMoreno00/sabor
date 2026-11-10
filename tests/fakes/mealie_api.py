@@ -1,10 +1,11 @@
 """Stateful contract-test double, not a Mealie reimplementation.
 
-Supported Mealie v3.22.0 routes: recipes create/html-or-json, recipe GET/PATCH,
+Supported Mealie v3.22.0 routes: recipe create (POST /api/recipes), GET/PATCH/DELETE
+and image by URL,
 recipe search/suggestions, organizers/tags GET/POST, comments and timeline events
 POST, mealplans GET/POST/DELETE, shopping lists GET/POST/DELETE, shopping items
 create-bulk/PUT/DELETE, and list recipe occurrences POST.
-Unsupported: native imports, taxonomy other than tags, and all other endpoints.
+Unsupported: Mealie's scraper imports (create/url, create/html-or-json), taxonomy other than tags, and all other endpoints.
 Unknown requests raise AssertionError. Shapes follow the Mealie characterization,
 store, shopping-items and mealplan tests; ordering metadata stays internal.
 """
@@ -110,17 +111,19 @@ class MealieAPI:
     def post(self, url, **kwargs):
         path = urlsplit(url).path
         payload = kwargs["json"]
-        if path == "/api/recipes/create/html-or-json":
-            data = json.loads(payload["data"])
-            slug = data["name"].lower().replace(" ", "-")
+        if path == "/api/recipes":
+            slug = payload["name"].lower().replace(" ", "-")
             self.recipes[slug] = {
-                "id": self.identifier(), "slug": slug, "name": data["name"],
-                "tags": [], "description": data.get("description"),
-                "recipeIngredient": [{"quantity": None, "food": None, "unit": None,
-                                      "originalText": text} for text in data.get("recipeIngredient", [])],
-                "recipeInstructions": [{"text": text} for text in data.get("recipeInstructions", [])]}
+                "id": self.identifier(), "slug": slug, "name": payload["name"], "tags": [],
+                "description": "", "recipeIngredient": [], "recipeInstructions": []}
             self.created[slug] = self.updated[slug] = self.tick()
             return Response(slug, 201)
+        if path.startswith("/api/recipes/") and path.endswith("/image"):
+            slug = path.removeprefix("/api/recipes/").removesuffix("/image")
+            if slug not in self.recipes:
+                return Response({}, 404)
+            self.recipes[slug]["image"] = payload["url"]
+            return Response({"image": "1"})
         if path == "/api/households/mealplans":
             recipe = next((r for r in self.recipes.values()
                            if r["id"] == payload.get("recipeId")), None)
@@ -185,6 +188,9 @@ class MealieAPI:
 
     def delete(self, url, **kwargs):
         path = urlsplit(url).path
+        if path.startswith("/api/recipes/"):
+            row = self.recipes.pop(path.removeprefix("/api/recipes/"), None)
+            return Response(row or {}, 200 if row else 404)
         if path == "/api/households/shopping/items":
             params = kwargs["params"]
             ids = params["ids"] if isinstance(params, dict) else [v for k, v in params]

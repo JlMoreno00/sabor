@@ -156,9 +156,8 @@ them with a request that follows redirects outside the SSRF guard. TikTok and ot
 platforms often block downloads: the error is then `upstream_error`
 from `yt_dlp` with the redacted reason, and its message suggests saving the video and
 passing its absolute path (stdio), or reading the recipe and calling `create_recipe`.
-`sabor_capabilities` lists the importers under `capabilities.import.adapters`: Mealie's
-native URL import when the store is Mealie, otherwise `sabor` with `url`
-(`preview`, `commit`), and always `sabor` with `video` (`bundle`; limitation
+`sabor_capabilities` lists the importers under `capabilities.import.adapters`: `sabor`
+with `url` (`preview`, `commit`) for every store, and `sabor` with `video` (`bundle`; limitation
 `local_files_require_stdio` when local files are not accepted).
 A local video file (an absolute path) gets the same bundle with `metadata.platform`
 `local`, its `source_path` and no transcript. It is read only by the stdio command,
@@ -345,14 +344,16 @@ SQLite, Mealie and optional Postgres are shipped RecipeStores. Without a Mealie 
 recipes, meal plans, shopping lists and import locally. URL import uses offline
 recipe-scrapers with JSON-LD fallback and needs no AI. Sabor contains no AI provider
 (#102): `import_recipe` returns `unsupported_operation` for text and image, and a
-media bundle for a video URL; the agent saves what it extracts with `create_recipe`. Mealie's native URL import,
-the Spanish catalog and legacy nutrition still require Mealie.
+media bundle for a video URL; the agent saves what it extracts with `create_recipe`. With Mealie, Sabor creates
+recipes through Mealie's CRUD API and never uses Mealie's scrapers, which can fall back to
+the AI provider configured in Mealie. The Spanish catalog and legacy nutrition still
+require Mealie.
 HTML downloads accept only text/html or application/xhtml+xml up to 5 MB; recipe image
 downloads accept JPEG, PNG, WebP or GIF up to 5 MB. Both pin validated public IPs,
 revalidate redirects and ignore proxy settings. Registered tools use an AppContext with
 instance-owned Mealie session, Mercadona catalog cache and Bring transport/auth
 state. Discovery's `capabilities.recipe_store` lists operations; the old
-`data.mealie.configured` field is deprecated. Native URL import supports preview
+`data.mealie.configured` field is deprecated. URL import supports preview
 and commit. Configuration discovery does not probe health.
 
 Each registration freezes configuration from its supplied environment mapping.
@@ -558,7 +559,7 @@ configuration.
 | `SABOR_OPEN_PRICES_ENABLED` | `false` | Enable Open Prices observations; accepts true/false, case-insensitive; select pricing toolset |
 
 Sabor itself calls no AI provider: the client agent extracts recipes from text,
-images and video and saves them with `create_recipe`. With Mealie, a committed import runs Mealie's ingredient parser (`SABOR_INGREDIENT_PARSER` or `[import] ingredient_parser`, default `nlp`, Mealie's local parser); only `openai` sends the ingredient text to the AI provider configured in Mealie. Separately, when Mealie has an AI provider configured, Mealie's native URL import can fall back to it if its scraper fails, whatever the parser.
+images and video and saves them with `create_recipe`. With Mealie, a committed import runs Mealie's ingredient parser (`SABOR_INGREDIENT_PARSER` or `[import] ingredient_parser`, default `nlp`, Mealie's local parser); only `openai` sends the ingredient text to the AI provider configured in Mealie.
 
 For Spanish catalog setup, prefer the CLI; the MCP tools will be retired in a future major version.
 The existing `spanish_catalog_status` and `apply_spanish_catalog` MCP tools remain
@@ -761,7 +762,7 @@ unverified. Use throwaway targets only and record the result here.
    Bring app, then repeat with a changed source to confirm stale-digest
    rejection.
 3. **URL import**: `import_recipe` on a real recipe page, preview then commit on a
-   test store (Mealie's native import and the built-in scraper).
+   test store (SQLite and Mealie; both use the built-in scraper).
 
 ## Disabled-First Nutrition Rollout
 

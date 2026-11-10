@@ -71,9 +71,9 @@ down at the deadline). Only JPEG, PNG, WebP or GIF up
 to 5 MB is kept, and the type comes from the file signature, not the header. If
 the download fails the recipe is imported anyway, the URL alone is kept and the
 response carries `images.<slug>.warning: image_download_failed` and an
-`image_warning`. Recipe payloads and `get_recipe` are unchanged. Mealie's native URL
-import already downloads and stores the image itself, so the Mealie path is
-unchanged (#49).
+`image_warning`. Recipe payloads and `get_recipe` are unchanged. With Mealie, Sabor
+passes the image URL to `POST /api/recipes/{slug}/image` and Mealie downloads and
+stores the image itself (#49, #102).
 
 SQLite and Postgres import normalization share the conservative Spanish parser
 (`sabor/importing/ingredients_es.py`). A line that lists several foods (commas,
@@ -86,8 +86,8 @@ picada`, `leche entera o desnatada`), nor are lines without an amount or with `a
 gusto`. Every row keeps the original line in `originalText`; only the first keeps
 the `referenceId`. Mealie uses its own parser and is unchanged (#49).
 
-Core recipes, meal plans and shopping lists work without Mealie. Native URL/image
-import and Spanish catalog remain Mealie-only; `legacy_nutrition` is unavailable
+Core recipes, meal plans and shopping lists work without Mealie. The Spanish catalog
+remains Mealie-only; `legacy_nutrition` is unavailable
 with SQLite. Discovery lists the active `recipe_store` adapter and operations;
 `data.mealie.configured` still reflects Mealie credentials, not the selected store.
 
@@ -144,7 +144,7 @@ stored in the process, but instance provider caches, the legacy Mercadona cache
 and the local data files are still operational state.
 
 Sabor contains no AI provider client (#102) and uploads no recipe content, image or
-video to any AI service. With Mealie, a committed import runs Mealie's ingredient parser (`SABOR_INGREDIENT_PARSER` or `[import] ingredient_parser`, default `nlp`, Mealie's local parser); only `openai` sends the ingredient text to the AI provider configured in Mealie. Separately, when Mealie has an AI provider configured, Mealie's native URL import can fall back to it if its scraper fails, whatever the parser.
+video to any AI service. With Mealie, a committed import runs Mealie's ingredient parser (`SABOR_INGREDIENT_PARSER` or `[import] ingredient_parser`, default `nlp`, Mealie's local parser); only `openai` sends the ingredient text to the AI provider configured in Mealie.
 
 ## Capability registry and public envelopes (0.3)
 
@@ -160,8 +160,7 @@ store; text, images and video are extracted by the client agent, which calls
 (`importing/video.py`: metadata, platform subtitles, frames), and `bind_context`
 sends its frames as MCP `ImageContent`. Local video files are read only when
 `Settings.local_media` is set, which only the stdio command does, and only under
-`SABOR_MEDIA_ROOTS`. Mealie's native URL import remains an optional extension,
-advertised with preview/commit. Non-native stores use offline
+`SABOR_MEDIA_ROOTS`. Every store, Mealie included, uses Sabor's offline
 `recipe_scrapers.scrape_html` with JSON-LD fallback and create RecipeDrafts through
 the store, retaining source URL provenance in the description. Shared pinned-IP fetching rejects private addresses
 at every redirect, bypasses proxies and bounds streamed HTML and recipe images
@@ -201,8 +200,8 @@ chosen per instance from Settings (`SABOR_STORE`, see Recipe store selection);
 there is no global store state. Tags, comments, history,
 shopping preview/clear and ID validation belong to the store. Core tool modules
 do not import HTTP clients. Mealie-only scheduling transport and its nutrition
-gate live in the adapter; other stores schedule without that gate. Native
-URL import, catalog reconciliation and nutrition remain Mealie-specific.
+gate live in the adapter; other stores schedule without that gate. Catalog
+reconciliation and nutrition remain Mealie-specific.
 
 Context-aware tools (`@tool(..., uses_context=True)`) receive their context
 explicitly per call. `bind_context(fn, context)` runs the tool inside
@@ -277,7 +276,8 @@ resulting shopping contents. Mealie rating fixtures seed simulator state directl
 not a Mealie reimplementation or a substitute for HTTP characterization tests.
 It supplies the recipe, search, activity, suggestion, mealplan and shopping
 response shapes exercised by the adapter; unknown requests fail loudly.
-Native imports and non-tag taxonomy endpoints remain outside this double.
+Mealie's scraper imports and non-tag taxonomy endpoints remain outside this double:
+Sabor creates Mealie recipes only through its CRUD API (#102).
 No external service is needed for the Mealie/Fake/SQLite contract runs.
 `tests/test_store_contract_postgres.py` runs the same contract against isolated
 random schemas when `SABOR_TEST_DATABASE_URL` and psycopg are available; otherwise

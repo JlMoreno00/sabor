@@ -5,6 +5,14 @@ from sabor.core.config import load_settings
 from sabor.importing import tools as t
 
 
+def page(**recipe):
+    """Serve a JSON-LD recipe page to Sabor's own extractor, used for every store (#102)."""
+    data = {'@context': 'https://schema.org', '@type': 'Recipe', 'recipeIngredient': ['salt'],
+            'recipeInstructions': ['Mix'], **recipe}
+    html = f'<script type="application/ld+json">{json.dumps(data)}</script>'
+    return patch.object(t, 'html_bytes', return_value=(html.encode(), 'text/html'))
+
+
 class ImportTests(unittest.TestCase):
     def context_patch(self):
         from sabor.core.context import build_context
@@ -26,6 +34,13 @@ class ImportTests(unittest.TestCase):
         network = patch.object(t.requests, 'get', side_effect=AssertionError('Unexpected network'))
         network.start()
         self.addCleanup(network.stop)
+        # Mealie fills a created recipe with PATCH (#102).
+        update = patch.object(t.requests, 'patch', return_value=self.response({}))
+        self.patch = update.start()
+        self.addCleanup(update.stop)
+        soup = page(name='Soup')
+        soup.start()
+        self.addCleanup(soup.stop)
 
     def response(self, data):
         return Mock(status_code=200, text=json.dumps(data), json=Mock(return_value=data))
@@ -40,23 +55,29 @@ class ImportTests(unittest.TestCase):
 
     @patch.object(t.requests, 'post')
     def test_preview_and_failure(self, post):
-        post.return_value = self.response(json.dumps({'name': 'Soup', 'recipeIngredient': ['salt']}))
-        self.assertTrue(t.import_recipe('https://example.org')['data']['preview'])
-        self.assertTrue(all('create/' not in c.args[0] for c in post.call_args_list))
-        post.return_value = self.response('recipe_scrapers was unable to scrape this URL')
-        self.assertEqual(t.import_recipe('https://example.org')['error']['code'], 'not_found')
+        result = t.import_recipe('https://example.org')
+        self.assertTrue(result['data']['preview'])
+        self.assertEqual(result['data']['provider'], 'sabor')
+        post.assert_not_called()
+        with patch.object(t, 'html_bytes', return_value=(b'<html></html>', 'text/html')):
+            self.assertEqual(t.import_recipe('https://example.org')['error']['code'], 'not_found')
+        post.assert_not_called()
 
     @patch.object(t.requests, 'get')
     @patch.object(t.requests, 'post')
     def test_duplicate_and_commit(self, post, get):
-        post.return_value = self.response({'name': ' Soup '})
         get.return_value = self.response({'items': [{'name': 'soup', 'slug': 'soup'}], 'total_pages': 1, 'total': 0, 'page': 1, 'per_page': 100})
-        self.assertEqual(t.import_recipe('https://example.org', dry_run=False)['error']['code'], 'conflict')
-        self.assertEqual(post.call_count, 1)
+        # Like the other stores, an existing name is skipped, not a conflict (#102).
+        result = t.import_recipe('https://example.org', dry_run=False)
+        self.assertEqual((result['data']['created'], result['data']['skips']),
+                         ([], [{'name': 'Soup', 'slug': 'soup', 'reason': 'duplicate'}]))
+        post.assert_not_called()
         get.return_value = self.response({'items': [], 'total_pages': 1, 'total': 0, 'page': 1, 'per_page': 100})
-        post.side_effect = [self.response({'name': 'Soup'}), self.response('soup')]
+        post.return_value = self.response('soup')
         self.assertEqual(t.import_recipe('https://example.org', dry_run=False)['data']['created'], ['soup'])
-        self.assertEqual(post.call_args.kwargs['json'], {'url': 'https://example.org', 'includeTags': True, 'includeCategories': True})
+        self.assertEqual((post.call_args.args[0], post.call_args.kwargs['json']), ('http://mealie/api/recipes', {'name': 'Soup'}))
+        self.assertEqual(self.patch.call_args.args[0], 'http://mealie/api/recipes/soup')
+        self.assertEqual(self.patch.call_args.kwargs['json']['recipeIngredient'], [{'note': 'salt', 'originalText': 'salt'}])
 
     def test_text_points_to_create_recipe(self):
         # #102: Sabor has no AI provider; the agent extracts text and calls create_recipe.
@@ -100,10 +121,10 @@ class ImportTests(unittest.TestCase):
 
     @patch.object(t.requests, 'post')
     def test_nested_url_steps(self, post):
-        post.return_value = self.response({'name': 'Soup', 'recipeInstructions': [
-            'Start', {'@type': 'HowToStep', 'text': 'Mix'}, {'@type': 'HowToSection',
-            'itemListElement': [{'@type': 'HowToSection', 'itemListElement': ['Cook']}]}]})
-        self.assertEqual(t.import_recipe('https://example.org')['data']['candidates'][0]['steps'], ['Start', 'Mix', 'Cook'])
+        with page(name='Soup', recipeInstructions=[
+                'Start', {'@type': 'HowToStep', 'text': 'Mix'}, {'@type': 'HowToSection',
+                'itemListElement': [{'@type': 'HowToSection', 'itemListElement': ['Cook']}]}]):
+            self.assertEqual(t.import_recipe('https://example.org')['data']['candidates'][0]['steps'], ['Start', 'Mix', 'Cook'])
 
     @patch.object(t.socket, 'getaddrinfo', side_effect=[[(2, 1, 6, '', ('93.184.216.34', 443))], [(2, 1, 6, '', ('127.0.0.1', 443))]])
     @patch.object(t, 'image_response', create=True)
@@ -179,7 +200,7 @@ class ImportPostCommitTests(unittest.TestCase):
     @patch.object(t.requests, 'get')
     @patch.object(t.requests, 'post')
     def test_url_commit_normalizes(self, post, get):
-        post.side_effect = [self.response({'name': 'Soup'}), self.response('soup')]
+        post.return_value = self.response('soup')
         get.return_value = self.response(self.EMPTY)
         self.assert_hooks(t.import_recipe('https://example.org', dry_run=False), 'soup')
 
@@ -210,7 +231,7 @@ class ImportPostCommitTests(unittest.TestCase):
     @patch.object(t.requests, 'get')
     @patch.object(t.requests, 'post')
     def test_complete_import_hook_crash_runs_hooks_once_and_stays_ok(self, post, get):
-        post.side_effect = [self.response({'name': 'Soup'}), self.response('soup')]
+        post.return_value = self.response('soup')
         get.return_value = self.response(self.EMPTY)
         self.nutrition.side_effect = RuntimeError('boom')
         result = t.import_recipe('https://example.org', dry_run=False)
@@ -219,7 +240,7 @@ class ImportPostCommitTests(unittest.TestCase):
         self.assertEqual({k: result['data'][k] for k in self.HOOKS_FAILED}, self.HOOKS_FAILED)
         self.assertEqual(self.normalize.call_count, 1)
         self.assertEqual(self.nutrition.call_count, 1)
-        self.assertEqual(post.call_count, 2)
+        self.assertEqual(post.call_count, 1)
 
     @patch.object(t.requests, 'get')
     @patch.object(t.requests, 'post')
@@ -227,7 +248,7 @@ class ImportPostCommitTests(unittest.TestCase):
         self.normalize.return_value = {'ok': False, 'warning': 'normalization_parser_http_500'}
         self.nutrition.side_effect = lambda result, slug: dict(
             result, nutrition={'ok': False}, nutrition_warning={'code': 'nutrition_calculation_failed'})
-        post.side_effect = [self.response({'name': 'Soup'}), self.response('soup')]
+        post.return_value = self.response('soup')
         get.return_value = self.response(self.EMPTY)
         result = t.import_recipe('https://example.org', dry_run=False)
         self.assertEqual(result['data']['created'], ['soup'])
@@ -238,12 +259,12 @@ class ImportPostCommitTests(unittest.TestCase):
     @patch.object(t.requests, 'get')
     @patch.object(t.requests, 'post')
     def test_normalization_disabled_and_preview(self, post, get):
-        post.return_value = self.response({'name': 'Soup'})
         self.assertNotIn('normalization', t.import_recipe('https://example.org')['data'])
+        post.assert_not_called()
         from dataclasses import replace
         self.p.stop()
         with patch.object(t, 'settings', return_value=replace(self.settings, normalize_imports=False)):
-            post.side_effect = [self.response({'name': 'Soup'}), self.response('soup')]
+            post.return_value = self.response('soup')
             get.return_value = self.response(self.EMPTY)
             result = t.import_recipe('https://example.org', dry_run=False)
         self.assertEqual(result['data']['normalization'], {})

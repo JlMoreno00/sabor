@@ -1,5 +1,5 @@
 """Instance-owned Mealie transport, mapping and legacy response compatibility."""
-import json
+import re
 import unicodedata
 import requests
 from typing import Any, cast
@@ -91,26 +91,12 @@ class MealieRecipeStore(MealieShoppingItemsMixin, MealieShoppingListsMixin):
         self.direct_compatibility = session is requests
         self._headers = {"Authorization": f"Bearer {token}"}
 
-    # Mealie's image import needs Mealie's own OpenAI configuration: not used (#102).
-    native_import_kinds = frozenset({'url'})
+    # Mealie downloads a recipe image from its URL itself (POST /{slug}/image), so Sabor
+    # passes the URL instead of fetching the bytes first.
+    fetches_image_urls = True
 
-    def _native_import(self, path, **kwargs):
-        try:
-            response = self.session.post(self.base_url + '/api/recipes' + path,
-                                         headers=self._headers, timeout=45, **kwargs)
-            if not 200 <= response.status_code < 300:
-                raise StoreError(errors.from_http(response.status_code, self.id)['error']['code'], self.id)
-            return response.json()
-        except StoreError:
-            raise
-        except Exception as exc:
-            raise StoreError(errors.from_exception(exc, self.id)['error']['code'], self.id) from None
-
-    def preview_url(self, source):
-        return self._native_import('/test-scrape-url', json={'url': source, 'useOpenAI': False})
-
-    def import_url(self, source):
-        return self._native_import('/create/url', json=dict(url=source, includeTags=True, includeCategories=True))
+    def set_recipe_image(self, slug, image):
+        self._write(self.session.post, f"/{slug}/image", {"url": image.source_url}, 60)
 
     def normalize_imported(self, slug):
         from sabor.integrations.mealie import normalize_imported_recipe
@@ -512,29 +498,45 @@ class MealieRecipeStore(MealieShoppingItemsMixin, MealieShoppingListsMixin):
             raise StoreError(errors.from_exception(exc, self.id)["error"]["code"], self.id) from None
 
     def create_recipe(self, draft):
-        payload = getattr(draft, "jsonld", None)
-        if payload is None:
-            payload = {"@context": "https://schema.org", "@type": "Recipe", "name": draft.name}
-            for key in ("description", "recipeYield", "totalTime"):
+        # CRUD only (#102): Mealie's URL and HTML/JSON imports run its scraper chain,
+        # which falls back to the AI provider configured in Mealie.
+        recipe = getattr(draft, "jsonld", None)
+        if recipe is None:
+            recipe = {"name": draft.name}
+            for key in ("description", "recipeYield", "totalTime", "prepTime", "cookTime"):
                 value = getattr(draft, key)
                 if value is not None:
-                    payload[key] = value
+                    recipe[key] = value
             if draft.recipeIngredient is not None:
-                payload["recipeIngredient"] = [row.originalText or row.display or row.note or ""
-                                                for row in draft.recipeIngredient]
+                recipe["recipeIngredient"] = [row.originalText or row.display or row.note or ""
+                                              for row in draft.recipeIngredient]
             if draft.recipeInstructions is not None:
-                payload["recipeInstructions"] = [row.text for row in draft.recipeInstructions]
+                recipe["recipeInstructions"] = [row.text for row in draft.recipeInstructions]
             if draft.tags is not None:
-                payload["keywords"] = [row.name for row in draft.tags]
-        response = self._write(self.session.post, "/create/html-or-json",
-                               {"data": json.dumps(payload, ensure_ascii=False)}, 60)
+                recipe["keywords"] = [row.name for row in draft.tags]
+        response = self._write(self.session.post, "", {"name": recipe["name"]}, 60)
         try:
             body = response.json()
             slug = body.strip() if isinstance(body, str) else body.get("slug")
-            return _CreatedRecipe(slug=slug, result={
-                "ok": True, "status": response.status_code, "body": response.text[:2000], "slug": slug})
         except Exception:
             raise StoreError("invalid_response", self.id) from None
+        if not isinstance(slug, str) or not slug:
+            raise StoreError("invalid_response", self.id)
+        try:
+            changes = _mealie_fields(recipe)
+            if changes:
+                self._write(self.session.patch, f"/{slug}", changes, 60)
+            if recipe.get("keywords"):
+                self.tag_recipe(slug, list(recipe["keywords"]))
+        except StoreError:
+            # Never leave a recipe with only its name behind.
+            try:
+                self._write(self.session.delete, f"/{slug}", None)
+            except StoreError:
+                pass
+            raise
+        return _CreatedRecipe(slug=slug, result={
+            "ok": True, "status": response.status_code, "body": response.text[:2000], "slug": slug})
 
     def update_recipe(self, slug, patch):
         allowed = {"name", "description", "recipeYield", "recipeServings", "totalTime",
@@ -545,6 +547,34 @@ class MealieRecipeStore(MealieShoppingItemsMixin, MealieShoppingListsMixin):
             raise StoreError("invalid_argument", self.id)
         self._write(self.session.patch, f"/{slug}", changes)
         return RecipeRef(slug=slug)
+
+
+def _duration(value):
+    """Show an ISO 8601 duration such as PT1H30M as '1 h 30 min'; keep any other text."""
+    match = re.fullmatch(r"PT(?:(\d+)H)?(?:(\d+)M)?", value.strip()) if isinstance(value, str) else None
+    if not match or not any(match.groups()):
+        return value
+    hours, minutes = match.groups()
+    return " ".join(part for part in (hours and f"{int(hours)} h", minutes and f"{int(minutes)} min") if part)
+
+
+def _mealie_fields(recipe):
+    """Map a schema.org recipe to the fields Mealie's PATCH accepts."""
+    changes = {}
+    for key in ("description", "recipeYield"):
+        if recipe.get(key) is not None:
+            changes[key] = recipe[key]
+    for key in ("totalTime", "prepTime", "cookTime"):
+        if recipe.get(key) is not None:
+            changes[key] = _duration(recipe[key])
+    if recipe.get("url") is not None:
+        changes["orgURL"] = recipe["url"]
+    if recipe.get("recipeIngredient") is not None:
+        changes["recipeIngredient"] = [{"note": text, "originalText": text}
+                                       for text in recipe["recipeIngredient"]]
+    if recipe.get("recipeInstructions") is not None:
+        changes["recipeInstructions"] = [{"text": text} for text in recipe["recipeInstructions"]]
+    return changes
 
 
 @dataclass(frozen=True)

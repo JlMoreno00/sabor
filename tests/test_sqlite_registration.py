@@ -87,10 +87,10 @@ def test_sqlite_explicit_with_mealie_and_native_import_limits(tmp_path):
     assert {kind for row in rows for kind in row['kinds']} == {'url', 'video'}
     assert 'nutrition_recipe_readiness' not in tools
     assert 'spanish_catalog_status' in tools
-    # SQLite never uses Mealie's native import, even with Mealie credentials (#38).
+    # SQLite never writes to Mealie, even with Mealie credentials (#38).
     empty = (Path(__file__).parent / 'fixtures' / 'import' / 'empty.html').read_bytes()
     with patch('sabor.importing.tools.html_bytes', return_value=(empty, 'text/html')), \
-            patch('sabor.store.mealie.MealieRecipeStore.preview_url') as native:
+            patch('sabor.store.mealie.MealieRecipeStore.create_recipe') as native:
         result = tools['import_recipe'](source='https://example.org/recipe', kind='url')
     assert result['error']['code'] == 'not_found'
     native.assert_not_called()

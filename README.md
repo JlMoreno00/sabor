@@ -59,7 +59,7 @@ not automatic retries or an assumed cross-system rollback.
 | Capability | Sabor solo | Sabor + Mealie |
 |---|---|---|
 | Recipes, meal plans, shopping lists | Built-in SQLite; no account or token | Mealie URL + API token |
-| URL import | Offline recipe-scrapers / JSON-LD | Native Mealie scraper |
+| URL import | Offline recipe-scrapers / JSON-LD | Same extractor; saved through Mealie's CRUD API |
 | Text / image | The client agent extracts the recipe and calls `create_recipe` (no AI provider in Sabor) | Same |
 | Video URL or local video file | `import_recipe` returns a media bundle (metadata, subtitles, 8 frames); the agent extracts the recipe and calls `create_recipe`. Local files: stdio only, under `SABOR_MEDIA_ROOTS` (default home). On stdio the audio and frames are also files in `.sabor-media/` (removed after 24 h) | Same |
 | Bring! sync / Mercadona estimates | Optional credentials / pricing opt-in | Same optional integrations |
@@ -96,7 +96,7 @@ configuration/reconciliation failure, 2 for invalid arguments. Review nested
 | Capability | Provider / requirements | Limits |
 |---|---|---|
 | Core | Built-in SQLite, or Mealie URL + token | Recipes, suggestions, planning, shopping items and history; API baseline Mealie 3.22.0 |
-| Import: URL | SQLite: offline recipe-scrapers + schema.org JSON-LD; Mealie: native scraper | Read-only preview; pages without a recipe return `not_found`. Sabor never falls back to an AI provider; with Mealie, Mealie's own URL import may fall back to the AI provider configured in Mealie when its scraper fails |
+| Import: URL | Offline recipe-scrapers + schema.org JSON-LD for every store; Mealie recipes are created through its CRUD API, never its scrapers | Read-only preview; pages without a recipe return `not_found`; no AI fallback |
 | Import: text, image | None: Sabor contains no AI provider | `import_recipe` returns `unsupported_operation`; the agent reads the source and saves it with `create_recipe` |
 | Import: video URL | A recipe store; `ffmpeg` and `ffprobe` for frames | Media bundle for the agent: metadata, platform subtitles and 8 frames as images; writes no recipe (on stdio it leaves audio and frame files in `.sabor-media/`) |
 | Shopping sync | Bring! email + password **and a recipe store** | Only unchecked source items; does not check off Mealie items |
@@ -124,9 +124,8 @@ invalid values fail startup. SQLite construction and registration perform no
 filesystem I/O. Runtime startup initializes the database before serving requests;
 direct store use initializes on first operation. Missing parent directories are
 created, and opening failures never silently fall back. Back up its data volume.
-URL import works with SQLite and needs no AI. The Spanish catalog, legacy
-nutrition and Mealie's native URL import still require Mealie; SQLite does not
-advertise native imports.
+URL import works with SQLite and needs no AI. The Spanish catalog and legacy
+nutrition still require Mealie.
 Tandoor and KitchenOwl are not implemented integrations. Existing slug/list arguments remain unchanged,
 including the historical `mealie_list_id` sync argument. There is no public
 per-call backend URL or tenant selector.
@@ -154,7 +153,7 @@ Direct Python compatibility calls are not equivalent to registered app contexts.
 
 Discovery exposes `data.capabilities.recipe_store` and `pricing` with adapter IDs
 and operations; `data.mealie.configured` remains a deprecated compatibility field.
-Native import discovery includes `url` (preview/commit) only.
+Import discovery lists the `sabor` importer with `url` (preview/commit) and `video` (bundle).
 Configured means locally configured, never authenticated or healthy.
 
 ## Quantity-aware pricing
@@ -291,7 +290,7 @@ is trimmed, duplicates collapse, and unknown names prevent startup.
 | `legacy_catalog` | Opt-in + Mealie |
 
 With Mealie only, the current code registers **23 application tools plus discovery**
-(22 core tools and native import). The earlier planned baseline of 21 plus
+(22 core tools and `import_recipe`). The earlier planned baseline of 21 plus
 discovery was superseded by added core functionality.
 There are **52 selectable application tools plus the always-on
 `sabor_capabilities`** at full configuration. Counts are not a health check.
@@ -326,9 +325,8 @@ MCP schema validation can reject a call before a tool runs.
 - Import defaults to `dry_run=True`; preview fetches the recipe page but does not
   create recipes. Sabor itself calls no AI provider. With Mealie, a committed import
   runs Mealie's ingredient parser (`SABOR_INGREDIENT_PARSER`, default `nlp`, local); only
-  `openai` sends ingredient text to Mealie's configured AI provider. If Mealie has an AI
-  provider configured, Mealie's native URL import can also fall back to it when its
-  scraper fails, whatever the parser.
+  `openai` sends ingredient text to Mealie's configured AI provider. Sabor never uses
+  Mealie's scrapers, whose fallback is Mealie's AI provider.
 - Other writes require client-side approval even without a server flag.
   Legacy `apply`, `publish` and `execute` gates retain their separate meanings.
 - Sync accepts optional `preview_digest`. Supplying the approved preview's digest

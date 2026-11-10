@@ -123,9 +123,8 @@ saving a recipe with ingredients also runs Mealie's ingredient parser when
 `SABOR_NORMALIZE_IMPORTS` is on (the default). By default it is Mealie's local `nlp` parser;
 an effective parser of `openai`, set with `SABOR_INGREDIENT_PARSER` or
 `[import] ingredient_parser` in `config.toml`, makes Mealie send the ingredient lines to
-its configured AI provider. If Mealie has an AI provider configured, its own URL import can
-also fall back to it. The agent cannot see either setting, so with the Mealie store the
-skill tells the user about this possibility before they approve.
+its configured AI provider. The agent cannot see that setting, so with the Mealie store
+the skill tells the user about this possibility before they approve.
 
 ---
 

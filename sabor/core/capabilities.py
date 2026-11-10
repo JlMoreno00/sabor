@@ -32,14 +32,10 @@ def describe(registry: 'Registry | AppContext', registered_tools, version: str) 
             rows = [{'id': adapter.id, 'kinds': ['shopping_list'], 'operations': ['targets', 'plan', 'apply']}
                     for adapter in registry.syncs]
         if enabled and name == 'import':
-            # Mealie's native recipe page import, else Sabor's own; plus Sabor's video bundle.
-            # Sabor has no AI provider adapter (#102).
-            native = getattr(registry.recipe_store, 'native_import_kinds', frozenset())
-            rows = [{'id': 'mealie', 'kinds': [kind], 'operations': ['preview', 'commit'],
-                     'limitations': []} for kind in sorted(native)]
-            if 'url' not in native:
-                rows.append({'id': 'sabor', 'kinds': ['url'], 'operations': ['commit', 'preview'],
-                             'limitations': []})
+            # Sabor's own recipe page import, for every store, and its video bundle. Sabor
+            # has no AI provider adapter and never uses Mealie's scrapers (#102).
+            rows = [{'id': 'sabor', 'kinds': ['url'], 'operations': ['commit', 'preview'],
+                     'limitations': []}]
             rows.append({'id': 'sabor', 'kinds': ['video'], 'operations': ['bundle'],
                          'limitations': [] if registry.settings.local_media else ['local_files_require_stdio']})
         capability: dict[str, Any] = {'configured': enabled, 'adapters': rows}
