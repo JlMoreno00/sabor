@@ -90,6 +90,14 @@ class MealieCrudCreateTests(unittest.TestCase):
         self.assertEqual(self.api.recipes, {})
         self.assertIn(('DELETE', 'https://mealie.invalid/api/recipes/soup', None), self.api.calls)
 
+    def test_any_failure_after_creation_removes_the_recipe(self):
+        from sabor.tools.recipes import _CreateDraft
+        draft = _CreateDraft(name='Soup', jsonld={'name': 'Soup', 'recipeInstructions': 5})
+        with self.assertRaises(TypeError):
+            self.store.create_recipe(draft)
+        self.assertEqual(self.api.recipes, {})
+        self.assertIn(('DELETE', 'https://mealie.invalid/api/recipes/soup', None), self.api.calls)
+
     def test_url_import_with_mealie_uses_sabor_extractor_and_image_url(self):
         page = PAGE.replace('"recipeYield":"2"', '"recipeYield":"2","image":"/img/sopa.jpg"')
         ctx = build_context(load_settings({'MEALIE_BASE_URL': 'https://mealie.invalid', 'MEALIE_API_TOKEN': 't',

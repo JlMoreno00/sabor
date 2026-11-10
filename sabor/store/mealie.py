@@ -528,8 +528,8 @@ class MealieRecipeStore(MealieShoppingItemsMixin, MealieShoppingListsMixin):
                 self._write(self.session.patch, f"/{slug}", changes, 60)
             if recipe.get("keywords"):
                 self.tag_recipe(slug, list(recipe["keywords"]))
-        except StoreError:
-            # Never leave a recipe with only its name behind.
+        except Exception:
+            # Never leave a recipe with only its name behind, whatever failed.
             try:
                 self._write(self.session.delete, f"/{slug}", None)
             except StoreError:
