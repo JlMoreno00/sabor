@@ -98,6 +98,10 @@ def recipe_from_html(html, url):
                 data[field] = getattr(scraper, method)()
             except Exception:
                 data[field] = None
+        for field in ('totalTime', 'prepTime', 'cookTime'):
+            # recipe-scrapers gives minutes as an integer; keep schema.org's ISO form.
+            if type(data[field]) is int:
+                data[field] = f'PT{data[field]}M' if data[field] > 0 else None
         data = clean(data)
         if valid(data):
             return data

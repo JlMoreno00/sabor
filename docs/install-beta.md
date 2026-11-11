@@ -87,5 +87,5 @@ Record OS, version (`sabor-mcp --help` or the image tag) and date for each run.
 | A1: client lists tools; recipe → meal plan → shopping list works | ☐ | ☐ |
 | A2: container reaches `healthy`; same flow works over HTTP | ☐ | ☐ |
 | B: `docker compose --profile mealie up -d`; token created; Mealie store reported | ☐ | ☐ |
-| `sabor_capabilities` without Mealie: core, import, shopping_sync and pricing (with `SABOR_MERCADONA_ENABLED=true`) available; nutrition and catalog in `mealie_only` | ☐ | ☐ |
+| `sabor_capabilities` without Mealie: core and import available; pricing with `SABOR_MERCADONA_ENABLED=true` and `pricing` in `SABOR_TOOLSETS`; shopping_sync after configuring Bring!; nutrition and catalog in `mealie_only` | ☐ | ☐ |
 | Data survives a restart (uvx: run again; Docker: `docker restart sabor`) | ☐ | ☐ |

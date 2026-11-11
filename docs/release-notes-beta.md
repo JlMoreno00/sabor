@@ -48,8 +48,8 @@ under the chosen version only when the release is created.
 
 ## Known limitations
 
-- Built-in SQLite slugs are numeric IDs, not derived from the recipe name.
-- Images found on imported pages are not stored as recipe media.
+- Recipes created before slugs were derived from names keep their numeric slugs.
+- `get_recipe` does not return the image kept from an imported page.
 - Hosted multi-tenant use is not part of the beta (#28).
 
 ## Before announcing (maintainer)
