@@ -356,7 +356,9 @@ class MealieRecipeStore(MealieShoppingItemsMixin, MealieShoppingListsMixin):
                 items = data.get("items") or []
                 pages = data.get("total_pages", 1)
                 # Mealie reports zero pages for a range without entries.
-                if page == 1 and pages == 0 and not items:
+                total = data.get("total", 0)
+                if (page == 1 and type(pages) is int and pages == 0 and type(total) is int
+                        and total == 0 and not items and data.get("page", page) == page):
                     return []
                 if (type(pages) is not int or not 1 <= pages <= 1000
                         or data.get("page", page) != page

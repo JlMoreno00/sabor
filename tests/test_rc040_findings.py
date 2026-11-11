@@ -41,7 +41,47 @@ class EmptyMealieTests(unittest.TestCase):
         self.assertTrue(week['ok'], week)
 
 
+class InconsistentEmptyPagesTests(unittest.TestCase):
+    """Only a consistent empty answer is empty; anything else stays invalid_response."""
+
+    def store(self, body):
+        from unittest.mock import Mock
+        session = Mock()
+        session.get.return_value = Mock(status_code=200, json=lambda: body)
+        return MealieRecipeStore('https://mealie.invalid', 'token', session)
+
+    def test_inconsistent_empty_shopping_lists_are_invalid(self):
+        from sabor.store import StoreError
+        for body in ({'items': [], 'total': 0, 'total_pages': 0, 'page': 2},
+                     {'items': [], 'total': False, 'total_pages': 0, 'page': 1},
+                     {'items': [], 'total': 0, 'total_pages': False, 'page': 1},
+                     {'items': [], 'total': 3, 'total_pages': 0, 'page': 1}):
+            with self.assertRaises(StoreError, msg=body) as caught:
+                self.store(body).get_shopping_lists()
+            self.assertEqual(caught.exception.code, 'invalid_response')
+
+    def test_inconsistent_empty_meal_plans_are_invalid(self):
+        from sabor.store import StoreError
+        for body in ({'items': [], 'total': 5, 'total_pages': 0, 'page': 1},
+                     {'items': [], 'total': 0, 'total_pages': 0, 'page': 2},
+                     {'items': [], 'total': 0, 'total_pages': False, 'page': 1}):
+            with self.assertRaises(StoreError, msg=body) as caught:
+                self.store(body).get_mealplan(DateRange('2031-01-06', '2031-01-12'))
+            self.assertEqual(caught.exception.code, 'invalid_response')
+
+
 class ImportedTimesTests(unittest.TestCase):
+    def test_an_explicit_zero_time_is_kept(self):
+        # Some recipe-scrapers versions return 0 for an explicit zero; it is a value, not "unknown".
+        from unittest.mock import Mock
+        scraper = Mock(title=lambda: 'Salad', ingredients=lambda: ['1 lettuce'], instructions_list=lambda: ['Mix'],
+                       yields=lambda: None, total_time=lambda: 5, prep_time=lambda: 5, cook_time=lambda: 0,
+                       image=lambda: None)
+        with patch('sabor.importing.scrape.recipe_scrapers.scrape_html', return_value=scraper):
+            data = recipe_from_html(b'<html></html>', 'https://example.org/salad')
+        assert data is not None
+        self.assertEqual((data['totalTime'], data['cookTime']), ('PT5M', 'PT0M'))
+
     def test_recipe_scrapers_minutes_become_iso_durations(self):
         # recipe-scrapers turns PT35M into the integer 35, which Mealie showed as a bare "35".
         data = recipe_from_html(PAGE, 'https://example.org/flapjacks')
