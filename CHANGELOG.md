@@ -6,12 +6,23 @@
 - **Mealie's ingredient parser defaults to `nlp`** (José's decision): when neither
   `SABOR_INGREDIENT_PARSER` nor `[import] ingredient_parser` in `config.toml` chooses a
   parser, Sabor now asks Mealie for its local `nlp` parser instead of `openai`, so
-  normalizing a saved recipe sends no ingredient text to an AI provider. (Mealie's own URL
-  import can still fall back to the AI provider configured in Mealie when its scraper
-  fails; that does not depend on the parser.)
+  normalizing a saved recipe sends no ingredient text to an AI provider.
   **Migration:** with the Mealie store, set `SABOR_INGREDIENT_PARSER=openai` (or
   `[import] ingredient_parser`) to keep the previous behaviour; `brute` is also available.
   The manifest, `.env.example`, the docs and the `sabor-import` skill follow.
+- **With Mealie, Sabor no longer uses Mealie's scrapers** (José's decision): Mealie's URL
+  and HTML/JSON imports fall back to the AI provider configured in Mealie when their
+  scraper fails. `import_recipe` with a recipe page now uses Sabor's own extractor for every
+  store, and Mealie recipes, from `import_recipe` or `create_recipe`, are created through
+  Mealie's CRUD API (`POST /api/recipes`, then `PATCH`). The page's image is downloaded by
+  Sabor's SSRF-safe fetch (public addresses only, redirects included) and uploaded with
+  `PUT /api/recipes/{slug}/image`: Mealie never fetches a URL from the page, since its own
+  download admits addresses such as `100.64.0.0/10`. If a step after the creation fails,
+  the half-created recipe is deleted. With Mealie, `sabor_capabilities`
+  now lists the `sabor` URL importer instead of `mealie`, ISO durations such as `PT1H30M`
+  are saved as `1 h 30 min`, and a recipe page whose name already exists is reported in
+  `skips` (as with the other stores) instead of failing with `conflict`. Mealie no longer
+  adds its own tags and categories to an imported page.
 
 ### Fixed
 - Vertical videos (TikTok's 576x1024 or 720x1280) found no downloadable format: the

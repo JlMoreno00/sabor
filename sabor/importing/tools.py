@@ -1,6 +1,5 @@
 """Import orchestration: recipe web pages, and video media bundles; the client agent extracts the recipe."""
 import ipaddress
-import json
 import os
 import socket
 import threading
@@ -349,26 +348,20 @@ def _import_recipe(ctx, source, kind, dry_run, language, max_recipes, min_confid
             # itself and saves the recipe it extracts with create_recipe.
             reject('unsupported_operation', f'Sabor does not extract recipes from {kind}: read the '
                    'recipe yourself and save it with create_recipe, adding the source to the description.')
-        native = kind in getattr(ctx.store, 'native_import_kinds', frozenset())
-        provider = 'mealie' if native else 'sabor'
+        # Every store, Mealie included, uses Sabor's own extractor: Mealie's scrapers can
+        # fall back to the AI provider configured in Mealie (#102).
+        provider = 'sabor'
         if ctx.store is None:
             reject('provider_unconfigured', 'Recipe store is not configured.', 'mealie')
         http_url(source)
-        page_url = source
-        data = ctx.store.preview_url(source) if native else None
-        if not native:
-            from .scrape import recipe_from_html
-            final = []
-            html, _ = html_bytes(source, final)
-            # Relative recipe links and images resolve against the page after redirects.
-            page_url = final[0] if final else source
-            data = recipe_from_html(html, page_url)
-            if data is None:
-                reject('not_found', 'Could not extract a recipe at this URL.', provider)
-        if data == 'recipe_scrapers was unable to scrape this URL':
-            reject('not_found', 'Mealie could not extract a recipe at this URL.', provider)
-        if isinstance(data, str):
-            data = json.loads(data)
+        from .scrape import recipe_from_html
+        final = []
+        html, _ = html_bytes(source, final)
+        # Relative recipe links and images resolve against the page after redirects.
+        page_url = final[0] if final else source
+        data = recipe_from_html(html, page_url)
+        if data is None:
+            reject('not_found', 'Could not extract a recipe at this URL.', provider)
         if not isinstance(data, dict) or not isinstance(data.get('name'), str) or not data['name'].strip():
             raise ValueError('Invalid recipe')
         candidates = [{'name': data['name'], 'ingredients': data.get('recipeIngredient', []),
@@ -379,32 +372,25 @@ def _import_recipe(ctx, source, kind, dry_run, language, max_recipes, min_confid
             for c in candidates:
                 slug = store_duplicate(c['name'], ctx.store)
                 if slug:
-                    if native:
-                        reject('conflict', 'An exact normalized recipe name already exists.', 'mealie', {'slug': slug})
                     skips.append({'name': c['name'], 'slug': slug, 'reason': 'duplicate'})
                     continue
-                if native:
-                    slug = ctx.store.import_url(source)
-                else:
-                    from sabor.store import RecipeDraft, Ingredient, Instruction
-                    provider = 'mealie'
-                    draft = RecipeDraft(name=c['name'], description=f'Source: {source}',
-                        recipeYield=c.get('yield') or '',
-                        totalTime=c['times'].get('totalTime'), prepTime=c['times'].get('prepTime'),
-                        cookTime=c['times'].get('cookTime'),
-                        recipeIngredient=tuple(Ingredient(originalText=x) for x in c['ingredients']),
-                        recipeInstructions=tuple(Instruction(text=x) for x in c['steps']))
-                    slug = ctx.store.create_recipe(draft).slug
-                    provider = 'sabor'
+                from sabor.store import RecipeDraft, Ingredient, Instruction
+                provider = 'mealie'
+                draft = RecipeDraft(name=c['name'], description=f'Source: {source}',
+                    recipeYield=c.get('yield') or '',
+                    totalTime=c['times'].get('totalTime'), prepTime=c['times'].get('prepTime'),
+                    cookTime=c['times'].get('cookTime'),
+                    recipeIngredient=tuple(Ingredient(originalText=x) for x in c['ingredients']),
+                    recipeInstructions=tuple(Instruction(text=x) for x in c['steps']))
+                slug = ctx.store.create_recipe(draft).slug
+                provider = 'sabor'
                 if not isinstance(slug, str) or not slug.strip():
                     raise ValueError('Invalid created slug')
                 created.append(slug)
-                if not native:
-                    # Built-in stores keep the scraped image; Mealie's native import does its own.
-                    from .images import keep_recipe_image
-                    report = keep_recipe_image(ctx.store, slug, c.get('image'), page_url)
-                    if report:
-                        images[slug] = report
+                from .images import keep_recipe_image
+                report = keep_recipe_image(ctx.store, slug, c.get('image'), page_url)
+                if report:
+                    images[slug] = report
         hooks = {} if dry_run else run_hooks(ctx, created)
         if images:
             hooks['images'] = images

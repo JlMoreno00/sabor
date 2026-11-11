@@ -76,7 +76,8 @@ def keep_recipe_image(store, slug, value, page_url):
     """Download and keep a scraped image for a created recipe; never raises.
 
     Returns the report for the import response, or None when there is no usable
-    http(s) image or the store does not keep images (Mealie handles its own).
+    http(s) image or the store does not keep images. Every store, Mealie included, gets the
+    bytes downloaded here, never a URL to fetch itself (SSRF, #135).
     """
     from sabor.store import RecipeImage
     setter = getattr(store, 'set_recipe_image', None)

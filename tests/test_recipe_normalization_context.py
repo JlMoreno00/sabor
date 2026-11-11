@@ -21,8 +21,11 @@ class NormalizationContext(unittest.TestCase):
         created = Mock(status_code=201, text='"soup"')
         created.json.return_value = "soup"
         read = Mock(status_code=503)
+        filled = Mock(status_code=200)
         with patch("requests.Session.post", return_value=created), \
              patch("requests.Session.get", return_value=read), \
+             patch("requests.Session.patch", return_value=filled), \
+             patch.object(requests, "patch", return_value=filled), \
              patch.object(requests, "post", return_value=created), \
              patch.object(requests, "get", return_value=read), \
              patch.object(r.config, "MEALIE_API_TOKEN", "one"), \
@@ -58,7 +61,11 @@ class NormalizationContext(unittest.TestCase):
         self.assertEqual([c.args[0] for c in calls], [f"https://{n}.invalid/api/parser/ingredients" for n in ("one", "two")])
         self.assertEqual([c.kwargs["headers"]["Authorization"] for c in calls], ["Bearer one", "Bearer two"])
         self.assertEqual([c.kwargs["json"]["parser"] for c in calls], ["one", "two"])
-        self.assertEqual(patcher.call_count, 1)
+        # Each creation fills its fields with one PATCH (#102); only "one" normalizes.
+        normalized = [c for c in patcher.call_args_list
+                      if any("food" in row for row in c.kwargs["json"].get("recipeIngredient", []))]
+        self.assertEqual(len(normalized), 1)
+        self.assertEqual(patcher.call_count, 4)
 
 
 class DefaultParserTests(unittest.TestCase):

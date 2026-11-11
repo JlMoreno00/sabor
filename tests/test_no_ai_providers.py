@@ -41,7 +41,7 @@ class NoAIProviderTests(unittest.TestCase):
 
     def test_mealie_image_import_is_gone(self):
         from sabor.store.mealie import MealieRecipeStore
-        self.assertEqual(MealieRecipeStore.native_import_kinds, frozenset({'url'}))
+        self.assertFalse(hasattr(MealieRecipeStore, 'native_import_kinds'))
         self.assertFalse(hasattr(MealieRecipeStore, 'import_image'))
         store = MealieRecipeStore('http://mealie.invalid', 'token', session=t.requests)
         result = self.run_import('https://example.org/a.jpg', 'image', store=store, dry_run=False)

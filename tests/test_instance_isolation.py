@@ -191,7 +191,7 @@ def test_bring_and_after_import_bridge(tmp_path, monkeypatch):
         else:
             assert url.startswith(f'https://{name}.example/')
             assert kwargs['headers']['Authorization'] == f'Bearer {name}'
-            if '/create/url' in url:
+            if method == 'POST' and url.endswith('/api/recipes'):
                 body = 'video-recipe'
             else:
                 body = {'id': 'recipe', 'slug': 'recipe', 'name': 'Recipe', 'tags': [],
@@ -215,6 +215,9 @@ def test_bring_and_after_import_bridge(tmp_path, monkeypatch):
         return {'ok': True}
 
     monkeypatch.setattr(nutrition, 'ensure_recipe_nutrition', ensure)
+    page = ('<script type="application/ld+json">{"@context": "https://schema.org", "@type": "Recipe", '
+            '"name": "Video recipe", "recipeIngredient": ["salt"], "recipeInstructions": ["Mix"]}</script>')
+    monkeypatch.setattr('sabor.importing.tools.html_bytes', lambda *args: (page.encode(), 'text/html'))
 
     def exercise(index):
         token = expected.set(('a', 'b')[index])
@@ -224,7 +227,7 @@ def test_bring_and_after_import_bridge(tmp_path, monkeypatch):
             assert targets[0]['list_id'] == expected.get()
             adapter = contexts[index].registry.syncs[0]
             assert adapter.catalogs[0]['unique item'] == expected.get()
-            # #102: recipe pages through Mealie's native import (no AI provider, no video).
+            # #102: Sabor reads the page; Mealie only gets CRUD writes, never its scrapers.
             result = server.tools['import_recipe']('https://example.org/recipe', kind='url', dry_run=False)
             assert result['ok'], result
             assert result['data']['created'] == ['video-recipe']
@@ -240,7 +243,9 @@ def test_bring_and_after_import_bridge(tmp_path, monkeypatch):
     for name, service in bridge_services:
         assert service is contexts[('a', 'b').index(name)].state.nutrition_service
     for name in ('a', 'b'):
-        assert any(owner == name and '/api/recipes/create/url' in url for owner, method, url in calls)
+        assert any(owner == name and method == 'POST' and url.endswith('/api/recipes')
+                   for owner, method, url in calls)
+    assert not any('/create/' in url or 'test-scrape-url' in url for _owner, _method, url in calls)
 
 
 def test_default_context_assembles_providers_and_stable_direct_sync_scope(tmp_path, monkeypatch):

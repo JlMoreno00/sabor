@@ -17,26 +17,41 @@ class MealieRecipeTests(unittest.TestCase):
         self.token_patch.start()
         self.addCleanup(self.token_patch.stop)
 
+    # Mealie recipes are created with POST /api/recipes and filled with PATCH, never
+    # through Mealie's scrapers (#102).
+    @patch.object(sabor_mcp.requests, "patch")
     @patch.object(sabor_mcp.requests, "post")
-    def test_create_recipe_legacy_name_only_keeps_placeholders(self, post):
-        post.return_value = Mock(status_code=201, text="created")
+    def test_create_recipe_legacy_name_only_keeps_placeholders(self, post, patch_request):
+        post.return_value = response(201, "legacy-recipe", text='"legacy-recipe"')
+        patch_request.return_value = response(200, {})
 
         result = sabor_mcp.create_recipe("Legacy recipe")
 
         self.assertTrue(result["ok"])
-        payload = json.loads(post.call_args.kwargs["json"]["data"])
-        self.assertEqual(payload["name"], "Legacy recipe")
-        self.assertEqual(payload["recipeIngredient"], ["Ingrediente a completar"])
-        self.assertEqual(payload["recipeInstructions"], ["Instrucciones a completar"])
+        self.assertEqual(post.call_args.args[0], f"{sabor_mcp.MEALIE_BASE_URL}/api/recipes")
+        self.assertEqual(post.call_args.kwargs["json"], {"name": "Legacy recipe"})
+        payload = patch_request.call_args.kwargs["json"]
+        self.assertEqual(payload["recipeIngredient"],
+                         [{"note": "Ingrediente a completar", "originalText": "Ingrediente a completar"}])
+        self.assertEqual(payload["recipeInstructions"], [{"text": "Instrucciones a completar"}])
         self.assertEqual(payload["recipeYield"], "2 raciones")
 
     def test_create_recipe_rejects_url_import_argument(self):
         with self.assertRaises(TypeError):
             sabor_mcp.create_recipe("URL", url="https://example.test/r")
 
+    @patch.object(sabor_mcp.requests, "get")
+    @patch.object(sabor_mcp.requests, "patch")
     @patch.object(sabor_mcp.requests, "post")
-    def test_create_recipe_structured_fields_have_no_placeholders(self, post):
-        post.return_value = Mock(status_code=201, text="created")
+    def test_create_recipe_structured_fields_have_no_placeholders(self, post, patch_request, get):
+        def created(url, **kwargs):
+            if url.endswith("/api/organizers/tags"):
+                name = kwargs["json"]["name"]
+                return response(201, {"id": name, "name": name, "slug": name})
+            return response(201, "structured-recipe", text='"structured-recipe"')
+        post.side_effect = created
+        patch_request.return_value = response(200, {})
+        get.return_value = response(200, {"tags": [], "items": []})
 
         result = sabor_mcp.create_recipe(
             "Structured recipe",
@@ -50,32 +65,35 @@ class MealieRecipeTests(unittest.TestCase):
         )
 
         self.assertTrue(result["ok"])
-        payload = json.loads(post.call_args.kwargs["json"]["data"])
+        self.assertEqual(post.call_args_list[0].kwargs["json"], {"name": "Structured recipe"})
+        payload = patch_request.call_args_list[0].kwargs["json"]
         self.assertEqual(
             payload,
             {
-                "@context": "https://schema.org",
-                "@type": "Recipe",
-                "name": "Structured recipe",
                 "description": "Fresh and simple",
                 "recipeYield": "4 servings",
-                "totalTime": "PT35M",
-                "recipeIngredient": ["1 tomato", "2 eggs"],
-                "recipeInstructions": ["Chop tomato", "Cook everything"],
-                "keywords": ["quick", "dinner"],
-                "url": "https://example.test/source",
+                "totalTime": "35 min",
+                "orgURL": "https://example.test/source",
+                "recipeIngredient": [{"note": "1 tomato", "originalText": "1 tomato"},
+                                     {"note": "2 eggs", "originalText": "2 eggs"}],
+                "recipeInstructions": [{"text": "Chop tomato"}, {"text": "Cook everything"}],
             },
         )
+        self.assertEqual([tag["name"] for tag in patch_request.call_args.kwargs["json"]["tags"]],
+                         ["quick", "dinner"])
+        self.assertTrue(all("/create/" not in c.args[0] for c in post.call_args_list))
         self.assertNotIn("Ingrediente a completar", json.dumps(payload))
         self.assertNotIn("Instrucciones a completar", json.dumps(payload))
 
+    @patch.object(sabor_mcp.requests, "patch")
     @patch.object(sabor_mcp.requests, "post")
-    def test_create_recipe_partial_structured_call_does_not_inject_defaults(self, post):
-        post.return_value = Mock(status_code=201, text="created")
+    def test_create_recipe_partial_structured_call_does_not_inject_defaults(self, post, patch_request):
+        post.return_value = response(201, "minimal-structured", text='"minimal-structured"')
+        patch_request.return_value = response(200, {})
 
         sabor_mcp.create_recipe("Minimal structured", description="Only this")
 
-        payload = json.loads(post.call_args.kwargs["json"]["data"])
+        payload = patch_request.call_args.kwargs["json"]
         self.assertEqual(payload["description"], "Only this")
         self.assertNotIn("recipeIngredient", payload)
         self.assertNotIn("recipeInstructions", payload)
@@ -459,9 +477,10 @@ class CatalogAndNormalizationTests(unittest.TestCase):
         self.assertEqual(result["warning"], "normalization_parser_cardinality_mismatch")
         patch_request.assert_not_called()
 
+    @patch.object(sabor_mcp.requests, "patch", return_value=Mock(status_code=200))
     @patch.object(sabor_mcp, "_normalize_imported_recipe")
     @patch.object(sabor_mcp.requests, "post")
-    def test_structured_creation_uses_response_slug_and_warns_without_failing(self, post, normalize):
+    def test_structured_creation_uses_response_slug_and_warns_without_failing(self, post, normalize, _patch):
         post.return_value = response(201, "created-slug", text='"created-slug"')
         normalize.return_value = {"ok": False, "warning": "parser_unavailable"}
         with patch.object(sabor_mcp, "SABOR_NORMALIZE_IMPORTS", True):
@@ -471,9 +490,10 @@ class CatalogAndNormalizationTests(unittest.TestCase):
         self.assertEqual(result["normalization_warning"], "parser_unavailable")
         normalize.assert_called_once_with("created-slug")
 
+    @patch.object(sabor_mcp.requests, "patch", return_value=Mock(status_code=200))
     @patch.object(sabor_mcp, "_normalize_imported_recipe")
     @patch.object(sabor_mcp.requests, "post")
-    def test_placeholder_only_recipe_is_not_normalized(self, post, normalize):
+    def test_placeholder_only_recipe_is_not_normalized(self, post, normalize, _patch):
         post.return_value = response(201, "legacy", text='"legacy"')
         result = sabor_mcp.create_recipe("Legacy")
         self.assertTrue(result["ok"])
