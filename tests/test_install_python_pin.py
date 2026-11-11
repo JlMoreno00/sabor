@@ -32,8 +32,10 @@ class InstallPythonPinTests(unittest.TestCase):
 
     def test_add_mcp_command_has_no_inner_quotes(self):
         # add-mcp splits its command on spaces and keeps quotes, so `">=3.12"` would reach uv quoted.
+        # Outer double quotes protect `>` in POSIX shells and in Windows cmd.exe alike.
         text = (ROOT / 'llms-install.md').read_text(encoding='utf-8')
-        self.assertIn("npx add-mcp 'uvx --python >=3.12 sabor-mcp' --name sabor -g", text)
+        self.assertIn('npx add-mcp "uvx --python >=3.12 sabor-mcp" --name sabor -g', text)
+        self.assertNotIn("npx add-mcp 'uvx", text)
 
     def test_cli_commands_use_the_pin(self):
         readme = (ROOT / 'README.md').read_text(encoding='utf-8')
