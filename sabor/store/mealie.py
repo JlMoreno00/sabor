@@ -91,12 +91,25 @@ class MealieRecipeStore(MealieShoppingItemsMixin, MealieShoppingListsMixin):
         self.direct_compatibility = session is requests
         self._headers = {"Authorization": f"Bearer {token}"}
 
-    # Mealie downloads a recipe image from its URL itself (POST /{slug}/image), so Sabor
-    # passes the URL instead of fetching the bytes first.
-    fetches_image_urls = True
-
     def set_recipe_image(self, slug, image):
-        self._write(self.session.post, f"/{slug}/image", {"url": image.source_url}, 60)
+        # Upload the bytes Sabor downloaded with its SSRF-safe fetch: Mealie's own download
+        # admits addresses such as 100.64.0.0/10, so it never gets a URL from a page (#135).
+        if image.data is None:
+            return
+        extension = _IMAGE_EXTENSIONS.get(image.content_type or "")
+        if extension is None:
+            raise StoreError("invalid_argument", self.id)
+        try:
+            response = self.session.put(
+                f"{self.base_url}/api/recipes/{slug}/image", headers=self._headers,
+                files={"image": (f"image.{extension}", image.data, image.content_type)},
+                data={"extension": extension}, timeout=60)
+            if not 200 <= response.status_code < 300:
+                raise StoreError(errors.from_http(response.status_code, self.id)["error"]["code"], self.id)
+        except StoreError:
+            raise
+        except Exception as exc:
+            raise StoreError(errors.from_exception(exc, self.id)["error"]["code"], self.id) from None
 
     def normalize_imported(self, slug):
         from sabor.integrations.mealie import normalize_imported_recipe
@@ -547,6 +560,9 @@ class MealieRecipeStore(MealieShoppingItemsMixin, MealieShoppingListsMixin):
             raise StoreError("invalid_argument", self.id)
         self._write(self.session.patch, f"/{slug}", changes)
         return RecipeRef(slug=slug)
+
+
+_IMAGE_EXTENSIONS = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif"}
 
 
 def _duration(value):

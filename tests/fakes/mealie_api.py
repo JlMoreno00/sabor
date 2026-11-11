@@ -1,7 +1,7 @@
 """Stateful contract-test double, not a Mealie reimplementation.
 
 Supported Mealie v3.22.0 routes: recipe create (POST /api/recipes), GET/PATCH/DELETE
-and image by URL,
+and image upload (PUT),
 recipe search/suggestions, organizers/tags GET/POST, comments and timeline events
 POST, mealplans GET/POST/DELETE, shopping lists GET/POST/DELETE, shopping items
 create-bulk/PUT/DELETE, and list recipe occurrences POST.
@@ -118,12 +118,6 @@ class MealieAPI:
                 "description": "", "recipeIngredient": [], "recipeInstructions": []}
             self.created[slug] = self.updated[slug] = self.tick()
             return Response(slug, 201)
-        if path.startswith("/api/recipes/") and path.endswith("/image"):
-            slug = path.removeprefix("/api/recipes/").removesuffix("/image")
-            if slug not in self.recipes:
-                return Response({}, 404)
-            self.recipes[slug]["image"] = payload["url"]
-            return Response({"image": "1"})
         if path == "/api/households/mealplans":
             recipe = next((r for r in self.recipes.values()
                            if r["id"] == payload.get("recipeId")), None)
@@ -178,7 +172,15 @@ class MealieAPI:
         raise AssertionError(f"Unsupported PATCH {path}")
 
     def put(self, url, **kwargs):
-        if urlsplit(url).path == "/api/households/shopping/items":
+        path = urlsplit(url).path
+        if path.startswith("/api/recipes/") and path.endswith("/image"):
+            slug = path.removeprefix("/api/recipes/").removesuffix("/image")
+            if slug not in self.recipes:
+                return Response({}, 404)
+            _name, data, _kind = kwargs["files"]["image"]
+            self.recipes[slug]["image"] = (data, kwargs["data"]["extension"])
+            return Response({"image": "1"})
+        if path == "/api/households/shopping/items":
             for patch in kwargs["json"]:
                 row = next(r for r in self.lists[patch["shoppingListId"]]["listItems"]
                            if r["id"] == patch["id"])

@@ -71,9 +71,10 @@ down at the deadline). Only JPEG, PNG, WebP or GIF up
 to 5 MB is kept, and the type comes from the file signature, not the header. If
 the download fails the recipe is imported anyway, the URL alone is kept and the
 response carries `images.<slug>.warning: image_download_failed` and an
-`image_warning`. Recipe payloads and `get_recipe` are unchanged. With Mealie, Sabor
-passes the image URL to `POST /api/recipes/{slug}/image` and Mealie downloads and
-stores the image itself (#49, #102).
+`image_warning`. Recipe payloads and `get_recipe` are unchanged. With Mealie, the same
+download runs in Sabor and the bytes are uploaded with `PUT /api/recipes/{slug}/image`;
+Mealie never fetches a URL taken from a page, because its own download admits
+addresses such as `100.64.0.0/10` (#49, #102, #135).
 
 SQLite and Postgres import normalization share the conservative Spanish parser
 (`sabor/importing/ingredients_es.py`). A line that lists several foods (commas,
