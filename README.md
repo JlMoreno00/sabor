@@ -132,7 +132,7 @@ per-call backend URL or tenant selector.
 
 For generic Postgres (including Supabase and Neon), install the optional extra
 with `pip install 'sabor-mcp[postgres]'` or run
-`uvx --from 'sabor-mcp[postgres]' sabor-mcp`. Select `SABOR_STORE=postgres` and
+`uvx --python ">=3.12" --from 'sabor-mcp[postgres]' sabor-mcp`. Select `SABOR_STORE=postgres` and
 store the secret `SABOR_DATABASE_URL` through the environment or
 `sabor-mcp setup secret database_url`. The adapter uses the private `sabor` schema,
 requires no extensions and enables RLS without public policies. SQLite and Mealie
@@ -362,24 +362,24 @@ not check MCP transport or provider credentials; complete verification with
 
 ### 2. One click (local SQLite, no questions)
 
-These links register `uvx sabor-mcp` and **work after the first PyPI release**;
+These links register `uvx --python ">=3.12" sabor-mcp` and **work after the first PyPI release**;
 until then use the `uvx --from git+https://github.com/JlMoreno00/sabor sabor-mcp`
 form from [Connect your MCP client](#connect-your-mcp-client).
 
-- [Add to Cursor](https://cursor.com/en/install-mcp?name=sabor&config=eyJjb21tYW5kIjoidXZ4IHNhYm9yLW1jcCJ9)
-- [Install in VS Code](https://insiders.vscode.dev/redirect?url=vscode%3Amcp%2Finstall%3F%257B%2522name%2522%253A%2522sabor%2522%252C%2522command%2522%253A%2522uvx%2522%252C%2522args%2522%253A%255B%2522sabor-mcp%2522%255D%257D)
-  ([Insiders](https://insiders.vscode.dev/redirect?url=vscode-insiders%3Amcp%2Finstall%3F%257B%2522name%2522%253A%2522sabor%2522%252C%2522command%2522%253A%2522uvx%2522%252C%2522args%2522%253A%255B%2522sabor-mcp%2522%255D%257D))
-- [Add to Kiro](https://kiro.dev/launch/mcp/add?name=sabor&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22sabor-mcp%22%5D%7D)
-- [Add to LM Studio](https://lmstudio.ai/install-mcp?name=sabor&config=eyJjb21tYW5kIjoidXZ4IiwiYXJncyI6WyJzYWJvci1tY3AiXX0=)
-- [Install in Goose](https://block.github.io/goose/extension?cmd=uvx&arg=sabor-mcp&id=sabor&name=Sabor&description=Recipes%2C%20meal%20plans%20and%20shopping%20lists)
+- [Add to Cursor](https://cursor.com/en/install-mcp?name=sabor&config=eyJjb21tYW5kIjoidXZ4IiwiYXJncyI6WyItLXB5dGhvbiIsIj49My4xMiIsInNhYm9yLW1jcCJdfQ==)
+- [Install in VS Code](https://insiders.vscode.dev/redirect?url=vscode%3Amcp%2Finstall%3F%257B%2522name%2522%253A%2522sabor%2522%252C%2522command%2522%253A%2522uvx%2522%252C%2522args%2522%253A%255B%2522--python%2522%252C%2522%253E%253D3.12%2522%252C%2522sabor-mcp%2522%255D%257D)
+  ([Insiders](https://insiders.vscode.dev/redirect?url=vscode-insiders%3Amcp%2Finstall%3F%257B%2522name%2522%253A%2522sabor%2522%252C%2522command%2522%253A%2522uvx%2522%252C%2522args%2522%253A%255B%2522--python%2522%252C%2522%253E%253D3.12%2522%252C%2522sabor-mcp%2522%255D%257D))
+- [Add to Kiro](https://kiro.dev/launch/mcp/add?name=sabor&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22--python%22%2C%22%3E%3D3.12%22%2C%22sabor-mcp%22%5D%7D)
+- [Add to LM Studio](https://lmstudio.ai/install-mcp?name=sabor&config=eyJjb21tYW5kIjoidXZ4IiwiYXJncyI6WyItLXB5dGhvbiIsIj49My4xMiIsInNhYm9yLW1jcCJdfQ==)
+- [Install in Goose](https://block.github.io/goose/extension?cmd=uvx&arg=--python&arg=%3E%3D3.12&arg=sabor-mcp&id=sabor&name=Sabor&description=Recipes%2C%20meal%20plans%20and%20shopping%20lists)
 
 Or from a terminal:
 
 ```bash
-claude mcp add --scope user sabor -- uvx sabor-mcp
-codex mcp add sabor -- uvx sabor-mcp
-gemini mcp add --scope user sabor uvx sabor-mcp
-code --add-mcp '{"name":"sabor","command":"uvx","args":["sabor-mcp"]}'
+claude mcp add --scope user sabor -- uvx --python ">=3.12" sabor-mcp
+codex mcp add sabor -- uvx --python ">=3.12" sabor-mcp
+gemini mcp add --scope user sabor uvx --python ">=3.12" sabor-mcp
+code --add-mcp '{"name":"sabor","command":"uvx","args":["--python",">=3.12","sabor-mcp"]}'
 ```
 
 Without a `config.toml`, Sabor starts with local SQLite in the OS data directory;
@@ -395,7 +395,7 @@ See [Quickstart: Docker — Sabor + Mealie](#quickstart-docker--sabor--mealie) a
 With Python 3.12+ and [uv](https://docs.astral.sh/uv/), the stdio install is:
 
 ```bash
-uvx sabor-mcp
+uvx --python ">=3.12" sabor-mcp
 ```
 
 **Only after the first PyPI release.** Until then, use
@@ -495,7 +495,7 @@ For stdio, let the MCP client launch uvx (after the first PyPI release):
   "mcpServers": {
     "sabor": {
       "command": "uvx",
-      "args": ["sabor-mcp", "--transport", "stdio"]
+      "args": ["--python", ">=3.12", "sabor-mcp", "--transport", "stdio"]
     }
   }
 }

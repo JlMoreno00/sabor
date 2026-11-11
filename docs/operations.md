@@ -124,7 +124,7 @@ or `defaults`.
 
 ## Transports and local data
 
-`uvx sabor-mcp` defaults to stdio for clients that launch the process.
+`uvx --python ">=3.12" sabor-mcp` defaults to stdio for clients that launch the process.
 Use `sabor-mcp --transport http` or `python sabor_mcp.py` for Streamable HTTP
 at `/mcp`; Docker retains HTTP by default. Keep stdout protocol-only in stdio.
 HTTP binds with `SABOR_HOST` / `SABOR_PORT`; expose only loopback or a trusted,
@@ -323,7 +323,7 @@ When a video has no platform subtitles, Sabor can transcribe its audio locally w
 provider is called and no audio leaves the machine. It is off unless installed:
 
 ```bash
-pip install 'sabor-mcp[transcribe]'          # or: uvx --from 'sabor-mcp[transcribe]' sabor-mcp
+pip install 'sabor-mcp[transcribe]'          # or: uvx --python ">=3.12" --from 'sabor-mcp[transcribe]' sabor-mcp
 docker build --build-arg SABOR_TRANSCRIBE=1 .  # Docker image with the transcriber
 ```
 
@@ -382,7 +382,7 @@ connection URL in chat, command-line arguments or non-secret TOML:
 ```sh
 pip install 'sabor-mcp[postgres]'
 # Or run without a permanent install:
-uvx --from 'sabor-mcp[postgres]' sabor-mcp
+uvx --python ">=3.12" --from 'sabor-mcp[postgres]' sabor-mcp
 sabor-mcp setup --non-interactive --store postgres --json
 sabor-mcp setup secret database_url
 sabor-mcp doctor --json

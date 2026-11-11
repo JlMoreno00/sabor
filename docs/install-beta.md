@@ -20,7 +20,7 @@ Spanish catalog, cookbooks and a web UI require Mealie (path B).
    uvx --from git+https://github.com/JlMoreno00/sabor sabor-mcp --help
    ```
 
-   After the first release this becomes `uvx sabor-mcp --help`.
+   After the first release this becomes `uvx --python ">=3.12" sabor-mcp --help`.
 3. Register it in your MCP client as a stdio server. Generic configuration:
 
    ```json
