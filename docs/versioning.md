@@ -138,7 +138,7 @@ publication needs the maintainer's explicit approval, in this order:
 `mcp-manifest.json` lists every environment variable. In `server.json` the OCI
 package advertises only the essential ones (language, store, config file, Mealie, Bring,
 Mercadona, Open Prices and toolsets), with the manifest's descriptions and defaults; the
-`pypi` package (`uvx sabor-mcp`, stdio) advertises none. The test fails if
+`pypi` package (`uvx --python ">=3.12" sabor-mcp`, stdio) advertises none. The test fails if
 they drift.
 
 ## Tags and Changelog

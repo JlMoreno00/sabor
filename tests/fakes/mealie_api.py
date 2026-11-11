@@ -58,7 +58,8 @@ class MealieAPI:
         page, size = params.get("page", 1), params.get("perPage", 100)
         return Response({"items": rows[(page - 1) * size:page * size],
                          "total": len(rows), "page": page, "per_page": size,
-                         "total_pages": max(1, (len(rows) + size - 1) // size)})
+                         # Mealie 3.22 reports zero pages for an empty result (checked live).
+                         "total_pages": (len(rows) + size - 1) // size})
 
     def get(self, url, **kwargs):
         path = urlsplit(url).path

@@ -40,6 +40,10 @@ class MealieShoppingListsMixin:
                 rows = _items(data)
                 total = data.get('total', len(rows))
                 pages = data.get('total_pages', 1)
+                # Mealie reports zero pages when there are no lists at all.
+                if (page == 1 and type(pages) is int and pages == 0 and type(total) is int
+                        and total == 0 and not rows and data.get('page', page) == page):
+                    return []
                 if (type(total) is not int or type(pages) is not int or pages < 1
                         or pages > 100 or data.get('page', page) != page
                         or (expected is not None and expected != (total, pages))):

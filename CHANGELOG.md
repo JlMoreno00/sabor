@@ -25,6 +25,18 @@
   adds its own tags and categories to an imported page.
 
 ### Fixed
+- **Install commands pin Python 3.12+**: `uvx sabor-mcp` and `uvx --from 'sabor-mcp[…]'`
+  failed when uv's default interpreter was older than 3.12 (a uv-managed 3.10 or the macOS
+  system 3.9): uv resolves a named tool with that interpreter and does not pick one that
+  satisfies `requires-python` (checked with uv 0.9.26 and 0.13.7). The README, the one-click
+  install links, `llms-install.md`, the docs and the MCP registry entry (`runtimeArguments`)
+  now use `uvx --python ">=3.12" sabor-mcp`.
+- With Mealie, `get_mealplan_week` on a week without entries, `get_shopping_lists` with no
+  lists and `get_or_create_shopping_list` on a new Mealie returned `invalid_response`:
+  Mealie 3.22 reports `total_pages: 0` for an empty result. That is now an empty result.
+  Found by the 0.4.0 pre-release pass against a real Mealie.
+- Recipe page times read by recipe-scrapers (whole minutes) are kept as ISO 8601
+  durations (`PT35M`), so Mealie shows `35 min` instead of a bare `35`.
 - Vertical videos (TikTok's 576x1024 or 720x1280) found no downloadable format: the
   720p limit applied to the height. It now applies to the short side, height for
   landscape and square video and width for vertical video, so a vertical video gets
