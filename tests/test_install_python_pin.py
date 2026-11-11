@@ -19,11 +19,21 @@ ARGS = ['--python', '>=3.12', 'sabor-mcp']
 
 class InstallPythonPinTests(unittest.TestCase):
     def test_every_named_uvx_command_pins_python(self):
-        # A named spec is `sabor-mcp` or `'sabor-mcp[extra]…'` right after uvx/--from.
-        named = re.compile(r"uvx (?:--from )?'?sabor-mcp")
+        # A named spec is `sabor-mcp` or `'sabor-mcp[extra]…'` right after uvx's options.
+        named = re.compile(r"uvx (?P<options>(?:--python (?:\"[^\"]*\"|\S+) )?)(?:--from )?'?sabor-mcp")
+        found = 0
         for path in DOCS:
             for number, line in enumerate(path.read_text(encoding='utf-8').splitlines(), 1):
-                self.assertNotRegex(line, named, f'{path.name}:{number}')
+                for match in named.finditer(line):
+                    found += 1
+                    # Quoted for a shell; bare inside add-mcp's single-quoted command string.
+                    self.assertIn(match['options'], (f'{PIN} ', '--python >=3.12 '), f'{path.name}:{number}')
+        self.assertGreater(found, 20)
+
+    def test_add_mcp_command_has_no_inner_quotes(self):
+        # add-mcp splits its command on spaces and keeps quotes, so `">=3.12"` would reach uv quoted.
+        text = (ROOT / 'llms-install.md').read_text(encoding='utf-8')
+        self.assertIn("npx add-mcp 'uvx --python >=3.12 sabor-mcp' --name sabor -g", text)
 
     def test_cli_commands_use_the_pin(self):
         readme = (ROOT / 'README.md').read_text(encoding='utf-8')

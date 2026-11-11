@@ -88,7 +88,7 @@ CLI form `uvx --from git+https://github.com/JlMoreno00/sabor sabor-mcp`. Otherwi
 | Cursor | merge, or the "Add to Cursor" button in the README | `~/.cursor/mcp.json`, `mcpServers` |
 | Claude Desktop (macOS) | merge | `~/Library/Application Support/Claude/claude_desktop_config.json`, `mcpServers` |
 | OpenClaw | see [examples/openclaw/README.md](examples/openclaw/README.md) | — |
-| Several at once (Node available) | `npx add-mcp 'uvx --python ">=3.12" sabor-mcp' --name sabor -g` (git form: `npx add-mcp "uvx --from git+https://github.com/JlMoreno00/sabor sabor-mcp" --name sabor -g`) | — |
+| Several at once (Node available) | `npx add-mcp 'uvx --python >=3.12 sabor-mcp' --name sabor -g` (git form: `npx add-mcp "uvx --from git+https://github.com/JlMoreno00/sabor sabor-mcp" --name sabor -g`) | — |
 
 For example, with the git form: `claude mcp add --scope user sabor -- uvx --from git+https://github.com/JlMoreno00/sabor sabor-mcp`.
 Then ask the user to reload or restart the client.
