@@ -18,8 +18,8 @@
 
 ## Before you start
 
-- Install the Postgres extra: `uvx --python ">=3.12" --from 'sabor-mcp[postgres] @ git+https://github.com/JlMoreno00/sabor' sabor-mcp --help`.
-  After 0.4.0 is on PyPI, use `uvx --python ">=3.12" --from 'sabor-mcp[postgres]' sabor-mcp --help`.
+- Install the Postgres extra persistently so the later `sabor-mcp` commands are available:
+  `uv tool install --python ">=3.12" 'sabor-mcp[postgres] @ git+https://github.com/JlMoreno00/sabor'`.
 - Tell the user about the Free plan: 500 MB database, the project **pauses after a week of
   inactivity**, and there are **no automatic backups**. `sabor-mcp doctor` repeats these warnings.
 

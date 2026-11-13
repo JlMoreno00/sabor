@@ -397,8 +397,14 @@ gemini mcp add --scope user sabor uvx --python ">=3.12" --from git+https://githu
 code --add-mcp '{"name":"sabor","command":"uvx","args":["--python",">=3.12","--from","git+https://github.com/JlMoreno00/sabor","sabor-mcp"]}'
 ```
 
-Without a `config.toml`, Sabor starts with local SQLite in the OS data directory;
-run `sabor-mcp setup` later to add Mealie, prices or Bring!.
+Without a `config.toml`, Sabor starts with local SQLite in the OS data directory.
+For the bare `sabor-mcp` commands throughout this guide, install it persistently first:
+
+```sh
+uv tool install --python ">=3.12" git+https://github.com/JlMoreno00/sabor
+```
+
+Then run `sabor-mcp setup` to add Mealie, prices or Bring!. `uvx` alone does not put it on PATH.
 
 ### 3. Docker or Mealie (advanced)
 

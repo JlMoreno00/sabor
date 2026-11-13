@@ -76,7 +76,11 @@ that exact command, ask them to run it themselves and wait until they say "done"
 ## 4. Register the server in the client (always the same, no environment variables)
 
 Entry: command `uvx`, args `["--python", ">=3.12", "--from", "git+https://github.com/JlMoreno00/sabor", "sabor-mcp"]`.
-Use the git form in every row below until 0.4.0 is published on PyPI.
+Use the git form in every row below until 0.4.0 is published on PyPI. For Postgres, replace the git URL in each client entry with `sabor-mcp[postgres] @ git+https://github.com/JlMoreno00/sabor` as one argument (shell-quoted where needed):
+
+```json
+["--python", ">=3.12", "--from", "sabor-mcp[postgres] @ git+https://github.com/JlMoreno00/sabor", "sabor-mcp"]
+```
 
 | Client | How | File / key |
 |---|---|---|
@@ -165,7 +169,7 @@ the skill tells the user about this possibility before they approve.
    se guarda en el llavero del sistema o en un `secrets.toml` 0600). Si no tienes terminal
    interactiva, dale el comando exacto y espera a que diga "hecho".
 4. **Registra el servidor** con la tabla de la sección 4, sin variables de entorno y con el mismo
-   lanzador del paso 1 (`uvx --python ">=3.12" --from git+https://github.com/JlMoreno00/sabor sabor-mcp`) y pide al usuario que recargue o reinicie el cliente.
+   lanzador del paso 1: usa `uvx --python ">=3.12" --from git+https://github.com/JlMoreno00/sabor sabor-mcp` para SQLite o Mealie; para Postgres usa `uvx --python ">=3.12" --from 'sabor-mcp[postgres] @ git+https://github.com/JlMoreno00/sabor' sabor-mcp` (el extra completo es un solo argumento). Pide al usuario que recargue o reinicie el cliente.
 5. **Verifica:** `SABOR doctor --json` con `"ok": true`; después la tool `sabor_capabilities`
    (almacén elegido en `recipe_store.adapters`, `pricing.configured` si eligió precios,
    `config_source` = `file`); y una prueba real con tools `core`: primero llama a

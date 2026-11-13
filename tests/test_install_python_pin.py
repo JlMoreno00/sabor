@@ -50,6 +50,22 @@ class InstallPythonPinTests(unittest.TestCase):
                     )
         self.assertGreater(found, 20)
 
+    def test_git_tool_installs_pin_python(self):
+        installs = re.compile(
+            r"uv tool install (?P<options>(?:--python (?:\"[^\"]*\"|\S+) )?)[^`\n]*git\+https://github\.com/JlMoreno00/sabor"
+        )
+        found = 0
+        for path in DOCS:
+            for number, line in enumerate(
+                path.read_text(encoding="utf-8").splitlines(), 1
+            ):
+                for match in installs.finditer(line):
+                    found += 1
+                    self.assertEqual(
+                        match["options"], f"{PIN} ", f"{path.name}:{number}"
+                    )
+        self.assertGreater(found, 0)
+
     def test_add_mcp_command_has_no_inner_quotes(self):
         # add-mcp splits its command on spaces and keeps quotes, so `">=3.12"` would reach uv quoted.
         # Outer double quotes protect `>` in POSIX shells and in Windows cmd.exe alike.

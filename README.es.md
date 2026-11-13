@@ -409,7 +409,13 @@ code --add-mcp '{"name":"sabor","command":"uvx","args":["--python",">=3.12","--f
 ```
 
 Sin un `config.toml`, Sabor arranca con SQLite local en el directorio de datos del sistema
-operativo; ejecuta `sabor-mcp setup` más adelante para añadir Mealie, precios o Bring!.
+operativo. Para usar los comandos `sabor-mcp` de esta guía, instálalo primero de forma persistente:
+
+```sh
+uv tool install --python ">=3.12" git+https://github.com/JlMoreno00/sabor
+```
+
+Después ejecuta `sabor-mcp setup` para añadir Mealie, precios o Bring!. `uvx` por sí solo no lo añade al PATH.
 
 ### 3. Docker o Mealie (avanzado)
 

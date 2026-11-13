@@ -233,11 +233,13 @@ success, 1 for an envelope error and 2 for usage errors. Repeated imports preser
 existing database values and do not duplicate list entries. First access may run
 schema migrations, including during preview.
 
-The cooking profile persists only when `preferences` is enabled. Run `sabor-mcp setup`
-(which writes `core,import,shopping_sync,preferences`), or add `preferences` to
-`SABOR_TOOLSETS` and restart. Direct uvx and one-click registrations start without
-it. The intended Docker `.env.example` setting is
-`SABOR_TOOLSETS=core,import,shopping_sync,preferences`. Back up
+The cooking profile persists only when `preferences` is enabled. `sabor-mcp setup`
+selects `core,import,shopping_sync,preferences` for a new configuration, but keeps
+an existing toolsets selection: add `preferences` to that selection if missing.
+Alternatively add `preferences` to `SABOR_TOOLSETS` and restart. Direct uvx and
+one-click registrations start without it. The Docker `.env.example` currently sets
+`SABOR_TOOLSETS=core,import,shopping_sync`; add `preferences` to enable the profile.
+Back up
 `<data dir>/preferences.json` and the configured `MEMORY_FILE`.
 
 ```sh
@@ -382,7 +384,7 @@ Install the optional driver extra, then configure the store without putting the
 connection URL in chat, command-line arguments or non-secret TOML:
 
 ```sh
-uvx --python ">=3.12" --from 'sabor-mcp[postgres] @ git+https://github.com/JlMoreno00/sabor' sabor-mcp
+uv tool install --python ">=3.12" 'sabor-mcp[postgres] @ git+https://github.com/JlMoreno00/sabor'
 # Or install from a checkout: pip install -e '.[postgres]'
 sabor-mcp setup --non-interactive --store postgres --json
 sabor-mcp setup secret database_url

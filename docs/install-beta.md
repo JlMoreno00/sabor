@@ -84,7 +84,7 @@ not copied between stores.
 Install the Postgres extra from Git:
 
 ```bash
-uvx --python ">=3.12" --from 'sabor-mcp[postgres] @ git+https://github.com/JlMoreno00/sabor' sabor-mcp
+uv tool install --python ">=3.12" 'sabor-mcp[postgres] @ git+https://github.com/JlMoreno00/sabor'
 ```
 
 Follow [the Supabase guide](supabase-agentes.md), including `sabor-mcp setup supabase --create-role` and `sabor-mcp doctor`, using an installation with the Postgres extra.

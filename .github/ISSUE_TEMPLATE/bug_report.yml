@@ -17,7 +17,8 @@ body:
   - type: input
     id: version
     attributes:
-      label: sabor-mcp --version
+      label: Version from sabor-mcp doctor --json
+      description: Use the version field, or sabor-mcp --version on 0.4.0+.
     validations:
       required: true
   - type: input
