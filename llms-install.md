@@ -10,7 +10,7 @@
 
 1. Ask ONE question at a time and always offer the default. Talk to the user in their language.
 2. NEVER ask for, accept or repeat passwords, tokens, API keys or connection strings in the chat.
-   If the user pastes one, do not repeat it: tell them to rotate it, then use `SABOR setup secret` (step 1).
+   If the user pastes one, do not repeat it: tell them to rotate it, then use `SABOR setup secret` (step 3).
 3. Configure Sabor ONLY with `sabor-mcp setup` in a terminal. No MCP tool changes Sabor's configuration.
 4. Do not overwrite the MCP client configuration: MERGE a `sabor` entry and keep a `.bak` copy first.
 5. Do not invent URLs, paths or flags. If something fails, run `sabor-mcp doctor --json` and show the result.
@@ -22,11 +22,11 @@
 - `uv --version`. If missing, ask permission, then install it:
   macOS/Linux `curl -LsSf https://astral.sh/uv/install.sh | sh`;
   Windows `powershell -c "irm https://astral.sh/uv/install.ps1 | iex"`.
-- Choose the launch command `SABOR`: run `uvx --python ">=3.12" sabor-mcp --help`. If uv cannot find the package
-  (Sabor is not on PyPI yet), use `uvx --from git+https://github.com/JlMoreno00/sabor sabor-mcp`
-  instead, everywhere below. If the user picks Supabase/Postgres in step 2, add the extra to
-  `SABOR` and to the client entry in step 4: `uvx --python ">=3.12" --from 'sabor-mcp[postgres]' sabor-mcp`
-  (git form: `uvx --python ">=3.12" --from 'sabor-mcp[postgres] @ git+https://github.com/JlMoreno00/sabor' sabor-mcp`).
+- Choose the launch command `SABOR`: `uvx --python ">=3.12" --from git+https://github.com/JlMoreno00/sabor sabor-mcp`.
+  Run `SABOR --help`. After 0.4.0 is published on PyPI, `uvx --python ">=3.12" sabor-mcp`
+  is an alternative. If the user picks Supabase/Postgres in step 2, use
+  `uvx --python ">=3.12" --from 'sabor-mcp[postgres] @ git+https://github.com/JlMoreno00/sabor' sabor-mcp`
+  for both `SABOR` and the client entry in step 4.
 - The MCP client you are running in (table in step 4).
 - An earlier install: `SABOR doctor --json`. If `config.found` is true, offer to reconfigure or stop.
 
@@ -75,29 +75,32 @@ that exact command, ask them to run it themselves and wait until they say "done"
 
 ## 4. Register the server in the client (always the same, no environment variables)
 
-Entry: command `uvx`, args `["--python", ">=3.12", "sabor-mcp"]`. **If step 1 chose the git form (not on PyPI yet), use it in
-every row below instead of `uvx --python ">=3.12" sabor-mcp`:** args `["--from", "git+https://github.com/JlMoreno00/sabor", "sabor-mcp"]`,
-CLI form `uvx --from git+https://github.com/JlMoreno00/sabor sabor-mcp`. Otherwise the client cannot start Sabor.
+Entry: command `uvx`, args `["--python", ">=3.12", "--from", "git+https://github.com/JlMoreno00/sabor", "sabor-mcp"]`.
+Use the git form in every row below until 0.4.0 is published on PyPI. For Postgres, replace the git URL in each client entry with `sabor-mcp[postgres] @ git+https://github.com/JlMoreno00/sabor` as one argument (shell-quoted where needed):
+
+```json
+["--python", ">=3.12", "--from", "sabor-mcp[postgres] @ git+https://github.com/JlMoreno00/sabor", "sabor-mcp"]
+```
 
 | Client | How | File / key |
 |---|---|---|
-| Claude Code | `claude mcp add --scope user sabor -- uvx --python ">=3.12" sabor-mcp` | managed by the CLI |
-| Codex CLI | `codex mcp add sabor -- uvx --python ">=3.12" sabor-mcp` | `~/.codex/config.toml`, `[mcp_servers.sabor]` |
-| Gemini CLI | `gemini mcp add --scope user sabor uvx --python ">=3.12" sabor-mcp` | `~/.gemini/settings.json`, `mcpServers` |
-| VS Code | `code --add-mcp '{"name":"sabor","command":"uvx","args":["--python",">=3.12","sabor-mcp"]}'` | `mcp.json`, key **`servers`** |
+| Claude Code | `claude mcp add --scope user sabor -- uvx --python ">=3.12" --from git+https://github.com/JlMoreno00/sabor sabor-mcp` | managed by the CLI |
+| Codex CLI | `codex mcp add sabor -- uvx --python ">=3.12" --from git+https://github.com/JlMoreno00/sabor sabor-mcp` | `~/.codex/config.toml`, `[mcp_servers.sabor]` |
+| Gemini CLI | `gemini mcp add --scope user sabor uvx --python ">=3.12" --from git+https://github.com/JlMoreno00/sabor sabor-mcp` | `~/.gemini/settings.json`, `mcpServers` |
+| VS Code | `code --add-mcp '{"name":"sabor","command":"uvx","args":["--python",">=3.12","--from","git+https://github.com/JlMoreno00/sabor","sabor-mcp"]}'` | `mcp.json`, key **`servers`** |
 | Cursor | merge, or the "Add to Cursor" button in the README | `~/.cursor/mcp.json`, `mcpServers` |
 | Claude Desktop (macOS) | merge | `~/Library/Application Support/Claude/claude_desktop_config.json`, `mcpServers` |
 | OpenClaw | see [examples/openclaw/README.md](examples/openclaw/README.md) | — |
-| Several at once (Node available) | `npx add-mcp "uvx --python >=3.12 sabor-mcp" --name sabor -g` (git form: `npx add-mcp "uvx --from git+https://github.com/JlMoreno00/sabor sabor-mcp" --name sabor -g`) | — |
+| Several at once (Node available) | `npx add-mcp "uvx --python >=3.12 --from git+https://github.com/JlMoreno00/sabor sabor-mcp" --name sabor -g` | — |
 
-For example, with the git form: `claude mcp add --scope user sabor -- uvx --from git+https://github.com/JlMoreno00/sabor sabor-mcp`.
+For example, with the git form: `claude mcp add --scope user sabor -- uvx --python ">=3.12" --from git+https://github.com/JlMoreno00/sabor sabor-mcp`.
 Then ask the user to reload or restart the client.
 
 ## 5. Verify
 
 1. `SABOR doctor --json` returns `"ok": true` (exit 0). Otherwise follow its `next_steps`.
 2. Call the `sabor_capabilities` tool and check:
-   - `data.capabilities.recipe_store.adapters` contains the chosen store (`sqlite` or `mealie`);
+   - `data.capabilities.recipe_store.adapters` contains the chosen store (`sqlite`, `mealie` or `postgres`);
    - with prices: `data.capabilities.pricing.configured` is true;
    - `data.config_source` is `file`;
    - `data.warnings` is empty or informational only.
@@ -138,7 +141,7 @@ the skill tells the user about this possibility before they approve.
 
 1. Haz UNA pregunta cada vez y propón siempre la opción por defecto. Habla en el idioma del usuario.
 2. NUNCA pidas, aceptes ni repitas en el chat contraseñas, tokens, claves de API ni cadenas de
-   conexión. Si el usuario pega uno, no lo repitas: dile que lo rote y usa `SABOR setup secret` (paso 1).
+   conexión. Si el usuario pega uno, no lo repitas: dile que lo rote y usa `SABOR setup secret` (paso 3).
 3. Configura Sabor SOLO con `sabor-mcp setup` en una terminal. Ninguna tool MCP cambia la configuración.
 4. No sobrescribas la configuración MCP del cliente: FUSIONA la entrada `sabor` y guarda antes una copia `.bak`.
 5. No inventes URLs, rutas ni flags. Si algo falla, ejecuta `sabor-mcp doctor --json` y enseña el resultado.
@@ -147,12 +150,9 @@ the skill tells the user about this possibility before they approve.
 ## Pasos
 
 1. **Detecta el entorno.** SO, `uv --version` (si falta, pide permiso e instálalo con los comandos
-   de arriba) y el cliente MCP. Comprueba `uvx --python ">=3.12" sabor-mcp --help`; si uv no encuentra el paquete
-   (todavía no está en PyPI), usa `uvx --from git+https://github.com/JlMoreno00/sabor sabor-mcp`
-   en todos los pasos y registros; llamamos `SABOR` al lanzador elegido. Si el usuario elige
+   de arriba) y el cliente MCP. Usa `uvx --python ">=3.12" --from git+https://github.com/JlMoreno00/sabor sabor-mcp` en todos los pasos y registros; llamamos `SABOR` a este lanzador. Comprueba `SABOR --help`. Si el usuario elige
    Supabase/Postgres en el paso 2, añade el extra en `SABOR` y en el registro del cliente:
-   `uvx --python ">=3.12" --from 'sabor-mcp[postgres]' sabor-mcp` (forma git:
-   `uvx --python ">=3.12" --from 'sabor-mcp[postgres] @ git+https://github.com/JlMoreno00/sabor' sabor-mcp`). Ejecuta `SABOR doctor --json`; si `config.found` es true, ofrece reconfigurar o salir.
+   `uvx --python ">=3.12" --from 'sabor-mcp[postgres] @ git+https://github.com/JlMoreno00/sabor' sabor-mcp`. Ejecuta `SABOR doctor --json`; si `config.found` es true, ofrece reconfigurar o salir.
 2. **Pregunta, de una en una:** idioma [el del usuario]; almacén [local en este equipo (SQLite)] |
    Supabase u otro Postgres (en la nube, varios dispositivos; sigue
    [docs/supabase-agentes.md](docs/supabase-agentes.md)) | Mealie (ya tiene uno: pide solo su URL base, `esquema://host[:puerto][/ruta]`; si trae `usuario:contraseña@`, `?…` o `#…`, no
@@ -169,7 +169,7 @@ the skill tells the user about this possibility before they approve.
    se guarda en el llavero del sistema o en un `secrets.toml` 0600). Si no tienes terminal
    interactiva, dale el comando exacto y espera a que diga "hecho".
 4. **Registra el servidor** con la tabla de la sección 4, sin variables de entorno y con el mismo
-   lanzador del paso 1 (`uvx --python ">=3.12" sabor-mcp`, o la forma `--from git+…` mientras no esté en PyPI) y pide al usuario que recargue o reinicie el cliente.
+   lanzador del paso 1: usa `uvx --python ">=3.12" --from git+https://github.com/JlMoreno00/sabor sabor-mcp` para SQLite o Mealie; para Postgres usa `uvx --python ">=3.12" --from 'sabor-mcp[postgres] @ git+https://github.com/JlMoreno00/sabor' sabor-mcp` (el extra completo es un solo argumento). Pide al usuario que recargue o reinicie el cliente.
 5. **Verifica:** `SABOR doctor --json` con `"ok": true`; después la tool `sabor_capabilities`
    (almacén elegido en `recipe_store.adapters`, `pricing.configured` si eligió precios,
    `config_source` = `file`); y una prueba real con tools `core`: primero llama a

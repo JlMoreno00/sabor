@@ -14,7 +14,7 @@ under the chosen version only when the release is created.
   fallback), with conservative Spanish ingredient parsing that always keeps the
   original text (#38). Since 0.4.0 Sabor has no AI import: the agent reads text,
   images and video itself and saves the recipe (#102; see the 0.4.0 CHANGELOG).
-- **One-command install**: `uvx --python ">=3.12" sabor-mcp` (stdio) or `docker run` (HTTP), with
+- **One-command install**: `uvx --python ">=3.12" --from git+https://github.com/JlMoreno00/sabor sabor-mcp` (stdio) or `docker run` (HTTP), with
   "Sabor + Mealie" still available through the Compose `mealie` profile (#33,
   #39).
 - Discovery reports Mealie-only toolsets and why they are unavailable
@@ -29,7 +29,7 @@ under the chosen version only when the release is created.
 | Mealie, but want the built-in store | `SABOR_STORE=sqlite` | SQLite is used; Mealie data is **not** copied |
 | A Mealie URL without token | Add the token, or unset the URL | With a URL, Sabor selects Mealie; without a token core stays disabled, by design, so data is never silently written elsewhere |
 
-- New variables: `SABOR_STORE` (`sqlite` or `mealie`), `SABOR_STORE_DB`
+- New variables: `SABOR_STORE` (`sqlite`, `mealie` or `postgres`), `SABOR_STORE_DB`
   (database path) and `SABOR_DATA_DIR` (data directory; `/data` in Docker).
 - `MEALIE_BASE_URL` and `MEALIE_API_TOKEN` are now optional in the manifest and
   the MCP registry metadata.

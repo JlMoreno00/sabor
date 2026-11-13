@@ -1,8 +1,10 @@
+**English** · [Español](https://github.com/JlMoreno00/sabor/blob/main/README.es.md)
+
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/marca/plantillas/banner-readme-oscuro.png">
-    <source media="(prefers-color-scheme: light)" srcset="docs/marca/plantillas/banner-readme-claro.png">
-    <img alt="Sabor · Lo que se cuece en tu casa. Pregunta qué hay de comer. Tu IA ya lo tiene pensado." src="docs/marca/plantillas/banner-readme-claro.png" width="100%">
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/JlMoreno00/sabor/main/docs/marca/plantillas/banner-readme-oscuro.png">
+    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/JlMoreno00/sabor/main/docs/marca/plantillas/banner-readme-claro.png">
+    <img alt="Sabor logo" src="https://raw.githubusercontent.com/JlMoreno00/sabor/main/docs/marca/plantillas/banner-readme-claro.png" width="100%">
   </picture>
 </p>
 
@@ -10,19 +12,34 @@
 
 <!-- mcp-name: io.github.JlMoreno00/sabor -->
 
-A kitchen-intelligence layer with built-in SQLite or optional Mealie/Postgres. Find or import recipes, plan the
-week, build a scaled shopping list, estimate its cost, then sync to Bring! with
-an explicit preview and digest-bound confirmation. The selected recipe
-store is the source of truth for cooking data; core workflows work without Mealie.
+Sabor helps home cooks use their AI agent to search or import recipes, plan the
+week, build a scaled shopping list, estimate its cost and sync it to Bring!.
+It runs independently with built-in SQLite by default; Mealie and Postgres/Supabase
+are optional. Sync uses an explicit preview and digest-bound confirmation.
 
-Brand guide: [docs/marca/](docs/marca/manual-de-marca.md).
+**Ask your agent for this week's menu and get the shopping list back.**
+
+Install from git (Python 3.12+ and uv):
+
+```sh
+uvx --python ">=3.12" --from git+https://github.com/JlMoreno00/sabor sabor-mcp
+```
+
+Use the portable [sabor-onboarding](https://github.com/JlMoreno00/sabor/blob/main/skills/sabor-onboarding/SKILL.md) and
+[sabor-import](https://github.com/JlMoreno00/sabor/blob/main/skills/sabor-import/SKILL.md) skills. Sabor exposes **24 tools by
+default, 53 with every toolset** fully configured. To persist a cooking profile,
+run `sabor-mcp setup` or include `preferences` in `SABOR_TOOLSETS`;
+direct uvx and one-click registrations do not enable it. See
+[toolset configuration](https://github.com/JlMoreno00/sabor/blob/main/docs/operations.md#toolset-and-provider-configuration-02).
+
+Brand guide: [docs/marca/](https://github.com/JlMoreno00/sabor/blob/main/docs/marca/manual-de-marca.md).
 
 Optional non-secret `config.toml` settings use environment > file > defaults.
-Set `SABOR_CONFIG` to select a file; see [configuration keys and OS paths](docs/operations.md#optional-toml-configuration).
+Set `SABOR_CONFIG` to select a file; see [configuration keys and OS paths](https://github.com/JlMoreno00/sabor/blob/main/docs/operations.md#optional-toml-configuration).
 Secrets may use environment variables or setup-managed keyring/file references;
 `sabor_capabilities` reports `data.config_source`. Run `sabor-mcp doctor --json`
 to check store health, or `sabor-mcp config show --json` for masked values and
-origins. See [terminal diagnostics](docs/operations.md#terminal-diagnostics).
+origins. See [terminal diagnostics](https://github.com/JlMoreno00/sabor/blob/main/docs/operations.md#terminal-diagnostics).
 
 ## The everyday flow
 
@@ -72,7 +89,7 @@ current instance under `data.mealie_only`, each with a `reason`
 (`requires_mealie_store` for `legacy_nutrition`, `requires_mealie` for
 `legacy_catalog`) and a short `detail`. Already running Mealie? Nothing to
 migrate: keep `MEALIE_BASE_URL` and `MEALIE_API_TOKEN` and Sabor keeps using it.
-Step-by-step clean installs for both paths: [docs/install-beta.md](docs/install-beta.md).
+Step-by-step clean installs for SQLite, Mealie and Postgres/Supabase: [docs/install-beta.md](https://github.com/JlMoreno00/sabor/blob/main/docs/install-beta.md).
 
 Bootstrap the Spanish Mealie catalog outside the agent tool list:
 
@@ -131,14 +148,14 @@ including the historical `mealie_list_id` sync argument. There is no public
 per-call backend URL or tenant selector.
 
 For generic Postgres (including Supabase and Neon), install the optional extra
-with `pip install 'sabor-mcp[postgres]'` or run
-`uvx --python ">=3.12" --from 'sabor-mcp[postgres]' sabor-mcp`. Select `SABOR_STORE=postgres` and
+with `pip install 'sabor-mcp[postgres] @ git+https://github.com/JlMoreno00/sabor'` or run
+`uvx --python ">=3.12" --from 'sabor-mcp[postgres] @ git+https://github.com/JlMoreno00/sabor' sabor-mcp`. Select `SABOR_STORE=postgres` and
 store the secret `SABOR_DATABASE_URL` through the environment or
 `sabor-mcp setup secret database_url`. The adapter uses the private `sabor` schema,
 requires no extensions and enables RLS without public policies. SQLite and Mealie
-do not require the extra. See [Postgres / Supabase operations](docs/operations.md#postgres--supabase-store)
+do not require the extra. See [Postgres / Supabase operations](https://github.com/JlMoreno00/sabor/blob/main/docs/operations.md#postgres--supabase-store)
 for role permissions, Supabase session-pooler settings and backups, and
-[docs/supabase-agentes.md](docs/supabase-agentes.md) to set up Supabase with an agent
+[docs/supabase-agentes.md](https://github.com/JlMoreno00/sabor/blob/main/docs/supabase-agentes.md) to set up Supabase with an agent
 (`sabor-mcp setup supabase --create-role`).
 
 An `AppContext` binds settings, store, registry and pricing providers to registered
@@ -289,11 +306,10 @@ is trimmed, duplicates collapse, and unknown names prevent startup.
 | `legacy_nutrition` | Opt-in; operations retain `SABOR_NUTRITION_ENABLED` and existing gates |
 | `legacy_catalog` | Opt-in + Mealie |
 
-With Mealie only, the current code registers **23 application tools plus discovery**
-(22 core tools and `import_recipe`). The earlier planned baseline of 21 plus
-discovery was superseded by added core functionality.
-There are **52 selectable application tools plus the always-on
-`sabor_capabilities`** at full configuration. Counts are not a health check.
+Default startup with SQLite registers **24 tools**: 22 core tools,
+`import_recipe`, and `sabor_capabilities`. With every toolset fully configured,
+there are **53 tools**: 52 selectable application tools plus discovery.
+Counts are not a health check.
 
 `sabor_capabilities()` reports version, requested toolsets, actual registered
 names, configured capabilities/adapters, supported kinds/operations, disabled
@@ -357,49 +373,53 @@ In Cursor, [open this prompt in the chat](https://cursor.com/link/prompt?text=In
 questions one at a time, configures Sabor with `sabor-mcp setup` in a terminal and
 verifies configuration and store health with `sabor-mcp doctor --json`. This does
 not check MCP transport or provider credentials; complete verification with
-`sabor_capabilities` and the real round trip in [llms-install.md](llms-install.md). Secrets are typed by you in a terminal
-(`sabor-mcp setup secret <name>`), never in the chat. See [llms-install.md](llms-install.md).
+`sabor_capabilities` and the real round trip in [llms-install.md](https://github.com/JlMoreno00/sabor/blob/main/llms-install.md). Secrets are typed by you in a terminal
+(`sabor-mcp setup secret <name>`), never in the chat. See [llms-install.md](https://github.com/JlMoreno00/sabor/blob/main/llms-install.md).
 
 ### 2. One click (local SQLite, no questions)
 
-These links register `uvx --python ">=3.12" sabor-mcp` and **work after the first PyPI release**;
-until then use the `uvx --from git+https://github.com/JlMoreno00/sabor sabor-mcp`
-form from [Connect your MCP client](#connect-your-mcp-client).
+These links register the Python-pinned git install. After 0.4.0 is published
+on PyPI, `uvx --python ">=3.12" sabor-mcp` is also available.
 
-- [Add to Cursor](https://cursor.com/en/install-mcp?name=sabor&config=eyJjb21tYW5kIjoidXZ4IiwiYXJncyI6WyItLXB5dGhvbiIsIj49My4xMiIsInNhYm9yLW1jcCJdfQ==)
-- [Install in VS Code](https://insiders.vscode.dev/redirect?url=vscode%3Amcp%2Finstall%3F%257B%2522name%2522%253A%2522sabor%2522%252C%2522command%2522%253A%2522uvx%2522%252C%2522args%2522%253A%255B%2522--python%2522%252C%2522%253E%253D3.12%2522%252C%2522sabor-mcp%2522%255D%257D)
-  ([Insiders](https://insiders.vscode.dev/redirect?url=vscode-insiders%3Amcp%2Finstall%3F%257B%2522name%2522%253A%2522sabor%2522%252C%2522command%2522%253A%2522uvx%2522%252C%2522args%2522%253A%255B%2522--python%2522%252C%2522%253E%253D3.12%2522%252C%2522sabor-mcp%2522%255D%257D))
-- [Add to Kiro](https://kiro.dev/launch/mcp/add?name=sabor&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22--python%22%2C%22%3E%3D3.12%22%2C%22sabor-mcp%22%5D%7D)
-- [Add to LM Studio](https://lmstudio.ai/install-mcp?name=sabor&config=eyJjb21tYW5kIjoidXZ4IiwiYXJncyI6WyItLXB5dGhvbiIsIj49My4xMiIsInNhYm9yLW1jcCJdfQ==)
-- [Install in Goose](https://block.github.io/goose/extension?cmd=uvx&arg=--python&arg=%3E%3D3.12&arg=sabor-mcp&id=sabor&name=Sabor&description=Recipes%2C%20meal%20plans%20and%20shopping%20lists)
+- [Add to Cursor](https://cursor.com/en/install-mcp?name=sabor&config=eyJjb21tYW5kIjoidXZ4IiwiYXJncyI6WyItLXB5dGhvbiIsIj49My4xMiIsIi0tZnJvbSIsImdpdCtodHRwczovL2dpdGh1Yi5jb20vSmxNb3Jlbm8wMC9zYWJvciIsInNhYm9yLW1jcCJdfQ==)
+- [Install in VS Code](https://insiders.vscode.dev/redirect?url=vscode%3Amcp%2Finstall%3F%257B%2522name%2522%253A%2522sabor%2522%252C%2522command%2522%253A%2522uvx%2522%252C%2522args%2522%253A%255B%2522--python%2522%252C%2522%253E%253D3.12%2522%252C%2522--from%2522%252C%2522git%252Bhttps%253A%252F%252Fgithub.com%252FJlMoreno00%252Fsabor%2522%252C%2522sabor-mcp%2522%255D%257D)
+  ([Insiders](https://insiders.vscode.dev/redirect?url=vscode-insiders%3Amcp%2Finstall%3F%257B%2522name%2522%253A%2522sabor%2522%252C%2522command%2522%253A%2522uvx%2522%252C%2522args%2522%253A%255B%2522--python%2522%252C%2522%253E%253D3.12%2522%252C%2522--from%2522%252C%2522git%252Bhttps%253A%252F%252Fgithub.com%252FJlMoreno00%252Fsabor%2522%252C%2522sabor-mcp%2522%255D%257D))
+- [Add to Kiro](https://kiro.dev/launch/mcp/add?name=sabor&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22--python%22%2C%22%3E%3D3.12%22%2C%22--from%22%2C%22git%2Bhttps%3A%2F%2Fgithub.com%2FJlMoreno00%2Fsabor%22%2C%22sabor-mcp%22%5D%7D)
+- [Add to LM Studio](https://lmstudio.ai/install-mcp?name=sabor&config=eyJjb21tYW5kIjoidXZ4IiwiYXJncyI6WyItLXB5dGhvbiIsIj49My4xMiIsIi0tZnJvbSIsImdpdCtodHRwczovL2dpdGh1Yi5jb20vSmxNb3Jlbm8wMC9zYWJvciIsInNhYm9yLW1jcCJdfQ==)
+- [Install in Goose](https://block.github.io/goose/extension?cmd=uvx&arg=--python&arg=%3E%3D3.12&arg=--from&arg=git%2Bhttps%3A%2F%2Fgithub.com%2FJlMoreno00%2Fsabor&arg=sabor-mcp&id=sabor&name=Sabor&description=Recipes%2C%20meal%20plans%20and%20shopping%20lists)
 
 Or from a terminal:
 
 ```bash
-claude mcp add --scope user sabor -- uvx --python ">=3.12" sabor-mcp
-codex mcp add sabor -- uvx --python ">=3.12" sabor-mcp
-gemini mcp add --scope user sabor uvx --python ">=3.12" sabor-mcp
-code --add-mcp '{"name":"sabor","command":"uvx","args":["--python",">=3.12","sabor-mcp"]}'
+claude mcp add --scope user sabor -- uvx --python ">=3.12" --from git+https://github.com/JlMoreno00/sabor sabor-mcp
+codex mcp add sabor -- uvx --python ">=3.12" --from git+https://github.com/JlMoreno00/sabor sabor-mcp
+gemini mcp add --scope user sabor uvx --python ">=3.12" --from git+https://github.com/JlMoreno00/sabor sabor-mcp
+code --add-mcp '{"name":"sabor","command":"uvx","args":["--python",">=3.12","--from","git+https://github.com/JlMoreno00/sabor","sabor-mcp"]}'
 ```
 
-Without a `config.toml`, Sabor starts with local SQLite in the OS data directory;
-run `sabor-mcp setup` later to add Mealie, prices or Bring!.
+Without a `config.toml`, Sabor starts with local SQLite in the OS data directory.
+For the bare `sabor-mcp` commands throughout this guide, install it persistently first:
+
+```sh
+uv tool install --python ">=3.12" git+https://github.com/JlMoreno00/sabor
+```
+
+Then run `sabor-mcp setup` to add Mealie, prices or Bring!. `uvx` alone does not put it on PATH.
 
 ### 3. Docker or Mealie (advanced)
 
 See [Quickstart: Docker — Sabor + Mealie](#quickstart-docker--sabor--mealie) and
-[docs/install-beta.md](docs/install-beta.md).
+[docs/install-beta.md](https://github.com/JlMoreno00/sabor/blob/main/docs/install-beta.md).
 
 ## Quickstart: Sabor solo
 
 With Python 3.12+ and [uv](https://docs.astral.sh/uv/), the stdio install is:
 
 ```bash
-uvx --python ">=3.12" sabor-mcp
+uvx --python ">=3.12" --from git+https://github.com/JlMoreno00/sabor sabor-mcp
 ```
 
-**Only after the first PyPI release.** Until then, use
-`uvx --from git+https://github.com/JlMoreno00/sabor sabor-mcp`, or build a
+After 0.4.0 is published on PyPI, use `uvx --python ">=3.12" sabor-mcp`, or build a
 local wheel with `uv build` and run
 `uvx --from dist/sabor_mcp-0.4.0-py3-none-any.whl sabor-mcp`.
 No Mealie configuration is needed. The console command defaults to stdio;
@@ -414,7 +434,9 @@ docker run -p 127.0.0.1:9170:8080 -v sabor-data:/data ghcr.io/jlmoreno00/sabor:0
 
 Until then build locally with `docker build -t sabor:local .` and use
 `sabor:local` in that command. No Mealie variables are needed.
-Connect to `http://127.0.0.1:9170/mcp`.
+Connect to `http://127.0.0.1:9170/mcp` (host port 9170 maps to container port 8080).
+The official image does not include the `[postgres]` extra; see the
+[Postgres image variant](https://github.com/JlMoreno00/sabor/blob/main/docs/install-beta.md#c-postgres--supabase) recipe.
 
 Data lives in `SABOR_DATA_DIR` when set, otherwise an existing `/data`
 directory (Docker), otherwise the OS user data directory:
@@ -467,42 +489,40 @@ An initialize response checks the server and transport, not provider credentials
 
 ### Without Docker
 
-Use Python 3.12. Local video processing also needs `ffmpeg` and `curl`. For videos
+Use Python 3.12+. Local video processing also needs `ffmpeg` (including `ffprobe`). For videos
 without subtitles, the optional `sabor-mcp[transcribe]` extra transcribes the audio
 locally on the CPU (faster-whisper; no AI provider, see `docs/operations.md`).
 
 ```bash
 python3 -m venv .venv
 . .venv/bin/activate
-# Optional, for videos without subtitles: pip install -e '.[transcribe]'
-pip install -r requirements.txt
+# Optional extras: pip install -e '.[postgres]' or pip install -e '.[transcribe]'
+pip install -e .
 export SABOR_HOST=127.0.0.1
 export SABOR_PORT=9170
 export SABOR_DATA_DIR="$PWD/.local-data"
-python3 sabor_mcp.py
+sabor-mcp --transport http # or: python -m sabor --transport http
 ```
 
 Keep `.local-data` outside version control. These environment variables set the
-same endpoint as Docker; without them the runtime binds to `0.0.0.0:8080`.
+same endpoint as Docker; without them the HTTP CLI binds to `127.0.0.1:8080`.
 Nutrition remains disabled. Do not paste real tokens into shared shell history.
 
 ## Connect your MCP client
 
-For stdio, let the MCP client launch uvx (after the first PyPI release):
+For stdio, let the MCP client launch the git install with uvx:
 
 ```json
 {
   "mcpServers": {
     "sabor": {
       "command": "uvx",
-      "args": ["--python", ">=3.12", "sabor-mcp", "--transport", "stdio"]
+      "args": ["--python", ">=3.12", "--from", "git+https://github.com/JlMoreno00/sabor", "sabor-mcp", "--transport", "stdio"]
     }
   }
 }
 ```
 
-Before that release use
-`"args": ["--from", "git+https://github.com/JlMoreno00/sabor", "sabor-mcp", "--transport", "stdio"]`.
 Keep stdout reserved for the protocol; logs go to stderr.
 
 For Docker or a running HTTP process, register a Streamable HTTP server named
@@ -677,7 +697,7 @@ without enabling this toolset; see [pantry-aware estimates](#pantry-aware-estima
 
 Deprecated in favor of `preferences`. These tools still use MEMORY.md unchanged,
 including `save_feedback`; ratings/favorites/comments are not redirected.
-See [migration instructions](docs/operations.md#structured-preferences-migration).
+See [migration instructions](https://github.com/JlMoreno00/sabor/blob/main/docs/operations.md#structured-preferences-migration).
 
 ```python
 save_feedback(recipe_name: str, rating: int | None=None, comment: str | None=None, tags: list[str] | None=None)
@@ -729,15 +749,15 @@ apply_spanish_catalog()
 - Back up before rollout; do not remove data volumes. Preview and commit can
   differ and repeated additions can duplicate items.
 
-See [operations](docs/operations.md), [architecture](docs/architecture.md),
-[backup/restore](docs/backup-restore.md), [migration changelog](CHANGELOG.md),
-[contributing](CONTRIBUTING.md) and [versioning](docs/versioning.md).
-The optional [OpenClaw example](examples/openclaw/README.md) offers a Spanish
+See [operations](https://github.com/JlMoreno00/sabor/blob/main/docs/operations.md), [architecture](https://github.com/JlMoreno00/sabor/blob/main/docs/architecture.md),
+[backup/restore](https://github.com/JlMoreno00/sabor/blob/main/docs/backup-restore.md), [migration changelog](https://github.com/JlMoreno00/sabor/blob/main/CHANGELOG.md),
+[contributing](https://github.com/JlMoreno00/sabor/blob/main/CONTRIBUTING.md) and [versioning](https://github.com/JlMoreno00/sabor/blob/main/docs/versioning.md).
+The optional [OpenClaw example](https://github.com/JlMoreno00/sabor/blob/main/examples/openclaw/README.md) offers a Spanish
 persona; tool descriptions are English, not a requirement on user conversations.
 
 ## License
 
-[GNU AGPL-3.0-only](LICENSE), copyright 2026 JL Moreno.
+[GNU AGPL-3.0-only](https://github.com/JlMoreno00/sabor/blob/main/LICENSE), copyright 2026 JL Moreno.
 
 Releases up to and including 0.2.x were published under the MIT license and
 remain available under those terms. From 0.3.0 Sabor is licensed under the
@@ -745,4 +765,4 @@ AGPL-3.0: you can self-host, modify and redistribute it freely, and if you offer
 a modified Sabor as a network service you must publish your changes.
 
 Configure locally with `sabor-mcp setup` (English/español), or use
-`sabor-mcp setup --non-interactive --json`. See [Setup](docs/operations.md#setup).
+`sabor-mcp setup --non-interactive --json`. See [Setup](https://github.com/JlMoreno00/sabor/blob/main/docs/operations.md#setup).
