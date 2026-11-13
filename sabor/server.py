@@ -149,7 +149,7 @@ def _parser() -> argparse.ArgumentParser:
     catalog_parser = commands.add_parser("catalog", help="Preview or apply the Spanish Mealie catalog")
     catalog_parser.add_argument("action", choices=("status", "apply"))
     # Listed for discoverability; `preferences` is dispatched before parsing.
-    commands.add_parser("preferences", help="Import a cooking profile: preferences import-file PATH")
+    commands.add_parser("preferences", help="Import the cooking profile: preferences {import-file,import-memory} [--apply]")
     return parser
 
 

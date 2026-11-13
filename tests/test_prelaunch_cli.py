@@ -46,7 +46,9 @@ class CliTests(unittest.TestCase):
         self.addCleanup(directory.cleanup)
         self.missing = str(Path(directory.name) / 'absent' / 'config.toml')
         env = mock.patch.dict(os.environ, {'SABOR_CONFIG': self.missing,
-                                           'SABOR_DATA_DIR': directory.name}, clear=True)
+                                           'SABOR_DATA_DIR': directory.name,
+                                           # Wide help so argparse does not wrap lines.
+                                           'COLUMNS': '200'}, clear=True)
         env.start()
         self.addCleanup(env.stop)
 
@@ -66,6 +68,9 @@ class CliTests(unittest.TestCase):
         for command in ('doctor', 'config', 'setup', 'catalog', 'preferences'):
             self.assertIn(command, out)
         self.assertIn('--version', out)
+        # The advertised form must be runnable: import-file takes no PATH.
+        self.assertIn('preferences {import-file,import-memory} [--apply]', out)
+        self.assertNotIn('PATH', out)
 
     def test_preferences_help_with_missing_explicit_config(self):
         code, out, _ = _cli(['preferences', '--help'])
@@ -100,9 +105,9 @@ class CliTests(unittest.TestCase):
             path.write_text('[general]\ntoolsets = "core"\n')
             os.environ['SABOR_CONFIG'] = str(path)
             with mock.patch('sabor.preferences_cli.main', return_value=0) as main:
-                code, _, _ = _cli(['preferences', 'import-file', 'prefs.json'])
+                code, _, _ = _cli(['preferences', 'import-file', '--apply'])
             self.assertEqual(code, 0)
-            main.assert_called_once_with(['import-file', 'prefs.json'])
+            main.assert_called_once_with(['import-file', '--apply'])
             self.assertEqual(os.environ['SABOR_TOOLSETS'], 'core')
 
 
