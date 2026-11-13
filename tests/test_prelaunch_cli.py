@@ -46,7 +46,9 @@ class CliTests(unittest.TestCase):
         self.addCleanup(directory.cleanup)
         self.missing = str(Path(directory.name) / 'absent' / 'config.toml')
         env = mock.patch.dict(os.environ, {'SABOR_CONFIG': self.missing,
-                                           'SABOR_DATA_DIR': directory.name}, clear=True)
+                                           'SABOR_DATA_DIR': directory.name,
+                                           # Wide help so argparse does not wrap lines.
+                                           'COLUMNS': '200'}, clear=True)
         env.start()
         self.addCleanup(env.stop)
 
@@ -67,7 +69,7 @@ class CliTests(unittest.TestCase):
             self.assertIn(command, out)
         self.assertIn('--version', out)
         # The advertised form must be runnable: import-file takes no PATH.
-        self.assertIn('{import-file,import-memory} [--apply]', ' '.join(out.split()))
+        self.assertIn('preferences {import-file,import-memory} [--apply]', out)
         self.assertNotIn('PATH', out)
 
     def test_preferences_help_with_missing_explicit_config(self):
