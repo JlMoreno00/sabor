@@ -15,6 +15,7 @@ from urllib.parse import parse_qs, unquote, urlsplit
 ROOT = Path(__file__).resolve().parents[1]
 DOCS = [
     ROOT / "README.md",
+    ROOT / "README.es.md",
     ROOT / "llms-install.md",
     *sorted((ROOT / "docs").glob("*.md")),
 ]

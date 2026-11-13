@@ -61,7 +61,12 @@ print(
     f"PASS: {len(seen)} tool names, toolsets and full signatures match code; discovery and inline calls checked"
 )
 
-paths = [ROOT / "README.md", ROOT / "CHANGELOG.md", ROOT / "llms-install.md"]
+paths = [
+    ROOT / "README.md",
+    ROOT / "README.es.md",
+    ROOT / "CHANGELOG.md",
+    ROOT / "llms-install.md",
+]
 paths += sorted((ROOT / "docs").rglob("*.md")) + sorted(
     (ROOT / "examples").rglob("*.md")
 )
