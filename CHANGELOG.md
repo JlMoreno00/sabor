@@ -39,7 +39,7 @@
 ### Added
 - **`sabor-mcp --version`** prints `sabor-mcp 0.4.0`.
 - **`sabor-mcp --help` lists `preferences`** next to `doctor`, `config`, `setup` and
-  `catalog`; `sabor-mcp preferences import-file` works as before.
+  `catalog`; `sabor-mcp preferences import-file [--apply]` works as before.
 
 ### Fixed
 - **Install commands pin Python 3.12+**: `uvx sabor-mcp` and `uvx --from 'sabor-mcp[…]'`
