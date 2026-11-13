@@ -1,6 +1,7 @@
 """FastMCP instance and explicit tool-group registration."""
 
 import argparse
+import warnings
 from dataclasses import replace
 from sabor.core.config_file import apply_config_file
 from importlib import import_module
@@ -22,6 +23,15 @@ _registered = WeakKeyDictionary()
 _contexts = WeakKeyDictionary()
 VERSION = "0.4.0"
 
+# mcp[cli]==1.26.0 defines a settings field whose forward reference
+# pydantic-settings cannot resolve, and every command printed the resulting
+# warning on stderr, which looks like a failed install. It is harmless.
+warnings.filterwarnings(
+    "ignore",
+    message=r"Field 'lifespan' has an incomplete definition",
+    module=r"pydantic_settings\.",
+)
+
 from mcp.server.fastmcp import FastMCP
 
 HOST = os.getenv("SABOR_HOST", "0.0.0.0")
@@ -34,6 +44,9 @@ mcp = FastMCP(
     streamable_http_path="/mcp",
     stateless_http=True,
 )
+# FastMCP has no version argument; without this, clients see the mcp library
+# version in serverInfo instead of Sabor's.
+mcp._mcp_server.version = VERSION
 
 TOOL_MODULES = (
     "sabor.integrations.mealie",
@@ -125,6 +138,21 @@ def start_runtime_services(server=None) -> None:
             start()
 
 
+def _parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog="sabor-mcp", description="Sabor MCP server")
+    parser.add_argument("--version", action="version", version=f"sabor-mcp {VERSION}")
+    parser.add_argument("--transport", choices=("stdio", "http"), default="stdio")
+    commands = parser.add_subparsers(dest="command")
+    commands.add_parser("doctor", help="Check configuration and store health (--json)")
+    commands.add_parser("config", help="Show effective configuration: config show [--json]")
+    commands.add_parser("setup", help="Configure Sabor and secret references")
+    catalog_parser = commands.add_parser("catalog", help="Preview or apply the Spanish Mealie catalog")
+    catalog_parser.add_argument("action", choices=("status", "apply"))
+    # Listed for discoverability; `preferences` is dispatched before parsing.
+    commands.add_parser("preferences", help="Import a cooking profile: preferences import-file PATH")
+    return parser
+
+
 def cli(argv=None) -> None:
     """Run the installed command (stdio by default)."""
     import sys
@@ -135,19 +163,16 @@ def cli(argv=None) -> None:
     if arguments[:1] in (['doctor'], ['config']):
         from sabor.doctor_cli import main as doctor_main
         raise SystemExit(doctor_main(arguments))
-    config_source = apply_config_file(os.environ)
+    parser = _parser()
     if arguments[:1] == ["preferences"]:
         from sabor.preferences_cli import main as preferences_main
+        # Help needs no configuration, so a not-yet-created SABOR_CONFIG must not block it.
+        if not {"-h", "--help"} & set(arguments[1:]):
+            _apply_config_or_exit(parser)
         raise SystemExit(preferences_main(arguments[1:]))
-    parser = argparse.ArgumentParser(description="Sabor MCP server")
-    parser.add_argument("--transport", choices=("stdio", "http"), default="stdio")
-    commands = parser.add_subparsers(dest="command")
-    commands.add_parser("doctor", help="Check configuration and store health (--json)")
-    commands.add_parser("config", help="Show effective configuration: config show [--json]")
-    commands.add_parser("setup", help="Configure Sabor and secret references")
-    catalog_parser = commands.add_parser("catalog", help="Preview or apply the Spanish Mealie catalog")
-    catalog_parser.add_argument("action", choices=("status", "apply"))
-    args = parser.parse_args(argv)
+    # Parse first: --help and --version must work before any config file exists.
+    args = parser.parse_args(arguments)
+    config_source = _apply_config_or_exit(parser)
     if args.command == "catalog":
         from sabor.catalog_cli import run_catalog
         raise SystemExit(run_catalog(args.action))
@@ -166,6 +191,13 @@ def cli(argv=None) -> None:
     register_tools(config_source=config_source, local_media=args.transport == "stdio")
     start_runtime_services()
     mcp.run(transport="stdio" if args.transport == "stdio" else "streamable-http")
+
+
+def _apply_config_or_exit(parser: argparse.ArgumentParser) -> str:
+    try:
+        return apply_config_file(os.environ)
+    except ConfigError as error:
+        parser.exit(2, f"sabor-mcp: error: {error}\n")
 
 
 def main() -> None:

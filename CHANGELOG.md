@@ -53,6 +53,35 @@ pages, prepares video media and stores recipes. Upgrading from 0.3:
   convenient; `sabor-mcp setup secret` no longer accepts the two AI secret names.
 
 ### Added
+- **`sabor-mcp --version`** prints `sabor-mcp 0.4.0`.
+- **`sabor-mcp --help` lists `preferences`** next to `doctor`, `config`, `setup` and
+  `catalog`; `sabor-mcp preferences import-file [--apply]` works as before.
+
+### Fixed
+- **Install commands pin Python 3.12+**: `uvx sabor-mcp` and `uvx --from 'sabor-mcp[…]'`
+  failed when uv's default interpreter was older than 3.12 (a uv-managed 3.10 or the macOS
+  system 3.9): uv resolves a named tool with that interpreter and does not pick one that
+  satisfies `requires-python` (checked with uv 0.9.26 and 0.13.7). The README, the one-click
+  install links, `llms-install.md`, the docs and the MCP registry entry (`runtimeArguments`)
+  now use `uvx --python ">=3.12" sabor-mcp`.
+- With Mealie, `get_mealplan_week` on a week without entries, `get_shopping_lists` with no
+  lists and `get_or_create_shopping_list` on a new Mealie returned `invalid_response`:
+  Mealie 3.22 reports `total_pages: 0` for an empty result. That is now an empty result.
+  Found by the 0.4.0 pre-release pass against a real Mealie.
+- Recipe page times read by recipe-scrapers (whole minutes) are kept as ISO 8601
+  durations (`PT35M`), so Mealie shows `35 min` instead of a bare `35`.
+- Vertical videos (TikTok's 576x1024 or 720x1280) found no downloadable format: the
+  720p limit applied to the height. It now applies to the short side, height for
+  landscape and square video and width for vertical video, so a vertical video gets
+  its 720-wide version. Formats without both sizes keep the height limit.
+- Documentation and the `sabor-import` skill no longer present Instagram links as a
+  working source: Sabor sends no login cookies, and Instagram without a session usually
+  gives no duration, so the import is refused. The way for Instagram is to save the
+  video and pass its absolute path (stdio).
+- A test now checks that no tool description mentions an LLM, an AI provider or AI
+  costs (0.3.0's `import_recipe` said "may ... incur LLM costs"; 0.4.0 already removed it).
+
+## [0.4.0] - 2026-11-03
 - **Docs:** install guides pin Python for git installs and cover Postgres; added `README.es.md`, `SECURITY.md`, and bug and feature issue templates.
 - Optional local transcription (#102): the `sabor-mcp[transcribe]` extra
   (`faster-whisper==1.2.1`, MIT) transcribes a video's audio on the CPU when it has
@@ -253,6 +282,16 @@ pages, prepares video media and stores recipes. Upgrading from 0.3:
   compatibility context (#4).
 
 ### Fixed
+- **The server announces Sabor's version**: `serverInfo.version` in `initialize` is now
+  `0.4.0` instead of the `mcp` library version (`1.26.0`).
+- **`sabor-mcp --help` works before `config.toml` exists**: with `SABOR_CONFIG` pointing at
+  a file that `setup` has not created yet, `--help`, `--version` and
+  `preferences --help` no longer stop with a traceback. Starting the server with that
+  missing file now exits with code 2 and a one-line `sabor-mcp: error: …` message instead
+  of a traceback (exit 1). `doctor` keeps its JSON error and exit code 2.
+- **No `IncompleteFieldDefinitionWarning` on every command**: the harmless
+  `pydantic_settings` warning about `Field 'lifespan'` from `mcp[cli]==1.26.0` is filtered,
+  so the first `--help`, `setup` or `doctor` no longer looks like a failed install.
 - **Install commands pin Python 3.12+**: `uvx sabor-mcp` and `uvx --from 'sabor-mcp[…]'`
   failed when uv's default interpreter was older than 3.12 (a uv-managed 3.10 or the macOS
   system 3.9): uv resolves a named tool with that interpreter and does not pick one that
