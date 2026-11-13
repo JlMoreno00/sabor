@@ -13,7 +13,8 @@ import jsonschema
 
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMA = ROOT / "tests" / "fixtures" / "mcp-server.schema.2025-12-11.json"
-# Fixed inside the container: the package maps 127.0.0.1:8080 to it; compose-only.
+# Fixed inside the container (8080): the package maps host 127.0.0.1:9170 to it, like
+# README and Compose; compose-only.
 NOT_FOR_PACKAGE = {"SABOR_HOST", "SABOR_PORT", "SABOR_HOST_PORT"}
 # The OCI entry advertises only what the setup questions cover (#62); the full list
 # stays in mcp-manifest.json. The pypi entry advertises none: `sabor-mcp setup` configures it.
@@ -64,9 +65,9 @@ class ServerJsonTests(unittest.TestCase):
         self.assertEqual(self.package["registryType"], "oci")
         self.assertEqual(self.package["identifier"], f"ghcr.io/jlmoreno00/sabor:{VERSION}")
         self.assertEqual(self.package["transport"], {"type": "streamable-http",
-                                                     "url": "http://localhost:8080/mcp"})
+                                                     "url": "http://127.0.0.1:9170/mcp"})
         args = {a["name"]: a["value"] for a in self.package["runtimeArguments"]}
-        self.assertEqual(args["-p"], "127.0.0.1:8080:8080")
+        self.assertEqual(args["-p"], "127.0.0.1:9170:8080")
 
     def test_oci_environment_variables_are_the_essential_manifest_entries(self):
         expected = [{k: v for k, v in item.items() if k in ("name", "description", "default")}
