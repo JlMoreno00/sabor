@@ -25,6 +25,23 @@
   adds its own tags and categories to an imported page.
 
 ### Fixed
+- **The server announces Sabor's version**: `serverInfo.version` in `initialize` is now
+  `0.4.0` instead of the `mcp` library version (`1.26.0`).
+- **`sabor-mcp --help` works before `config.toml` exists**: with `SABOR_CONFIG` pointing at
+  a file that `setup` has not created yet, `--help`, `--version` and
+  `preferences --help` no longer stop with a traceback. Starting the server with that
+  missing file now exits with code 2 and a one-line `sabor-mcp: error: …` message instead
+  of a traceback (exit 1). `doctor` keeps its JSON error and exit code 2.
+- **No `IncompleteFieldDefinitionWarning` on every command**: the harmless
+  `pydantic_settings` warning about `Field 'lifespan'` from `mcp[cli]==1.26.0` is filtered,
+  so the first `--help`, `setup` or `doctor` no longer looks like a failed install.
+
+### Added
+- **`sabor-mcp --version`** prints `sabor-mcp 0.4.0`.
+- **`sabor-mcp --help` lists `preferences`** next to `doctor`, `config`, `setup` and
+  `catalog`; `sabor-mcp preferences import-file` works as before.
+
+### Fixed
 - **Install commands pin Python 3.12+**: `uvx sabor-mcp` and `uvx --from 'sabor-mcp[…]'`
   failed when uv's default interpreter was older than 3.12 (a uv-managed 3.10 or the macOS
   system 3.9): uv resolves a named tool with that interpreter and does not pick one that
