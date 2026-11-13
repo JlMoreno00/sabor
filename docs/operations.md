@@ -23,7 +23,7 @@ reachability, not token validity or authenticated permissions.
 The stable JSON key order and nesting are:
 
 ```json
-{"ok":true,"version":"0.4.0","config_path":"/path/config.toml","config":{"found":true,"source":"file","valid":true},"store":{"backend":"sqlite","reachable":true,"schema_version":3},"toolsets":["core","import"],"capabilities_summary":{"recipe_store":["sqlite"],"pricing":[],"import":["sabor"],"shopping_sync":[]},"missing_secrets":[],"warnings":[],"next_steps":[]}
+{"ok":true,"version":"0.4.0","config_path":"/path/config.toml","config":{"found":true,"source":"file","valid":true},"store":{"backend":"sqlite","reachable":true,"schema_version":4},"toolsets":["core","import"],"capabilities_summary":{"recipe_store":["sqlite"],"pricing":[],"import":["sabor"],"shopping_sync":[]},"missing_secrets":[],"warnings":[],"next_steps":[]}
 ```
 
 `schema_version` is null for Mealie or failed probes. Invalid configuration adds
@@ -233,10 +233,12 @@ success, 1 for an envelope error and 2 for usage errors. Repeated imports preser
 existing database values and do not duplicate list entries. First access may run
 schema migrations, including during preview.
 
-Add `preferences` to `SABOR_TOOLSETS` and restart; the default toolset list is
-unchanged. Back up `<data dir>/preferences.json` and the configured `MEMORY_FILE`.
-No new environment variable is needed. `.env.example` intentionally does not
-list this new opt-in value yet.
+The cooking profile persists only when `preferences` is enabled. Run `sabor-mcp setup`
+(which writes `core,import,shopping_sync,preferences`), or add `preferences` to
+`SABOR_TOOLSETS` and restart. Direct uvx and one-click registrations start without
+it. The intended Docker `.env.example` setting is
+`SABOR_TOOLSETS=core,import,shopping_sync,preferences`. Back up
+`<data dir>/preferences.json` and the configured `MEMORY_FILE`.
 
 ```sh
 sabor-mcp preferences import-memory
@@ -245,8 +247,8 @@ sabor-mcp preferences import-memory --apply
 
 The first command prints JSON only (dry-run, no writes); inspect it before apply.
 It reads the instance MEMORY_FILE and never deletes or modifies it. Exit codes:
-0 success, 1 read/validation/write error, 2 usage error. This command is currently
-available through the installed `sabor-mcp` entrypoint, not `python -m sabor`.
+0 success, 1 read/validation/write error, 2 usage error. The command is available
+through both `sabor-mcp` and `python -m sabor`.
 
 | MEMORY.md bullets | Destination |
 |---|---|
@@ -323,7 +325,7 @@ When a video has no platform subtitles, Sabor can transcribe its audio locally w
 provider is called and no audio leaves the machine. It is off unless installed:
 
 ```bash
-pip install 'sabor-mcp[transcribe]'          # or: uvx --python ">=3.12" --from 'sabor-mcp[transcribe]' sabor-mcp
+uvx --python ">=3.12" --from 'sabor-mcp[transcribe] @ git+https://github.com/JlMoreno00/sabor' sabor-mcp
 docker build --build-arg SABOR_TRANSCRIBE=1 .  # Docker image with the transcriber
 ```
 
@@ -380,9 +382,8 @@ Install the optional driver extra, then configure the store without putting the
 connection URL in chat, command-line arguments or non-secret TOML:
 
 ```sh
-pip install 'sabor-mcp[postgres]'
-# Or run without a permanent install:
-uvx --python ">=3.12" --from 'sabor-mcp[postgres]' sabor-mcp
+uvx --python ">=3.12" --from 'sabor-mcp[postgres] @ git+https://github.com/JlMoreno00/sabor' sabor-mcp
+# Or install from a checkout: pip install -e '.[postgres]'
 sabor-mcp setup --non-interactive --store postgres --json
 sabor-mcp setup secret database_url
 sabor-mcp doctor --json
@@ -523,7 +524,7 @@ authorization token. Todoist remains planned for 0.3.1.
 | Variable | Default | Effect |
 |---|---|---|
 | `SABOR_NUTRITION_ENABLED` | `false` | Master feature gate and lazy sidecar initialization |
-| `SABOR_NUTRITION_DB` | `/data/nutrition.db` | SQLite sidecar path |
+| `SABOR_NUTRITION_DB` | `<data dir>/nutrition.db` | SQLite sidecar path; `/data/nutrition.db` in Docker when `/data` exists |
 | `SABOR_NUTRITION_PROVIDER` | `spoonacular` | Reported provider selector; current composition constructs Spoonacular |
 | `SABOR_NUTRITION_MIN_PROFILE_CONFIDENCE` | `0.80` | Minimum profile confidence used in calculation |
 | `SABOR_NUTRITION_MIN_PUBLISH_COVERAGE` | `0.90` | Complete-result coverage threshold |

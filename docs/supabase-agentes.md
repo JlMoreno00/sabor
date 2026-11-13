@@ -1,8 +1,10 @@
 # Supabase from scratch — guide for AI agents
 
 > For an AI agent helping a user store Sabor's recipes in Supabase (or any Postgres).
-> Spanish summary at the end. Steps marked ⚠️ have not been checked against a real
-> Supabase project yet.
+> Spanish summary at the end. Verified on 13 November 2026 against a Supabase Free
+> project in Frankfurt using the Session pooler and `--create-role`: 10/10 checks
+> passed, including the least-privilege role, RLS migrations, doctor, recipes,
+> preferences and password change. Only items marked ⚠️ remain unverified.
 
 ## Rules
 
@@ -16,8 +18,8 @@
 
 ## Before you start
 
-- Install the Postgres extra: `uvx --python ">=3.12" --from 'sabor-mcp[postgres]' sabor-mcp --help`
-  (before the PyPI release: `uvx --python ">=3.12" --from 'sabor-mcp[postgres] @ git+https://github.com/JlMoreno00/sabor' sabor-mcp --help`).
+- Install the Postgres extra: `uvx --python ">=3.12" --from 'sabor-mcp[postgres] @ git+https://github.com/JlMoreno00/sabor' sabor-mcp --help`.
+  After 0.4.0 is on PyPI, use `uvx --python ">=3.12" --from 'sabor-mcp[postgres]' sabor-mcp --help`.
 - Tell the user about the Free plan: 500 MB database, the project **pauses after a week of
   inactivity**, and there are **no automatic backups**. `sabor-mcp doctor` repeats these warnings.
 
@@ -63,8 +65,7 @@ Without `--create-role` the pasted string is stored as is: use that only for a r
 created with limited privileges. Exit codes: 0 ok, 2 invalid string or no terminal, 3 unreachable.
 If a rerun fails after rotating the password, the stored string no longer works and `next_steps`
 says so: fix the cause and run `sabor-mcp setup supabase --create-role` again.
-⚠️ The pooler user format `sabor_app.<ref>` for custom roles is documented by Supabase but has not
-been tried on a real project here.
+The pooler user format `sabor_app.<ref>` for custom roles was used successfully in the real-project verification.
 
 ## 4. Verify
 

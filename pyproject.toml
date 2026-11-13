@@ -5,7 +5,18 @@ build-backend = "hatchling.build"
 [project]
 name = "sabor-mcp"
 dynamic = ["version"]
-description = "Portable cooking MCP server"
+description = "Recipes, meal plans and shopping lists with SQLite by default; Mealie and Postgres optional."
+authors = [{ name = "JlMoreno00" }]
+keywords = ["mcp", "recipes", "meal-planning", "shopping-list", "sqlite", "model-context-protocol", "mealie", "postgres", "meal-plan", "cooking"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Operating System :: OS Independent",
+    "Environment :: Console",
+    "Intended Audience :: End Users/Desktop",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Home Automation",
+]
 readme = "README.md"
 requires-python = ">=3.12"
 license = "AGPL-3.0-only"
@@ -19,6 +30,12 @@ dependencies = [
     "python-bring-api>=3.0.0",
     "keyring>=25",
 ]
+
+[project.urls]
+Homepage = "https://github.com/JlMoreno00/sabor"
+Repository = "https://github.com/JlMoreno00/sabor"
+Issues = "https://github.com/JlMoreno00/sabor/issues"
+Author = "https://github.com/JlMoreno00"
 
 [project.optional-dependencies]
 postgres = ["psycopg[binary]>=3.2"]

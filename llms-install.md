@@ -97,7 +97,7 @@ Then ask the user to reload or restart the client.
 
 1. `SABOR doctor --json` returns `"ok": true` (exit 0). Otherwise follow its `next_steps`.
 2. Call the `sabor_capabilities` tool and check:
-   - `data.capabilities.recipe_store.adapters` contains the chosen store (`sqlite` or `mealie`);
+   - `data.capabilities.recipe_store.adapters` contains the chosen store (`sqlite`, `mealie` or `postgres`);
    - with prices: `data.capabilities.pricing.configured` is true;
    - `data.config_source` is `file`;
    - `data.warnings` is empty or informational only.
@@ -138,7 +138,7 @@ the skill tells the user about this possibility before they approve.
 
 1. Haz UNA pregunta cada vez y propón siempre la opción por defecto. Habla en el idioma del usuario.
 2. NUNCA pidas, aceptes ni repitas en el chat contraseñas, tokens, claves de API ni cadenas de
-   conexión. Si el usuario pega uno, no lo repitas: dile que lo rote y usa `SABOR setup secret` (paso 1).
+   conexión. Si el usuario pega uno, no lo repitas: dile que lo rote y usa `SABOR setup secret` (paso 3).
 3. Configura Sabor SOLO con `sabor-mcp setup` en una terminal. Ninguna tool MCP cambia la configuración.
 4. No sobrescribas la configuración MCP del cliente: FUSIONA la entrada `sabor` y guarda antes una copia `.bak`.
 5. No inventes URLs, rutas ni flags. Si algo falla, ejecuta `sabor-mcp doctor --json` y enseña el resultado.

@@ -36,8 +36,9 @@ quiet hours. No heartbeat jobs or unsolicited schedules are included.
 
 ## Boundaries
 
-Mealie owns recipes and calendar data; Sabor owns its preference memory and
-optional nutrition evidence. The agent's private profile is not automatically
+This example assumes Sabor with Mealie: Mealie owns recipes and calendar data,
+while Sabor owns its preference memory and optional nutrition evidence. Other
+Sabor deployments can use SQLite or Postgres instead. The agent's private profile is not automatically
 synchronized with Sabor memory. Confirm writes and explain partial failures;
 never claim a calendar/list update succeeded without checking its response.
 Do not import old seed, cleanup, server-launch or bot-install scripts.

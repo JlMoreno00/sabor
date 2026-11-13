@@ -1,14 +1,15 @@
 # Beta installation guide
 
-Two supported paths. Follow only this page and the README; if a step fails,
+Three supported paths. Follow only this page and the README; if a step fails,
 note the step number, your OS and the exact output, and open an issue.
 
 | Path | For | Transport | Needs |
 |---|---|---|---|
 | A. Sabor solo | Most people: one command, no other service | stdio (uvx) or HTTP (Docker) | Python 3.12+ and uv, or Docker |
 | B. Sabor + Mealie | People who already use or want Mealie's web UI | HTTP | Docker with Compose v2 |
+| C. Postgres / Supabase | People who want a Postgres store | stdio | Python 3.12+, uv and Postgres |
 
-Recipes, meal plans and shopping lists work on both paths. Nutrition, the
+Recipes, meal plans and shopping lists work on all three paths. Nutrition, the
 Spanish catalog, cookbooks and a web UI require Mealie (path B).
 
 ## A1. Sabor solo with uvx (stdio)
@@ -17,7 +18,7 @@ Spanish catalog, cookbooks and a web UI require Mealie (path B).
 2. Run Sabor. Until the first PyPI release use the repository:
 
    ```bash
-   uvx --from git+https://github.com/JlMoreno00/sabor sabor-mcp --help
+   uvx --python ">=3.12" --from git+https://github.com/JlMoreno00/sabor sabor-mcp --help
    ```
 
    After the first release this becomes `uvx --python ">=3.12" sabor-mcp --help`.
@@ -28,7 +29,7 @@ Spanish catalog, cookbooks and a web UI require Mealie (path B).
      "mcpServers": {
        "sabor": {
          "command": "uvx",
-         "args": ["--from", "git+https://github.com/JlMoreno00/sabor", "sabor-mcp"]
+         "args": ["--python", ">=3.12", "--from", "git+https://github.com/JlMoreno00/sabor", "sabor-mcp"]
        }
      }
    }
@@ -77,6 +78,23 @@ Existing Mealie users have nothing to migrate: with `MEALIE_BASE_URL` set,
 Sabor keeps using Mealie (`SABOR_STORE` defaults to `mealie`). Set
 `SABOR_STORE=sqlite` only if you deliberately want the built-in store; data is
 not copied between stores.
+
+## C. Postgres / Supabase
+
+Install the Postgres extra from Git:
+
+```bash
+uvx --python ">=3.12" --from 'sabor-mcp[postgres] @ git+https://github.com/JlMoreno00/sabor' sabor-mcp
+```
+
+Follow [the Supabase guide](supabase-agentes.md), including `sabor-mcp setup supabase --create-role` and `sabor-mcp doctor`, using an installation with the Postgres extra.
+
+The official Docker image supports SQLite and Mealie, but does not include psycopg or the `[postgres]` extra. To build a Postgres variant from your built image:
+
+```dockerfile
+FROM sabor:local
+RUN pip install "psycopg[binary]>=3.2"
+```
 
 ## Verification checklist (beta sign-off)
 
