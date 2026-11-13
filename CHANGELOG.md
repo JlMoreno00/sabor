@@ -2,70 +2,7 @@
 
 ## [Unreleased]
 
-### Changed
-- **Mealie's ingredient parser defaults to `nlp`** (José's decision): when neither
-  `SABOR_INGREDIENT_PARSER` nor `[import] ingredient_parser` in `config.toml` chooses a
-  parser, Sabor now asks Mealie for its local `nlp` parser instead of `openai`, so
-  normalizing a saved recipe sends no ingredient text to an AI provider.
-  **Migration:** with the Mealie store, set `SABOR_INGREDIENT_PARSER=openai` (or
-  `[import] ingredient_parser`) to keep the previous behaviour; `brute` is also available.
-  The manifest, `.env.example`, the docs and the `sabor-import` skill follow.
-- **With Mealie, Sabor no longer uses Mealie's scrapers** (José's decision): Mealie's URL
-  and HTML/JSON imports fall back to the AI provider configured in Mealie when their
-  scraper fails. `import_recipe` with a recipe page now uses Sabor's own extractor for every
-  store, and Mealie recipes, from `import_recipe` or `create_recipe`, are created through
-  Mealie's CRUD API (`POST /api/recipes`, then `PATCH`). The page's image is downloaded by
-  Sabor's SSRF-safe fetch (public addresses only, redirects included) and uploaded with
-  `PUT /api/recipes/{slug}/image`: Mealie never fetches a URL from the page, since its own
-  download admits addresses such as `100.64.0.0/10`. If a step after the creation fails,
-  the half-created recipe is deleted. With Mealie, `sabor_capabilities`
-  now lists the `sabor` URL importer instead of `mealie`, ISO durations such as `PT1H30M`
-  are saved as `1 h 30 min`, and a recipe page whose name already exists is reported in
-  `skips` (as with the other stores) instead of failing with `conflict`. Mealie no longer
-  adds its own tags and categories to an imported page.
-
-### Fixed
-- **The server announces Sabor's version**: `serverInfo.version` in `initialize` is now
-  `0.4.0` instead of the `mcp` library version (`1.26.0`).
-- **`sabor-mcp --help` works before `config.toml` exists**: with `SABOR_CONFIG` pointing at
-  a file that `setup` has not created yet, `--help`, `--version` and
-  `preferences --help` no longer stop with a traceback. Starting the server with that
-  missing file now exits with code 2 and a one-line `sabor-mcp: error: …` message instead
-  of a traceback (exit 1). `doctor` keeps its JSON error and exit code 2.
-- **No `IncompleteFieldDefinitionWarning` on every command**: the harmless
-  `pydantic_settings` warning about `Field 'lifespan'` from `mcp[cli]==1.26.0` is filtered,
-  so the first `--help`, `setup` or `doctor` no longer looks like a failed install.
-
-### Added
-- **`sabor-mcp --version`** prints `sabor-mcp 0.4.0`.
-- **`sabor-mcp --help` lists `preferences`** next to `doctor`, `config`, `setup` and
-  `catalog`; `sabor-mcp preferences import-file [--apply]` works as before.
-
-### Fixed
-- **Install commands pin Python 3.12+**: `uvx sabor-mcp` and `uvx --from 'sabor-mcp[…]'`
-  failed when uv's default interpreter was older than 3.12 (a uv-managed 3.10 or the macOS
-  system 3.9): uv resolves a named tool with that interpreter and does not pick one that
-  satisfies `requires-python` (checked with uv 0.9.26 and 0.13.7). The README, the one-click
-  install links, `llms-install.md`, the docs and the MCP registry entry (`runtimeArguments`)
-  now use `uvx --python ">=3.12" sabor-mcp`.
-- With Mealie, `get_mealplan_week` on a week without entries, `get_shopping_lists` with no
-  lists and `get_or_create_shopping_list` on a new Mealie returned `invalid_response`:
-  Mealie 3.22 reports `total_pages: 0` for an empty result. That is now an empty result.
-  Found by the 0.4.0 pre-release pass against a real Mealie.
-- Recipe page times read by recipe-scrapers (whole minutes) are kept as ISO 8601
-  durations (`PT35M`), so Mealie shows `35 min` instead of a bare `35`.
-- Vertical videos (TikTok's 576x1024 or 720x1280) found no downloadable format: the
-  720p limit applied to the height. It now applies to the short side, height for
-  landscape and square video and width for vertical video, so a vertical video gets
-  its 720-wide version. Formats without both sizes keep the height limit.
-- Documentation and the `sabor-import` skill no longer present Instagram links as a
-  working source: Sabor sends no login cookies, and Instagram without a session usually
-  gives no duration, so the import is refused. The way for Instagram is to save the
-  video and pass its absolute path (stdio).
-- A test now checks that no tool description mentions an LLM, an AI provider or AI
-  costs (0.3.0's `import_recipe` said "may ... incur LLM costs"; 0.4.0 already removed it).
-
-## [0.4.0] - 2026-11-03
+## [0.4.0] - Unreleased
 
 **Breaking release: Sabor no longer contains any AI provider** (#102). The client
 agent reads text, images and video and writes the recipe itself; Sabor fetches recipe
@@ -80,8 +17,8 @@ pages, prepares video media and stores recipes. Upgrading from 0.3:
   `SABOR_VIDEO_PROVIDER`, the `[llm]` section and the AI secrets) are ignored. An old
   configuration keeps starting; `sabor-mcp doctor` names them so they can be removed.
 - Mealie's image import is gone. With the Mealie store, a saved recipe still runs
-  Mealie's own ingredient parser (`SABOR_INGREDIENT_PARSER`, default unchanged), which
-  may use the AI provider configured in Mealie.
+  Mealie's own ingredient parser (`SABOR_INGREDIENT_PARSER`, default `nlp`); only
+  `openai` uses the AI provider configured in Mealie.
 - New optional pieces: local video files on stdio (`SABOR_MEDIA_ROOTS`), on-device
   transcription (`sabor-mcp[transcribe]`) and the `sabor-import` Agent Skill.
 
@@ -116,6 +53,36 @@ pages, prepares video media and stores recipes. Upgrading from 0.3:
   convenient; `sabor-mcp setup secret` no longer accepts the two AI secret names.
 
 ### Added
+- **`sabor-mcp --version`** prints `sabor-mcp 0.4.0`.
+- **`sabor-mcp --help` lists `preferences`** next to `doctor`, `config`, `setup` and
+  `catalog`; `sabor-mcp preferences import-file [--apply]` works as before.
+
+### Fixed
+- **Install commands pin Python 3.12+**: `uvx sabor-mcp` and `uvx --from 'sabor-mcp[…]'`
+  failed when uv's default interpreter was older than 3.12 (a uv-managed 3.10 or the macOS
+  system 3.9): uv resolves a named tool with that interpreter and does not pick one that
+  satisfies `requires-python` (checked with uv 0.9.26 and 0.13.7). The README, the one-click
+  install links, `llms-install.md`, the docs and the MCP registry entry (`runtimeArguments`)
+  now use `uvx --python ">=3.12" sabor-mcp`.
+- With Mealie, `get_mealplan_week` on a week without entries, `get_shopping_lists` with no
+  lists and `get_or_create_shopping_list` on a new Mealie returned `invalid_response`:
+  Mealie 3.22 reports `total_pages: 0` for an empty result. That is now an empty result.
+  Found by the 0.4.0 pre-release pass against a real Mealie.
+- Recipe page times read by recipe-scrapers (whole minutes) are kept as ISO 8601
+  durations (`PT35M`), so Mealie shows `35 min` instead of a bare `35`.
+- Vertical videos (TikTok's 576x1024 or 720x1280) found no downloadable format: the
+  720p limit applied to the height. It now applies to the short side, height for
+  landscape and square video and width for vertical video, so a vertical video gets
+  its 720-wide version. Formats without both sizes keep the height limit.
+- Documentation and the `sabor-import` skill no longer present Instagram links as a
+  working source: Sabor sends no login cookies, and Instagram without a session usually
+  gives no duration, so the import is refused. The way for Instagram is to save the
+  video and pass its absolute path (stdio).
+- A test now checks that no tool description mentions an LLM, an AI provider or AI
+  costs (0.3.0's `import_recipe` said "may ... incur LLM costs"; 0.4.0 already removed it).
+
+## [0.4.0] - 2026-11-03
+- **Docs:** install guides pin Python for git installs and cover Postgres; added `README.es.md`, `SECURITY.md`, and bug and feature issue templates.
 - Optional local transcription (#102): the `sabor-mcp[transcribe]` extra
   (`faster-whisper==1.2.1`, MIT) transcribes a video's audio on the CPU when it has
   no platform subtitles (`transcript.source: 'local_asr'`). No AI provider is called;
@@ -152,8 +119,8 @@ pages, prepares video media and stores recipes. Upgrading from 0.3:
   migration 3). Public addresses only at every redirect, 5 MB, real JPEG/PNG/WebP/GIF
   by file signature, 30 s total deadline (DNS lookups and trickled response headers
   included). A failed download still imports the recipe,
-  keeps the URL and adds an `image_warning`; `import_recipe` reports `images`. Mealie
-  keeps using its native image import (#49).
+  keeps the URL and adds an `image_warning`; `import_recipe` reports `images`. Mealie recipes are created through its CRUD API, with images uploaded via
+  `PUT /api/recipes/{slug}/image`; Sabor uses neither Mealie's scrapers nor its image import (#49).
 - Setup CLI: terminal onboarding, JSON automation, language configuration and secret
   references; system keyring preferred with an owner-only local fallback; no MCP
   configuration tools (#64).
@@ -241,6 +208,28 @@ pages, prepares video media and stores recipes. Upgrading from 0.3:
   the registry ownership label. Not submitted to the registry yet (#35).
 
 ### Changed
+- **Mealie's ingredient parser defaults to `nlp`** (José's decision): when neither
+  `SABOR_INGREDIENT_PARSER` nor `[import] ingredient_parser` in `config.toml` chooses a
+  parser, Sabor now asks Mealie for its local `nlp` parser instead of `openai`, so
+  normalizing a saved recipe sends no ingredient text to an AI provider.
+  **Migration:** with the Mealie store, set `SABOR_INGREDIENT_PARSER=openai` (or
+  `[import] ingredient_parser`) to keep the previous behaviour; `brute` is also available.
+  The manifest, `.env.example`, the docs and the `sabor-import` skill follow.
+- **With Mealie, Sabor no longer uses Mealie's scrapers** (José's decision): Mealie's URL
+  and HTML/JSON imports fall back to the AI provider configured in Mealie when their
+  scraper fails. `import_recipe` with a recipe page now uses Sabor's own extractor for every
+  store, and Mealie recipes, from `import_recipe` or `create_recipe`, are created through
+  Mealie's CRUD API (`POST /api/recipes`, then `PATCH`). The page's image is downloaded by
+  Sabor's SSRF-safe fetch (public addresses only, redirects included) and uploaded with
+  `PUT /api/recipes/{slug}/image`: Mealie never fetches a URL from the page, since its own
+  download admits addresses such as `100.64.0.0/10`. If a step after the creation fails,
+  the half-created recipe is deleted. With Mealie, `sabor_capabilities`
+  now lists the `sabor` URL importer instead of `mealie`, ISO durations such as `PT1H30M`
+  are saved as `1 h 30 min`, and a recipe page whose name already exists is reported in
+  `skips` (as with the other stores) instead of failing with `conflict`. Mealie no longer
+  adds its own tags and categories to an imported page.
+
+
 - Dependencies: `urllib3>=2.2` is now declared directly. Recipe image downloads read
   one socket read at a time (`HTTPResponse.read1`, added in urllib3 2.2.0) to keep their
   30 s limit, and `requests` alone still allowed urllib3 1.26, where every image
@@ -293,6 +282,39 @@ pages, prepares video media and stores recipes. Upgrading from 0.3:
   compatibility context (#4).
 
 ### Fixed
+- **The server announces Sabor's version**: `serverInfo.version` in `initialize` is now
+  `0.4.0` instead of the `mcp` library version (`1.26.0`).
+- **`sabor-mcp --help` works before `config.toml` exists**: with `SABOR_CONFIG` pointing at
+  a file that `setup` has not created yet, `--help`, `--version` and
+  `preferences --help` no longer stop with a traceback. Starting the server with that
+  missing file now exits with code 2 and a one-line `sabor-mcp: error: …` message instead
+  of a traceback (exit 1). `doctor` keeps its JSON error and exit code 2.
+- **No `IncompleteFieldDefinitionWarning` on every command**: the harmless
+  `pydantic_settings` warning about `Field 'lifespan'` from `mcp[cli]==1.26.0` is filtered,
+  so the first `--help`, `setup` or `doctor` no longer looks like a failed install.
+- **Install commands pin Python 3.12+**: `uvx sabor-mcp` and `uvx --from 'sabor-mcp[…]'`
+  failed when uv's default interpreter was older than 3.12 (a uv-managed 3.10 or the macOS
+  system 3.9): uv resolves a named tool with that interpreter and does not pick one that
+  satisfies `requires-python` (checked with uv 0.9.26 and 0.13.7). The README, the one-click
+  install links, `llms-install.md`, the docs and the MCP registry entry (`runtimeArguments`)
+  now use `uvx --python ">=3.12" sabor-mcp`.
+- With Mealie, `get_mealplan_week` on a week without entries, `get_shopping_lists` with no
+  lists and `get_or_create_shopping_list` on a new Mealie returned `invalid_response`:
+  Mealie 3.22 reports `total_pages: 0` for an empty result. That is now an empty result.
+  Found by the 0.4.0 pre-release pass against a real Mealie.
+- Recipe page times read by recipe-scrapers (whole minutes) are kept as ISO 8601
+  durations (`PT35M`), so Mealie shows `35 min` instead of a bare `35`.
+- Vertical videos (TikTok's 576x1024 or 720x1280) found no downloadable format: the
+  720p limit applied to the height. It now applies to the short side, height for
+  landscape and square video and width for vertical video, so a vertical video gets
+  its 720-wide version. Formats without both sizes keep the height limit.
+- Documentation and the `sabor-import` skill no longer present Instagram links as a
+  working source: Sabor sends no login cookies, and Instagram without a session usually
+  gives no duration, so the import is refused. The way for Instagram is to save the
+  video and pass its absolute path (stdio).
+- A test now checks that no tool description mentions an LLM, an AI provider or AI
+  costs (0.3.0's `import_recipe` said "may ... incur LLM costs"; 0.4.0 already removed it).
+
 - Video import from YouTube: videos served only as separate DASH video and audio
   streams failed with `Requested format is not available`, because Sabor asked yt-dlp
   for a single muxed mp4. It now downloads the best video and audio streams up to

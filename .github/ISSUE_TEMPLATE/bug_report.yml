@@ -1,0 +1,43 @@
+name: Bug report
+description: Report a reproducible problem
+title: "[Bug]: "
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version from sabor-mcp doctor --json
+      description: Use the version field, or sabor-mcp --version on 0.4.0+.
+    validations:
+      required: true
+  - type: input
+    id: client
+    attributes:
+      label: MCP client and version
+    validations:
+      required: true
+  - type: input
+    id: store
+    attributes:
+      label: Store (SQLite, Mealie or Postgres)
+    validations:
+      required: true
+  - type: textarea
+    id: doctor
+    attributes:
+      label: sabor-mcp doctor --json output
+      description: Redact secrets and private information before sharing.
+      render: json
+    validations:
+      required: true
