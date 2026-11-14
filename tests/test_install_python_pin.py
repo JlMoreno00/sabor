@@ -71,7 +71,7 @@ class InstallPythonPinTests(unittest.TestCase):
         # Outer double quotes protect `>` in POSIX shells and in Windows cmd.exe alike.
         text = (ROOT / "llms-install.md").read_text(encoding="utf-8")
         self.assertIn(
-            'npx add-mcp "uvx --python >=3.12 --from git+https://github.com/JlMoreno00/sabor sabor-mcp" --name sabor -g',
+            'npx add-mcp "uvx --python >=3.12 sabor-mcp" --name sabor -g',
             text,
         )
         self.assertNotIn("npx add-mcp 'uvx", text)
