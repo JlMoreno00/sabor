@@ -2,7 +2,7 @@
 
 ## [Unreleased]
 
-## [0.4.0] - Unreleased
+## [0.4.0] - 2026-11-14
 
 **Breaking release: Sabor no longer contains any AI provider** (#102). The client
 agent reads text, images and video and writes the recipe itself; Sabor fetches recipe
