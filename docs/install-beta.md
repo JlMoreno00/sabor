@@ -15,13 +15,12 @@ Spanish catalog, cookbooks and a web UI require Mealie (path B).
 ## A1. Sabor solo with uvx (stdio)
 
 1. Install [uv](https://docs.astral.sh/uv/) and check `uv --version`.
-2. Run Sabor. Until the first PyPI release use the repository:
+2. Run Sabor. From PyPI:
 
    ```bash
-   uvx --python ">=3.12" --from git+https://github.com/JlMoreno00/sabor sabor-mcp --help
+   uvx --python ">=3.12" sabor-mcp --help
    ```
 
-   After the first release this becomes `uvx --python ">=3.12" sabor-mcp --help`.
 3. Register it in your MCP client as a stdio server. Generic configuration:
 
    ```json
@@ -29,7 +28,7 @@ Spanish catalog, cookbooks and a web UI require Mealie (path B).
      "mcpServers": {
        "sabor": {
          "command": "uvx",
-         "args": ["--python", ">=3.12", "--from", "git+https://github.com/JlMoreno00/sabor", "sabor-mcp"]
+         "args": ["--python", ">=3.12", "sabor-mcp"]
        }
      }
    }
@@ -84,7 +83,7 @@ not copied between stores.
 Install the Postgres extra from Git:
 
 ```bash
-uv tool install --python ">=3.12" 'sabor-mcp[postgres] @ git+https://github.com/JlMoreno00/sabor'
+uv tool install --python ">=3.12" 'sabor-mcp[postgres]'
 ```
 
 Follow [the Supabase guide](supabase-agentes.md), including `sabor-mcp setup supabase --create-role` and `sabor-mcp doctor`, using an installation with the Postgres extra.
