@@ -19,10 +19,12 @@ are optional. Sync uses an explicit preview and digest-bound confirmation.
 
 **Ask your agent for this week's menu and get the shopping list back.**
 
-Install from git (Python 3.12+ and uv):
+> **AI agents:** to install Sabor, follow [llms-install.md](https://github.com/JlMoreno00/sabor/blob/main/llms-install.md).
+
+Easiest: [let your AI install it](#1-with-your-ai-recommended). Or run it from PyPI (Python 3.12+ and uv):
 
 ```sh
-uvx --python ">=3.12" --from git+https://github.com/JlMoreno00/sabor sabor-mcp
+uvx --python ">=3.12" sabor-mcp
 ```
 
 Use the portable [sabor-onboarding](https://github.com/JlMoreno00/sabor/blob/main/skills/sabor-onboarding/SKILL.md) and
@@ -148,8 +150,8 @@ including the historical `mealie_list_id` sync argument. There is no public
 per-call backend URL or tenant selector.
 
 For generic Postgres (including Supabase and Neon), install the optional extra
-with `pip install 'sabor-mcp[postgres] @ git+https://github.com/JlMoreno00/sabor'` or run
-`uvx --python ">=3.12" --from 'sabor-mcp[postgres] @ git+https://github.com/JlMoreno00/sabor' sabor-mcp`. Select `SABOR_STORE=postgres` and
+with `pip install 'sabor-mcp[postgres]'` or run
+`uvx --python ">=3.12" --from 'sabor-mcp[postgres]' sabor-mcp`. Select `SABOR_STORE=postgres` and
 store the secret `SABOR_DATABASE_URL` through the environment or
 `sabor-mcp setup secret database_url`. The adapter uses the private `sabor` schema,
 requires no extensions and enables RLS without public policies. SQLite and Mealie
@@ -378,8 +380,8 @@ not check MCP transport or provider credentials; complete verification with
 
 ### 2. One click (local SQLite, no questions)
 
-These links register the Python-pinned git install. After 0.4.0 is published
-on PyPI, `uvx --python ">=3.12" sabor-mcp` is also available.
+These links register the Python-pinned git install, which tracks `main`.
+From a terminal, the commands below install the released version from PyPI.
 
 - [Add to Cursor](https://cursor.com/en/install-mcp?name=sabor&config=eyJjb21tYW5kIjoidXZ4IiwiYXJncyI6WyItLXB5dGhvbiIsIj49My4xMiIsIi0tZnJvbSIsImdpdCtodHRwczovL2dpdGh1Yi5jb20vSmxNb3Jlbm8wMC9zYWJvciIsInNhYm9yLW1jcCJdfQ==)
 - [Install in VS Code](https://insiders.vscode.dev/redirect?url=vscode%3Amcp%2Finstall%3F%257B%2522name%2522%253A%2522sabor%2522%252C%2522command%2522%253A%2522uvx%2522%252C%2522args%2522%253A%255B%2522--python%2522%252C%2522%253E%253D3.12%2522%252C%2522--from%2522%252C%2522git%252Bhttps%253A%252F%252Fgithub.com%252FJlMoreno00%252Fsabor%2522%252C%2522sabor-mcp%2522%255D%257D)
@@ -391,17 +393,17 @@ on PyPI, `uvx --python ">=3.12" sabor-mcp` is also available.
 Or from a terminal:
 
 ```bash
-claude mcp add --scope user sabor -- uvx --python ">=3.12" --from git+https://github.com/JlMoreno00/sabor sabor-mcp
-codex mcp add sabor -- uvx --python ">=3.12" --from git+https://github.com/JlMoreno00/sabor sabor-mcp
-gemini mcp add --scope user sabor uvx --python ">=3.12" --from git+https://github.com/JlMoreno00/sabor sabor-mcp
-code --add-mcp '{"name":"sabor","command":"uvx","args":["--python",">=3.12","--from","git+https://github.com/JlMoreno00/sabor","sabor-mcp"]}'
+claude mcp add --scope user sabor -- uvx --python ">=3.12" sabor-mcp
+codex mcp add sabor -- uvx --python ">=3.12" sabor-mcp
+gemini mcp add --scope user sabor uvx --python ">=3.12" sabor-mcp
+code --add-mcp '{"name":"sabor","command":"uvx","args":["--python",">=3.12","sabor-mcp"]}'
 ```
 
 Without a `config.toml`, Sabor starts with local SQLite in the OS data directory.
 For the bare `sabor-mcp` commands throughout this guide, install it persistently first:
 
 ```sh
-uv tool install --python ">=3.12" git+https://github.com/JlMoreno00/sabor
+uv tool install --python ">=3.12" sabor-mcp
 ```
 
 Then run `sabor-mcp setup` to add Mealie, prices or Bring!. `uvx` alone does not put it on PATH.
@@ -416,23 +418,23 @@ See [Quickstart: Docker — Sabor + Mealie](#quickstart-docker--sabor--mealie) a
 With Python 3.12+ and [uv](https://docs.astral.sh/uv/), the stdio install is:
 
 ```bash
-uvx --python ">=3.12" --from git+https://github.com/JlMoreno00/sabor sabor-mcp
+uvx --python ">=3.12" sabor-mcp
 ```
 
-After 0.4.0 is published on PyPI, use `uvx --python ">=3.12" sabor-mcp`, or build a
+To run unreleased `main`, use `uvx --python ">=3.12" --from git+https://github.com/JlMoreno00/sabor sabor-mcp`, or build a
 local wheel with `uv build` and run
 `uvx --from dist/sabor_mcp-0.4.0-py3-none-any.whl sabor-mcp`.
 No Mealie configuration is needed. The console command defaults to stdio;
 `sabor-mcp --transport http` instead serves Streamable HTTP on loopback
 (`127.0.0.1:8080/mcp`) unless you set `SABOR_HOST` explicitly.
 
-For standalone Docker (HTTP), **only after the first GHCR release**:
+For standalone Docker (HTTP):
 
 ```bash
 docker run -p 127.0.0.1:9170:8080 -v sabor-data:/data ghcr.io/jlmoreno00/sabor:0.4.0
 ```
 
-Until then build locally with `docker build -t sabor:local .` and use
+To run unreleased `main`, build locally with `docker build -t sabor:local .` and use
 `sabor:local` in that command. No Mealie variables are needed.
 Connect to `http://127.0.0.1:9170/mcp` (host port 9170 maps to container port 8080).
 The official image does not include the `[postgres]` extra; see the
@@ -510,14 +512,14 @@ Nutrition remains disabled. Do not paste real tokens into shared shell history.
 
 ## Connect your MCP client
 
-For stdio, let the MCP client launch the git install with uvx:
+For stdio, let the MCP client launch the PyPI release with uvx:
 
 ```json
 {
   "mcpServers": {
     "sabor": {
       "command": "uvx",
-      "args": ["--python", ">=3.12", "--from", "git+https://github.com/JlMoreno00/sabor", "sabor-mcp", "--transport", "stdio"]
+      "args": ["--python", ">=3.12", "sabor-mcp", "--transport", "stdio"]
     }
   }
 }

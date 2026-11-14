@@ -17,10 +17,12 @@ son opcionales. La sincronización usa una vista previa explícita y una confirm
 
 **Pídele a tu agente el menú de la semana y te devuelve la lista de la compra.**
 
-Instala desde git (Python 3.12+ y uv):
+> **Agentes de IA:** para instalar Sabor, seguid [llms-install.md](https://github.com/JlMoreno00/sabor/blob/main/llms-install.md).
+
+Lo más fácil: [deja que tu IA lo instale](#1-con-tu-ia-recomendado). O ejecútalo desde PyPI (Python 3.12+ y uv):
 
 ```sh
-uvx --python ">=3.12" --from git+https://github.com/JlMoreno00/sabor sabor-mcp
+uvx --python ">=3.12" sabor-mcp
 ```
 
 Usa las skills portátiles [sabor-onboarding](https://github.com/JlMoreno00/sabor/blob/main/skills/sabor-onboarding/SKILL.md) y
@@ -146,8 +148,8 @@ incluido el argumento histórico de sincronización `mealie_list_id`. No hay nin
 de URL de backend o tenant por llamada.
 
 Para Postgres genérico (incluidos Supabase y Neon), instala el extra opcional
-con `pip install 'sabor-mcp[postgres] @ git+https://github.com/JlMoreno00/sabor'` o ejecuta
-`uvx --python ">=3.12" --from 'sabor-mcp[postgres] @ git+https://github.com/JlMoreno00/sabor' sabor-mcp`. Selecciona `SABOR_STORE=postgres` y
+con `pip install 'sabor-mcp[postgres]'` o ejecuta
+`uvx --python ">=3.12" --from 'sabor-mcp[postgres]' sabor-mcp`. Selecciona `SABOR_STORE=postgres` y
 guarda el secreto `SABOR_DATABASE_URL` mediante el entorno o
 `sabor-mcp setup secret database_url`. El adaptador usa el esquema privado `sabor`,
 no requiere extensiones y activa RLS sin políticas públicas. SQLite y Mealie
@@ -389,8 +391,8 @@ Consulta [llms-install.md](https://github.com/JlMoreno00/sabor/blob/main/llms-in
 
 ### 2. Con un clic (SQLite local, sin preguntas)
 
-Estos enlaces registran la instalación desde git con la versión de Python fijada. Después de
-publicar la versión 0.4.0 en PyPI, también estará disponible `uvx --python ">=3.12" sabor-mcp`.
+Estos enlaces registran la instalación desde git con la versión de Python fijada, que sigue `main`.
+Desde la terminal, los comandos de abajo instalan la versión publicada en PyPI.
 
 - [Añadir a Cursor](https://cursor.com/en/install-mcp?name=sabor&config=eyJjb21tYW5kIjoidXZ4IiwiYXJncyI6WyItLXB5dGhvbiIsIj49My4xMiIsIi0tZnJvbSIsImdpdCtodHRwczovL2dpdGh1Yi5jb20vSmxNb3Jlbm8wMC9zYWJvciIsInNhYm9yLW1jcCJdfQ==)
 - [Instalar en VS Code](https://insiders.vscode.dev/redirect?url=vscode%3Amcp%2Finstall%3F%257B%2522name%2522%253A%2522sabor%2522%252C%2522command%2522%253A%2522uvx%2522%252C%2522args%2522%253A%255B%2522--python%2522%252C%2522%253E%253D3.12%2522%252C%2522--from%2522%252C%2522git%252Bhttps%253A%252F%252Fgithub.com%252FJlMoreno00%252Fsabor%2522%252C%2522sabor-mcp%2522%255D%257D)
@@ -402,17 +404,17 @@ publicar la versión 0.4.0 en PyPI, también estará disponible `uvx --python ">
 O desde una terminal:
 
 ```bash
-claude mcp add --scope user sabor -- uvx --python ">=3.12" --from git+https://github.com/JlMoreno00/sabor sabor-mcp
-codex mcp add sabor -- uvx --python ">=3.12" --from git+https://github.com/JlMoreno00/sabor sabor-mcp
-gemini mcp add --scope user sabor uvx --python ">=3.12" --from git+https://github.com/JlMoreno00/sabor sabor-mcp
-code --add-mcp '{"name":"sabor","command":"uvx","args":["--python",">=3.12","--from","git+https://github.com/JlMoreno00/sabor","sabor-mcp"]}'
+claude mcp add --scope user sabor -- uvx --python ">=3.12" sabor-mcp
+codex mcp add sabor -- uvx --python ">=3.12" sabor-mcp
+gemini mcp add --scope user sabor uvx --python ">=3.12" sabor-mcp
+code --add-mcp '{"name":"sabor","command":"uvx","args":["--python",">=3.12","sabor-mcp"]}'
 ```
 
 Sin un `config.toml`, Sabor arranca con SQLite local en el directorio de datos del sistema
 operativo. Para usar los comandos `sabor-mcp` de esta guía, instálalo primero de forma persistente:
 
 ```sh
-uv tool install --python ">=3.12" git+https://github.com/JlMoreno00/sabor
+uv tool install --python ">=3.12" sabor-mcp
 ```
 
 Después ejecuta `sabor-mcp setup` para añadir Mealie, precios o Bring!. `uvx` por sí solo no lo añade al PATH.
@@ -427,23 +429,23 @@ Consulta [Inicio rápido: Docker — Sabor + Mealie](#inicio-rápido-docker--sab
 Con Python 3.12+ y [uv](https://docs.astral.sh/uv/), la instalación stdio es:
 
 ```bash
-uvx --python ">=3.12" --from git+https://github.com/JlMoreno00/sabor sabor-mcp
+uvx --python ">=3.12" sabor-mcp
 ```
 
-Después de publicar la versión 0.4.0 en PyPI, usa `uvx --python ">=3.12" sabor-mcp`, o
+Para ejecutar `main` sin publicar, usa `uvx --python ">=3.12" --from git+https://github.com/JlMoreno00/sabor sabor-mcp`, o
 construye un wheel local con `uv build` y ejecuta
 `uvx --from dist/sabor_mcp-0.4.0-py3-none-any.whl sabor-mcp`.
 No se necesita configuración de Mealie. El comando de consola usa stdio por defecto;
 `sabor-mcp --transport http` sirve Streamable HTTP en loopback (`127.0.0.1:8080/mcp`)
 salvo que configures `SABOR_HOST` explícitamente.
 
-Para Docker independiente (HTTP), **solo después de la primera publicación en GHCR**:
+Para Docker independiente (HTTP):
 
 ```bash
 docker run -p 127.0.0.1:9170:8080 -v sabor-data:/data ghcr.io/jlmoreno00/sabor:0.4.0
 ```
 
-Hasta entonces, construye la imagen localmente con `docker build -t sabor:local .` y usa
+Para ejecutar `main` sin publicar, construye la imagen localmente con `docker build -t sabor:local .` y usa
 `sabor:local` en ese comando. No se necesitan variables de Mealie.
 Conecta a `http://127.0.0.1:9170/mcp` (el puerto 9170 del host corresponde al puerto 8080
 del contenedor). La imagen oficial no incluye el extra `[postgres]`; consulta la receta de la
@@ -522,14 +524,14 @@ La nutrición permanece desactivada. No pegues tokens reales en historiales de s
 
 ## Conecta tu cliente MCP
 
-Para stdio, deja que el cliente MCP ejecute la instalación desde git con uvx:
+Para stdio, deja que el cliente MCP ejecute la versión de PyPI con uvx:
 
 ```json
 {
   "mcpServers": {
     "sabor": {
       "command": "uvx",
-      "args": ["--python", ">=3.12", "--from", "git+https://github.com/JlMoreno00/sabor", "sabor-mcp", "--transport", "stdio"]
+      "args": ["--python", ">=3.12", "sabor-mcp", "--transport", "stdio"]
     }
   }
 }

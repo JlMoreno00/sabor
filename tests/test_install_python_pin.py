@@ -79,10 +79,10 @@ class InstallPythonPinTests(unittest.TestCase):
     def test_cli_commands_use_the_pin(self):
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
         for command in (
-            'claude mcp add --scope user sabor -- uvx --python ">=3.12" --from git+https://github.com/JlMoreno00/sabor sabor-mcp',
-            'codex mcp add sabor -- uvx --python ">=3.12" --from git+https://github.com/JlMoreno00/sabor sabor-mcp',
-            'gemini mcp add --scope user sabor uvx --python ">=3.12" --from git+https://github.com/JlMoreno00/sabor sabor-mcp',
-            """code --add-mcp '{"name":"sabor","command":"uvx","args":["--python",">=3.12","--from","git+https://github.com/JlMoreno00/sabor","sabor-mcp"]}\'""",
+            'claude mcp add --scope user sabor -- uvx --python ">=3.12" sabor-mcp',
+            'codex mcp add sabor -- uvx --python ">=3.12" sabor-mcp',
+            'gemini mcp add --scope user sabor uvx --python ">=3.12" sabor-mcp',
+            """code --add-mcp '{"name":"sabor","command":"uvx","args":["--python",">=3.12","sabor-mcp"]}\'""",
         ):
             self.assertIn(command, readme)
         self.assertIn(
