@@ -90,7 +90,7 @@ are two branches that merge in stage 3; the tortillas (row 7) wait until the las
   </tr>
   <tr>
     <td>8 tortillas de trigo</td>
-    <td colspan="3">Calentar 1 min</td>
+    <td colspan="3">Calentar</td>
   </tr>
 </table>
 ```
