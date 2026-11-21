@@ -1,5 +1,6 @@
 import json
 import unittest
+from typing import Any
 from unittest.mock import Mock, patch
 from sabor.core.config import load_settings
 from sabor.importing import tools as t
@@ -85,6 +86,23 @@ class ImportTests(unittest.TestCase):
             result = t.import_recipe('soup')
         self.assertEqual(result['error']['code'], 'unsupported_operation')
         self.assertIn('create_recipe', result['error']['message'])
+
+    def test_explicit_text_or_image_with_relative_path_points_to_create_recipe(self):
+        # #49: an explicit text/image kind is not re-detected, so a source such as
+        # './photo.png' gets the create_recipe guidance instead of a generic invalid_argument.
+        for source in ('./photo.png', '../notes.txt'):
+            for kind in ('text', 'image'):
+                with self.subTest(source=source, kind=kind):
+                    result = t.import_recipe(source, kind)
+                    self.assertEqual(result['error']['code'], 'unsupported_operation')
+                    self.assertIn('create_recipe', result['error']['message'])
+                    self.assertIn(kind, result['error']['message'])
+
+    def test_relative_media_path_is_still_rejected_for_auto_and_video(self):
+        # Previous behaviour kept: local media needs an absolute path.
+        for kind in ('auto', 'video'):
+            with self.subTest(kind=kind):
+                self.assertEqual(t.import_recipe('./clip.mp4', kind)['error']['code'], 'invalid_argument')
 
     @patch('yt_dlp.YoutubeDL')
     def test_video_and_image_point_to_create_recipe(self, youtube_dl):
@@ -176,9 +194,12 @@ class ImportPostCommitTests(unittest.TestCase):
     EMPTY = {'items': [], 'total_pages': 1, 'total': 0, 'page': 1, 'per_page': 100}
     context_patch = ImportTests.context_patch
     response = ImportTests.response
+    # Set by the borrowed ImportTests.setUp.
+    p: Any
+    settings: Any
 
     def setUp(self):
-        ImportTests.setUp(self)
+        ImportTests.setUp(self)  # pyright: ignore[reportArgumentType]  (borrowed fixture)
         from sabor.store.mealie import MealieRecipeStore
         normalize = patch.object(MealieRecipeStore, 'normalize_imported', autospec=True,
                                  return_value={'ok': True, 'status': 'normalized'})

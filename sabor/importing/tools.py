@@ -323,8 +323,11 @@ def _import_recipe(ctx, source, kind, dry_run, language, max_recipes, min_confid
             or type(min_confidence) not in (int, float) or not 0 <= min_confidence <= 1
             or not isinstance(language, str) or not 1 <= len(language) <= 32):
             reject('invalid_argument', 'Invalid import arguments.')
-        detected = detect(source)
-        kind = detected if kind == 'auto' else kind
+        # An explicit text or image kind is not re-detected: a source such as './photo.png'
+        # gets the create_recipe guidance below, not a generic invalid_argument (#49).
+        if kind not in ('text', 'image'):
+            detected = detect(source)
+            kind = detected if kind == 'auto' else kind
         if kind == 'video' and urlsplit(source).scheme in ('http', 'https'):
             # A media bundle for the client agent (#102): nothing is extracted or written,
             # so dry_run has no effect.

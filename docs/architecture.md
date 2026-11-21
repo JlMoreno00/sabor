@@ -185,8 +185,9 @@ Discovery intentionally omits model IDs as well as credentials/private URLs.
 ## Store, context and pricing boundaries
 
 RecipeStore preserves structured ingredients, source IDs, checked state and
-recipe occurrences rather than flattening upstream data. SQLite (the built-in
-default), Mealie and optional Postgres are the production implementations; the in-memory fake
+recipe occurrences rather than flattening upstream data. SQLite (the default when
+`MEALIE_BASE_URL` is empty and `SABOR_STORE` is unset), Mealie and optional Postgres are the
+production implementations; the in-memory fake
 store only exercises the port contract in tests. Tandoor and KitchenOwl
 backends are not implemented (#15). Registered core tools keep existing public
 signatures and use instance stores. `AppContext` binds immutable settings,
