@@ -128,6 +128,11 @@ an effective parser of `openai`, set with `SABOR_INGREDIENT_PARSER` or
 its configured AI provider. The agent cannot see that setting, so with the Mealie store
 the skill tells the user about this possibility before they approve.
 
+When the user asks for a recipe or the weekly menu "in a table" or in TRN (Tabular Recipe
+Notation), follow the portable skill
+[skills/sabor-recipe-table/SKILL.md](skills/sabor-recipe-table/SKILL.md): it draws an HTML
+table with the ingredients on the left and the steps merging to the right; it needs no extra tool.
+
 ---
 
 # Instalar Sabor — instrucciones para agentes de IA
@@ -182,3 +187,6 @@ the skill tells the user about this possibility before they approve.
    sigue la skill portable [skills/sabor-onboarding/SKILL.md](skills/sabor-onboarding/SKILL.md). El perfil
    (comensales, alergias, presupuesto…) se guarda con las tools de preferencias solo si están
    registradas (el toolset `preferences` es opcional); nunca cambia la configuración.
+   Si el usuario pide una receta o el menú semanal «en tabla» o en formato TRN, sigue la skill
+   portable [skills/sabor-recipe-table/SKILL.md](skills/sabor-recipe-table/SKILL.md): una tabla
+   HTML con los ingredientes a la izquierda y los pasos fusionándose hacia la derecha.
