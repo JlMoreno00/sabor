@@ -68,6 +68,50 @@ class AgentSkillTests(unittest.TestCase):
         self.assertIn('[skills/sabor-import/SKILL.md](skills/sabor-import/SKILL.md)',
                       (ROOT / 'llms-install.md').read_text(encoding='utf-8'))
 
+    def test_recipe_table_skill_teaches_tabular_recipe_notation(self):
+        path = ROOT / 'skills' / 'sabor-recipe-table' / 'SKILL.md'
+        self.assertIn(path, SKILLS)
+        text = path.read_text(encoding='utf-8')
+        for words in ('Tabular Recipe Notation', 'TRN', 'en tabla', 'rowspan', 'colspan', '<table>',
+                      'get_recipe(', 'get_mealplan_week(', 'Raciones', 'Tiempo aprox.',
+                      'Servir 4 raciones', 'Cortar en tiras', 'Cocinar 8 min',
+                      'Añadir y cocinar 5-7 min', 'Worked example', 'weekly menu'):
+            self.assertIn(words, text)
+        self.assertIn('[skills/sabor-recipe-table/SKILL.md](skills/sabor-recipe-table/SKILL.md)',
+                      (ROOT / 'llms-install.md').read_text(encoding='utf-8'))
+
+    def test_recipe_table_example_fills_every_row(self):
+        # A TRN table only renders in line if every row covers the same columns.
+        text = (ROOT / 'skills' / 'sabor-recipe-table' / 'SKILL.md').read_text(encoding='utf-8')
+        table = re.search(r'```html\n(<table>.*?</table>)\n```', text, re.S)
+        assert table is not None, 'worked example has no ```html table'
+        rows = re.findall(r'<tr>(.*?)</tr>', table[1], re.S)
+        self.assertGreater(len(rows), 2)
+        carried = {}  # column index -> rows still covered by an earlier rowspan
+        covered_rows = []
+        for row in rows:
+            covered = {c for c, left in carried.items() if left > 0}
+            column = 0
+            for cell in re.finditer(r'<t[hd]([^>]*)>', row):
+                while column in covered:
+                    column += 1
+                attrs = cell[1]
+                span = int((re.search(r'colspan="(\d+)"', attrs) or [0, 1])[1])
+                height = int((re.search(r'rowspan="(\d+)"', attrs) or [0, 1])[1])
+                for c in range(column, column + span):
+                    self.assertNotIn(c, covered, row)
+                    covered.add(c)
+                    if height > 1:
+                        carried[c] = height
+                column += span
+            covered_rows.append(covered)
+            carried = {c: left - 1 for c, left in carried.items() if left - 1 > 0}
+        # Every row covers the same columns with no gaps, and every rowspan ends in the table.
+        width = len(covered_rows[0])
+        for covered in covered_rows:
+            self.assertEqual(covered, set(range(width)))
+        self.assertEqual(carried, {})
+
     def test_onboarding_keeps_configuration_out_of_the_chat(self):
         text = (ROOT / 'skills' / 'sabor-onboarding' / 'SKILL.md').read_text(encoding='utf-8')
         self.assertIn('sabor-mcp setup', text)
