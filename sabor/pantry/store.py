@@ -8,6 +8,8 @@ same effects without writing, and applied in one transaction.
 import re
 import sqlite3
 import uuid
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import replace
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal, DecimalException
@@ -59,6 +61,19 @@ def _date(value) -> str | None:
     return value
 
 
+def _text(change, key: str, limit: int) -> str | None:
+    """An optional text field: None or a string of at most `limit` characters."""
+    value = change.get(key)
+    if value is not None and (not isinstance(value, str) or len(value) > limit):
+        raise PantryError(f'{key} must be a text of at most {limit} characters.')
+    return value
+
+
+def _use_order(item: PantryItem) -> tuple:
+    """Items expiring first are used first; then the oldest; the id only breaks ties."""
+    return (item.expires_on is None, item.expires_on or '', item.updated_at, item.id)
+
+
 def _amount(change) -> tuple[Decimal, BaseUnit] | None:
     """Validated (amount, base unit), or None when the change carries no quantity."""
     if change.get('quantity') is None:
@@ -81,15 +96,21 @@ class PantryStore:
     def __init__(self, path):
         self.path = Path(path)
 
-    def _connect(self) -> sqlite3.Connection:
+    @contextmanager
+    def _session(self) -> Iterator[sqlite3.Connection]:
+        """One connection per operation, always closed; `with connection` commits or rolls back."""
         self.path.parent.mkdir(parents=True, exist_ok=True)
         connection = sqlite3.connect(self.path)
-        ensure_schema(connection)
-        return connection
+        try:
+            with connection:
+                ensure_schema(connection)
+                yield connection
+        finally:
+            connection.close()
 
     def list_items(self, food: str | None = None, expiring_within_days: int | None = None,
              today: str | None = None) -> list[PantryItem]:
-        with self._connect() as connection:
+        with self._session() as connection:
             return self._list(connection, food, expiring_within_days, today)
 
     def _list(self, connection, food=None, expiring_within_days=None, today=None) -> list[PantryItem]:
@@ -108,13 +129,13 @@ class PantryStore:
 
     def preview(self, changes: list[dict]) -> list[dict[str, Any]]:
         """The effects apply() would have, computed without writing."""
-        with self._connect() as connection:
+        with self._session() as connection:
             effects, _ = self._plan(connection, changes)
             connection.rollback()
             return effects
 
     def apply(self, changes: list[dict]) -> list[dict[str, Any]]:
-        with self._connect() as connection:
+        with self._session() as connection:
             connection.execute("BEGIN IMMEDIATE")
             effects, writes = self._plan(connection, changes)
             for sql, args in writes:
@@ -148,9 +169,10 @@ class PantryStore:
                     ("DELETE FROM pantry_items WHERE id=?", (item.id,))]
             base = _amount(change)
             expires = _date(change['expires_on']) if 'expires_on' in change else item.expires_on
+            note = _text(change, 'note', 500) if 'note' in change else item.note
             items[item.id] = updated = replace(
                 item, quantity=base[0] if base else None, unit=base[1] if base else None,
-                expires_on=expires, note=change.get('note', item.note), updated_at=now)
+                expires_on=expires, note=note, updated_at=now)
             return {'op': op, 'action': 'update', 'id': item.id, 'food': item.food}, [self._upsert(updated)]
         name = change.get('name')
         if not isinstance(name, str) or not name.strip() or len(name) > 200:
@@ -159,32 +181,53 @@ class PantryStore:
         base = _amount(change)
         unit = base[1] if base else None
         # Same food and same base unit (so the same dimension); others are never converted.
-        match = next((i for i in items.values() if i.food == food and i.unit == unit), None)
+        matches = sorted((i for i in items.values() if i.food == food and i.unit == unit), key=_use_order)
         if op == 'subtract':
-            if match is None:
-                return {'op': op, 'action': 'not_found', 'food': food}, []
-            left = (match.quantity - base[0]) if base and match.quantity is not None else Decimal(0)
-            effect: dict[str, Any] = {'op': op, 'food': food, 'id': match.id}
-            if left > 0:
-                items[match.id] = updated = replace(match, quantity=left, updated_at=now)
-                return effect | {'action': 'decrease'}, [self._upsert(updated)]
-            del items[match.id]
-            if left < 0:
-                effect['shortfall'] = {'quantity': format_amount(-left), 'unit': match.unit}
-            return effect | {'action': 'remove'}, [("DELETE FROM pantry_items WHERE id=?", (match.id,))]
+            return self._subtract(food, base, matches, items, now)
+        match = matches[0] if matches else None
         source = change.get('source', 'manual')
         if source not in SOURCES:
             raise PantryError(f'source must be one of {", ".join(SOURCES)}.')
         expires = _date(change.get('expires_on'))
+        food_id, note = _text(change, 'food_id', 200), _text(change, 'note', 500)
         if match is not None:
             quantity = match.quantity + base[0] if base and match.quantity is not None else match.quantity
             items[match.id] = updated = replace(match, quantity=quantity,
                                                 expires_on=expires or match.expires_on, updated_at=now)
             return {'op': op, 'action': 'increase', 'id': match.id, 'food': food}, [self._upsert(updated)]
-        new = PantryItem(uuid.uuid4().hex, name.strip(), food, change.get('food_id'),
-                         base[0] if base else None, unit, expires, source, change.get('note'), now)
+        new = PantryItem(uuid.uuid4().hex, name.strip(), food, food_id,
+                         base[0] if base else None, unit, expires, source, note, now)
         items[new.id] = new
         return {'op': op, 'action': 'create', 'food': food}, [self._upsert(new)]
+
+    def _subtract(self, food, base, matches: list[PantryItem], items: dict[str, PantryItem], now: str):
+        """Draw from every compatible item, expiring first, before reporting a shortfall."""
+        if not matches:
+            return {'op': 'subtract', 'action': 'not_found', 'food': food}, []
+        # Without a quantity the food is used up: every item with an unknown amount goes.
+        remaining = base[0] if base else None
+        writes, removed, touched = [], [], []
+        for item in matches:
+            if remaining is not None and remaining <= 0:
+                break
+            if remaining is not None and item.quantity is not None and item.quantity > remaining:
+                items[item.id] = updated = replace(item, quantity=item.quantity - remaining, updated_at=now)
+                writes.append(self._upsert(updated))
+                touched.append(item.id)
+                remaining = Decimal(0)
+                break
+            if remaining is not None and item.quantity is not None:
+                remaining -= item.quantity
+            del items[item.id]
+            removed.append(item.id)
+            touched.append(item.id)
+            writes.append(("DELETE FROM pantry_items WHERE id=?", (item.id,)))
+        all_gone = len(removed) == len(matches)
+        effect: dict[str, Any] = {'op': 'subtract', 'food': food, 'action': 'remove' if all_gone else 'decrease',
+                                  'ids': touched}
+        if remaining is not None and remaining > 0:
+            effect['shortfall'] = {'quantity': format_amount(remaining), 'unit': base[1]}
+        return effect, writes
 
     @staticmethod
     def _upsert(item: PantryItem) -> tuple[str, tuple]:
