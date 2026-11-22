@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Literal
 
-from sabor.pricing.quantities import parse_text, to_base
+from sabor.pricing.quantities import from_structured, to_base
 
 BaseUnit = Literal['g', 'ml', 'ud']
 SOURCES = ('manual', 'receipt', 'cooked', 'migration')
@@ -35,7 +35,9 @@ def to_base_quantity(amount: object, unit: object) -> tuple[Decimal, BaseUnit] |
     """«1 kg» -> (1000, 'g') with the shared quantity model; None when the unit is unknown."""
     if not isinstance(unit, str) or not unit.strip():
         return None
-    q = to_base(parse_text(f'{format_amount(amount)} {unit.strip()}'))
+    # Structured path: the unit must be a unit name on its own («1/2 kg» is rejected, never
+    # read together with the amount as 1 1/2 kg).
+    q = to_base(from_structured(format_amount(amount), unit.strip(), None, None))
     if q.amount is None or q.unit not in ('g', 'ml', 'ud'):
         return None
     return q.amount, q.unit

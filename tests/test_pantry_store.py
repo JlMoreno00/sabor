@@ -52,6 +52,70 @@ def test_subtract_never_goes_below_zero_and_reports_the_shortfall(store):
     assert store.list_items() == []
 
 
+def test_subtract_draws_from_every_compatible_item_before_a_shortfall(store):
+    # CodeRabbit on #145: two rows of the same food and unit (set can create them) are one stock.
+    store.apply([{'op': 'add', 'name': 'arroz', 'quantity': '1', 'unit': 'kg', 'expires_on': '2027-01-01'},
+                 {'op': 'add', 'name': 'arroz', 'quantity': '2', 'unit': 'ud'}])
+    second = next(i for i in store.list_items() if i.unit == 'ud')
+    store.apply([{'op': 'set', 'id': second.id, 'quantity': '500', 'unit': 'g', 'expires_on': '2026-12-01'}])
+    effects = store.apply([{'op': 'subtract', 'name': 'arroz', 'quantity': '1200', 'unit': 'g'}])
+    assert 'shortfall' not in effects[0]
+    assert effects[0]['action'] == 'decrease'
+    assert effects[0]['ids'] == [second.id, next(i.id for i in store.list_items())]
+    # The item expiring first is used first, whatever its random id.
+    assert _rows(store) == [('arroz', Decimal('300'), 'g', 'manual')]
+    assert store.list_items()[0].expires_on == '2027-01-01'
+    effects = store.apply([{'op': 'subtract', 'name': 'arroz', 'quantity': '500', 'unit': 'g'}])
+    assert (effects[0]['action'], effects[0]['shortfall']) == ('remove', {'quantity': '200', 'unit': 'g'})
+
+
+def test_unit_is_validated_without_reinterpreting_the_quantity(store):
+    # CodeRabbit on #145: quantity 1 with unit '1/2 kg' must not become 1 1/2 kg.
+    for unit in ('1/2 kg', '2 kg', 'kg extra', 'paquete'):
+        with pytest.raises(PantryError):
+            store.apply([{'op': 'add', 'name': 'arroz', 'quantity': '1', 'unit': unit}])
+    assert store.list_items() == []
+    store.apply([{'op': 'add', 'name': 'arroz', 'quantity': '1', 'unit': 'kg'}])
+    assert _rows(store) == [('arroz', Decimal('1000'), 'g', 'manual')]
+
+
+def test_note_and_food_id_must_be_text(store):
+    # CodeRabbit on #145: a list or dict would pass preview and fail inside SQLite on apply.
+    store.apply([{'op': 'add', 'name': 'sal'}])
+    item_id = store.list_items()[0].id
+    for bad in ({'op': 'add', 'name': 'pan', 'note': ['x']}, {'op': 'add', 'name': 'pan', 'food_id': {'a': 1}},
+                {'op': 'add', 'name': 'pan', 'food_id': 3}, {'op': 'set', 'id': item_id, 'note': {'x': 1}},
+                {'op': 'add', 'name': 'pan', 'note': 'x' * 501}):
+        for method in (store.preview, store.apply):
+            with pytest.raises(PantryError):
+                method([bad])
+    store.apply([{'op': 'add', 'name': 'pan', 'note': 'integral', 'food_id': 'f-1'}])
+    pan = next(i for i in store.list_items() if i.food == 'pan')
+    assert (pan.note, pan.food_id) == ('integral', 'f-1')
+
+
+def test_connections_are_closed_after_each_operation(store, monkeypatch):
+    # CodeRabbit on #145: the transaction context manager does not close the connection.
+    opened = []
+    real_connect = sqlite3.connect
+
+    def tracking(*args, **kwargs):
+        connection = real_connect(*args, **kwargs)
+        opened.append(connection)
+        return connection
+
+    monkeypatch.setattr(sqlite3, 'connect', tracking)
+    store.apply([{'op': 'add', 'name': 'sal'}])
+    store.preview([{'op': 'add', 'name': 'pan'}])
+    store.list_items()
+    with pytest.raises(PantryError):
+        store.apply([{'op': 'explode'}])
+    assert len(opened) == 4
+    for connection in opened:
+        with pytest.raises(sqlite3.ProgrammingError):
+            connection.execute('SELECT 1')
+
+
 def test_subtract_unknown_food_changes_nothing(store):
     store.apply([{'op': 'add', 'name': 'sal', 'quantity': '1', 'unit': 'kg'}])
     effects = store.apply([{'op': 'subtract', 'name': 'azúcar', 'quantity': '100', 'unit': 'g'}])
