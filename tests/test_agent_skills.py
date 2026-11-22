@@ -68,6 +68,20 @@ class AgentSkillTests(unittest.TestCase):
         self.assertIn('[skills/sabor-import/SKILL.md](skills/sabor-import/SKILL.md)',
                       (ROOT / 'llms-install.md').read_text(encoding='utf-8'))
 
+    def test_pantry_skill_offers_the_flows_with_preview_and_no_ai(self):
+        # #144 phase 1: receipts fill the pantry; every write is previewed and confirmed.
+        path = ROOT / 'skills' / 'sabor-pantry' / 'SKILL.md'
+        self.assertIn(path, SKILLS)
+        text = path.read_text(encoding='utf-8')
+        for words in ('get_pantry(', 'edit_pantry(', 'add_pantry_from_receipt(', 'preview_digest',
+                      'confirm=True', 'conflict', 'ignored', 'uncertain', 'receipt', 'proactive',
+                      'expiring_within_days', 'SABOR_TOOLSETS', 'sabor_capabilities('):
+            self.assertIn(words, text)
+        for name in ('openai', 'gemini', 'api key'):
+            self.assertNotIn(name, text.casefold())
+        install = (ROOT / 'llms-install.md').read_text(encoding='utf-8')
+        self.assertIn('[skills/sabor-pantry/SKILL.md](skills/sabor-pantry/SKILL.md)', install)
+
     def test_recipe_table_skill_teaches_tabular_recipe_notation(self):
         path = ROOT / 'skills' / 'sabor-recipe-table' / 'SKILL.md'
         self.assertIn(path, SKILLS)
