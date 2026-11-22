@@ -18,6 +18,14 @@
   non-food lines (totals, VAT, discounts, bags, payment). Unknown abbreviations are kept as
   written, and a line without a size keeps its quantity unknown. The client agent reads the
   receipt (photo or text); Sabor calls no AI provider.
+- **`pantry` toolset** (#144, opt-in; a new `sabor-mcp setup` enables it):
+  `get_pantry(food=None, expiring_within_days=None)`, `edit_pantry(changes, confirm=False,
+  preview_digest=None)` and `add_pantry_from_receipt(lines, confirm=False,
+  preview_digest=None)`. Writes preview first and return a `preview_digest`; the confirmed
+  call must pass it, and a pantry that changed in between is rejected as `conflict`. The
+  receipt preview lists normalized items, uncertain quantities and ignored non-food lines.
+  Registered with the SQLite or Mealie store; not with Postgres yet. The default tool
+  surface is unchanged (24 tools); with every toolset there are 56.
 
 ## [0.4.0] - 2026-11-14
 

@@ -24,7 +24,7 @@ def write_config(path, old, document):
 
 
 # Runtime defaults plus `preferences`, written only when config.toml has no toolsets yet.
-SETUP_TOOLSETS = ('core', 'import', 'shopping_sync', 'preferences')
+SETUP_TOOLSETS = ('core', 'import', 'shopping_sync', 'preferences', 'pantry')
 
 
 def _effective_store(document):

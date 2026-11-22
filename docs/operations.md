@@ -234,8 +234,9 @@ existing database values and do not duplicate list entries. First access may run
 schema migrations, including during preview.
 
 The cooking profile persists only when `preferences` is enabled. `sabor-mcp setup`
-selects `core,import,shopping_sync,preferences` for a new configuration, but keeps
-an existing toolsets selection: add `preferences` to that selection if missing.
+selects `core,import,shopping_sync,preferences,pantry` for a new configuration, but keeps
+an existing toolsets selection: add `preferences` (and `pantry`, the structured pantry,
+#144) to that selection if missing.
 Alternatively add `preferences` to `SABOR_TOOLSETS` and restart. Direct uvx and
 one-click registrations start without it. The Docker `.env.example` currently sets
 `SABOR_TOOLSETS=core,import,shopping_sync`; add `preferences` to enable the profile.

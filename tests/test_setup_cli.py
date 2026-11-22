@@ -309,13 +309,13 @@ class SetupPreferencesToolsetTests(unittest.TestCase):
         code, result = self.run_setup('--non-interactive', '--json', '--lang', 'es')
         self.assertEqual(code, 0, result)
         self.assertEqual(tomllib.loads(self.path.read_text())['general']['toolsets'],
-                         ['core', 'import', 'shopping_sync', 'preferences'])
+                         ['core', 'import', 'shopping_sync', 'preferences', 'pantry'])
         before = self.path.read_bytes()
         self.assertFalse(self.run_setup('--non-interactive', '--json', '--lang', 'es')[1]['changed'])
         self.assertEqual(before, self.path.read_bytes())
         self.run_setup('--non-interactive', '--json', '--pricing', 'open_prices')
         self.assertEqual(tomllib.loads(self.path.read_text())['general']['toolsets'],
-                         ['core', 'import', 'shopping_sync', 'preferences', 'pricing'])
+                         ['core', 'import', 'shopping_sync', 'preferences', 'pantry', 'pricing'])
         self.path.write_text('[general]\ntoolsets = "core,import"\n')
         self.run_setup('--non-interactive', '--json', '--lang', 'en')
         self.assertEqual(tomllib.loads(self.path.read_text())['general']['toolsets'], 'core,import')
