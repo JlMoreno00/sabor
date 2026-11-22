@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+### Added
+- **Structured pantry storage, first step** (#144): a `pantry_items` table (name, food key,
+  optional Mealie food ID, quantity and base unit, optional expiry date, source, note,
+  `updated_at`). With the SQLite store it lives in the same database, added by schema
+  migration 5; with Mealie, whose API keeps no pantry quantities, in `<data dir>/pantry.db`;
+  Postgres has no pantry yet. Changes (`add`, `set`, `subtract`, `remove`) are validated as a
+  whole, can be previewed without writing and apply in one transaction. Items of the same
+  food merge only when their units share a dimension (`1 l` + `500 ml`); «1 paquete» is never
+  turned into grams by guesswork, and subtracting never goes below zero (the shortfall is
+  reported). No MCP tools yet: they come in a later step.
+
 ## [0.4.0] - 2026-11-14
 
 **Breaking release: Sabor no longer contains any AI provider** (#102). The client

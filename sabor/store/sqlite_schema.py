@@ -36,7 +36,14 @@ def _image_schema(connection):
                        "content_type TEXT, data BLOB, updated_at TEXT NOT NULL)")
 
 
-MIGRATIONS = ((1, _base_schema), (2, _search_schema), (3, _sort_schema), (4, _image_schema))
+def _pantry_schema(connection):
+    # Structured pantry (#144), next to the recipes it is cooked from.
+    from sabor.pantry.store import ensure_schema
+    ensure_schema(connection)
+
+
+MIGRATIONS = ((1, _base_schema), (2, _search_schema), (3, _sort_schema), (4, _image_schema),
+              (5, _pantry_schema))
 
 
 def migrate(connection):
