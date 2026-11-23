@@ -35,9 +35,14 @@ an item without a quantity means "there is some".
   Read every product line exactly as printed, one string per line, and call
   `add_pantry_from_receipt(lines=[...])`. Sabor drops prices, keeps pack sizes, weights
   and counts, expands common Spanish abbreviations and lists non-food lines (total, VAT,
-  discounts, bags) as `ignored`. Point out lines with `quantity_unknown` and ask whether to
-  fix them first with `edit_pantry`. If the receipt shows best-before dates, offer to add
-  them afterwards with `edit_pantry` (`op: "set"`, `expires_on`).
+  discounts, bags) as `ignored`. Every receipt line must enter the pantry only once, with
+  its corrected quantity. For a line with `quantity_unknown`, ask the user for the amount
+  and either add it to that line before you send it (preview again, then confirm), or
+  confirm the receipt and then fix that item with
+  `edit_pantry(changes=[{"op": "set", "id": ..., "quantity": ..., "unit": ...}])` using
+  its `id` from `get_pantry(...)`. Never add the same product a second time with
+  `"op": "add"`: that creates a duplicate entry. If the receipt shows best-before dates,
+  offer to add them afterwards with `edit_pantry` (`"op": "set"`, `expires_on`).
 - **Bought, used or thrown away.** «He comprado 2 kg de patatas» →
   `edit_pantry(changes=[{"op": "add", "name": "patatas", "quantity": 2, "unit": "kg"}])`. «Se acabó la leche» or
   «he usado 200 g de arroz» → `op: "subtract"` with the amount, or `op: "remove"` with the
@@ -48,8 +53,11 @@ an item without a quantity means "there is some".
 - **Expiring soon.** When the user plans meals or asks what to cook, check
   `get_pantry(expiring_within_days=3)` first and suggest using those items. Mention them once;
   do not nag.
-- **Cooking from the pantry.** To suggest recipes, pass the pantry foods to
-  `suggest_recipes(foods=[...])`.
+- **Cooking from the pantry.** To suggest recipes, call `suggest_recipes(foods=[...])`.
+  With the SQLite store pass the pantry food names. With Mealie (`recipe_store.adapters` in
+  `sabor_capabilities()` lists `mealie`) it needs Mealie food IDs: pass each item's
+  `food_id` from `get_pantry(...)`. If an item's `food_id` is null, never send the name
+  as an ID; tell the user that food cannot be used for suggestions yet.
 
 ## Units
 

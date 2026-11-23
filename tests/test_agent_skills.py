@@ -77,6 +77,11 @@ class AgentSkillTests(unittest.TestCase):
                       'confirm=True', 'conflict', 'ignored', 'uncertain', 'receipt', 'proactive',
                       'expiring_within_days', 'SABOR_TOOLSETS', 'sabor_capabilities('):
             self.assertIn(words, text)
+        # CodeRabbit on #148: a receipt line enters the pantry once, with its corrected
+        # quantity; Mealie suggestions take food IDs, never names.
+        for words in ('only once', 'corrected quantity', '"op": "set"', 'food_id', 'Mealie', 'never send the name'):
+            self.assertIn(words, text)
+        self.assertNotIn('fix them first with `edit_pantry`', text)
         for name in ('openai', 'gemini', 'api key'):
             self.assertNotIn(name, text.casefold())
         install = (ROOT / 'llms-install.md').read_text(encoding='utf-8')
