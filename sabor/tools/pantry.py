@@ -6,16 +6,13 @@ digest, and a pantry that changed in between is rejected as a conflict. Receipts
 by the client agent; Sabor only normalizes the lines and calls no AI provider.
 """
 
-import hashlib
-import json
-import os
 from typing import Any
 
 from sabor.core.envelope import fail, ok
 from sabor.core.toolsets import current_context, tool
 from sabor.pantry.model import PantryItem, format_amount
 from sabor.pantry.receipt import parse_receipt_line
-from sabor.pantry.store import PantryError, PantryStore, pantry_store_for
+from sabor.pantry.store import PantryConflict, PantryError, PantryStore, pantry_store_for
 
 _MAX_LINES = 200
 _MAX_LINE = 500
@@ -27,7 +24,8 @@ def _ready(settings) -> bool:
 
 
 def _store() -> PantryStore:
-    store = pantry_store_for(current_context().settings, os.environ)
+    # The instance's own settings decide where its pantry lives (#147 review).
+    store = pantry_store_for(current_context().settings)
     if store is None:
         raise PantryError("This recipe store has no pantry yet.")
     return store
@@ -48,25 +46,6 @@ def _item(item: PantryItem) -> dict[str, Any]:
     }
 
 
-def _digest(store: PantryStore, changes: list[dict]) -> str:
-    """Binds a preview to these changes and to the pantry as it was when previewed."""
-    snapshot = [
-        (
-            i.id,
-            i.food,
-            i.quantity is not None and format_amount(i.quantity),
-            i.unit,
-            i.expires_on,
-            i.updated_at,
-        )
-        for i in store.list_items()
-    ]
-    payload = json.dumps(
-        [changes, snapshot], sort_keys=True, default=str, ensure_ascii=False
-    )
-    return hashlib.sha256(payload.encode()).hexdigest()
-
-
 def _preview_or_apply(
     changes: list[dict],
     confirm: bool,
@@ -79,9 +58,8 @@ def _preview_or_apply(
         store = _store()
         if not changes:
             return ok({"preview": not confirm, "effects": [], **extra})
-        digest = _digest(store, changes)
         if not confirm:
-            effects = store.preview(changes)
+            effects, digest = store.preview_with_digest(changes)
             return ok(
                 {"preview": True, "effects": effects, "preview_digest": digest, **extra}
             )
@@ -90,12 +68,16 @@ def _preview_or_apply(
                 "invalid_argument",
                 "Confirming needs the preview_digest returned by the preview.",
             )
-        if preview_digest != digest:
-            return fail(
-                "conflict",
-                "The pantry changed since the preview; preview again before confirming.",
-            )
-        return ok({"preview": False, "effects": store.apply(changes), **extra})
+        # Quick check first; apply() checks again inside its write transaction.
+        if preview_digest != store.digest(changes):
+            raise PantryConflict("stale preview")
+        effects = store.apply(changes, expected_digest=preview_digest)
+        return ok({"preview": False, "effects": effects, **extra})
+    except PantryConflict:
+        return fail(
+            "conflict",
+            "The pantry changed since the preview; preview again before confirming.",
+        )
     except PantryError as error:
         return fail("invalid_argument", str(error))
 

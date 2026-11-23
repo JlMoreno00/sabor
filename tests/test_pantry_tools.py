@@ -133,6 +133,57 @@ class PantryToolTests(unittest.TestCase):
         )
 
 
+class PantryReviewRegressionTests(unittest.TestCase):
+    """CodeRabbit on #147: per-instance Mealie pantry and the digest checked inside the write."""
+
+    def bind(self, env):
+        binding = use_context(build_context(load_settings(env)))
+        binding.__enter__()
+        self.addCleanup(binding.__exit__, None, None, None)
+
+    def test_mealie_pantries_follow_each_instance_data_dir(self):
+        from unittest.mock import patch
+        dirs = [tempfile.TemporaryDirectory() for _ in range(3)]
+        for d in dirs:
+            self.addCleanup(d.cleanup)
+        # The process environment points elsewhere: it must not be used.
+        with patch.dict('os.environ', {'SABOR_DATA_DIR': dirs[2].name}):
+            for directory, food in ((dirs[0].name, 'arroz'), (dirs[1].name, 'pasta')):
+                env = {'SABOR_DATA_DIR': directory, 'SABOR_TOOLSETS': 'pantry',
+                       'MEALIE_BASE_URL': 'http://mealie', 'MEALIE_API_TOKEN': 't'}
+                binding = use_context(build_context(load_settings(env)))
+                with binding:
+                    changes = [{'op': 'add', 'name': food}]
+                    digest = edit_pantry(changes)['data']['preview_digest']
+                    self.assertTrue(edit_pantry(changes, confirm=True, preview_digest=digest)['ok'])
+                    self.assertEqual([i['food'] for i in get_pantry()['data']['items']], [food])
+        self.assertTrue((Path(dirs[0].name) / 'pantry.db').exists())
+        self.assertTrue((Path(dirs[1].name) / 'pantry.db').exists())
+        self.assertFalse((Path(dirs[2].name) / 'pantry.db').exists())
+
+    def test_a_change_between_the_check_and_the_write_is_a_conflict(self):
+        # Two confirmations of one preview: the second must not apply the receipt again.
+        from unittest.mock import patch
+        from sabor.pantry.store import PantryStore
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.bind({'SABOR_DATA_DIR': tmp.name, 'SABOR_TOOLSETS': 'pantry'})
+        lines = ['ARROZ BOMBA 1KG 2,35']
+        digest = add_pantry_from_receipt(lines)['data']['preview_digest']
+        real_apply = PantryStore.apply
+
+        def racing_apply(store, changes, *args, **kwargs):
+            # Another confirmation of the same preview wins the race just before this write.
+            real_apply(store, changes)
+            return real_apply(store, changes, *args, **kwargs)
+
+        with patch.object(PantryStore, 'apply', racing_apply):
+            result = add_pantry_from_receipt(lines, confirm=True, preview_digest=digest)
+        self.assertEqual(result['error']['code'], 'conflict')
+        self.assertEqual([(i['food'], i['quantity']) for i in get_pantry()['data']['items']],
+                         [('arroz bomba', '1000')])
+
+
 class PantryRegistrationTests(unittest.TestCase):
     def test_pantry_tools_are_an_opt_in_toolset(self):
         from mcp.server.fastmcp import FastMCP
