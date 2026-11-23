@@ -38,12 +38,32 @@ def test_line_without_a_size_keeps_quantity_unknown():
     ('IVA 10% 1,23', 'not_food'),
     ('DTO. 2ª UNIDAD -0,45', 'not_food'),
     ('BOLSA PLASTICO 0,15', 'not_food'),
+    # CodeRabbit on #146: a leading count does not hide a non-food line.
+    ('1 BOLSA PLASTICO 0,15', 'not_food'),
+    ('2 BOLSA 0,30', 'not_food'),
+    ('BASE IMPONIBLE 21,30', 'not_food'),
     ('TARJETA BANCARIA 23,45', 'not_food'),
     ('', 'empty'),
     ('   1,25  ', 'empty'),
 ])
 def test_non_food_lines_are_ignored_with_a_reason(line, reason):
     assert parse_receipt_line(line).ignored == reason
+
+
+@pytest.mark.parametrize('line, name, quantity, unit', [
+    # CodeRabbit on #146: the first word alone does not make a line non-food.
+    ('BASE PIZZA 400G 2,35', 'base pizza', Decimal('400'), 'g'),
+    ('BOLSA ENSALADA 200G 1,20', 'bolsa ensalada', Decimal('200'), 'g'),
+    # A leading multipack is read whole, with or without spaces around the X.
+    ('6X125G YOG NATURAL 1,20', 'yogur natural', Decimal('750'), 'g'),
+    ('6 X 125G YOG NATURAL 1,20', 'yogur natural', Decimal('750'), 'g'),
+    # A leading count still multiplies the pack size.
+    ('2 LECHE 1L 1,78', 'leche', Decimal('2000'), 'ml'),
+])
+def test_food_lines_that_look_like_other_lines(line, name, quantity, unit):
+    result = parse_receipt_line(line)
+    assert result.ignored is None
+    assert (result.name, result.quantity, result.unit) == (name, quantity, unit)
 
 
 def test_unknown_abbreviations_are_kept_as_written():
