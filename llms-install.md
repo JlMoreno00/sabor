@@ -133,6 +133,11 @@ Notation), follow the portable skill
 [skills/sabor-recipe-table/SKILL.md](skills/sabor-recipe-table/SKILL.md): it draws an HTML
 table with the ingredients on the left and the steps merging to the right; it needs no extra tool.
 
+To keep the structured pantry (receipts, what is at home, what expires soon), follow the
+portable skill [skills/sabor-pantry/SKILL.md](skills/sabor-pantry/SKILL.md). It needs the opt-in
+`pantry` toolset, which a new `sabor-mcp setup` enables. You read the receipt; Sabor only
+normalizes the lines, and every write is previewed before it is confirmed.
+
 ---
 
 # Instalar Sabor — instrucciones para agentes de IA
@@ -190,3 +195,6 @@ table with the ingredients on the left and the steps merging to the right; it ne
    Si el usuario pide una receta o el menú semanal «en tabla» o en formato TRN, sigue la skill
    portable [skills/sabor-recipe-table/SKILL.md](skills/sabor-recipe-table/SKILL.md): una tabla
    HTML con los ingredientes a la izquierda y los pasos fusionándose hacia la derecha.
+   Para la despensa estructurada (tickets del súper, qué hay en casa, qué caduca pronto), sigue
+   la skill portable [skills/sabor-pantry/SKILL.md](skills/sabor-pantry/SKILL.md); necesita el
+   toolset opcional `pantry`, que activa un `sabor-mcp setup` nuevo.

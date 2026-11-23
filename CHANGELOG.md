@@ -26,6 +26,10 @@
   receipt preview lists normalized items, uncertain quantities and ignored non-food lines.
   Registered with the SQLite or Mealie store; not with Postgres yet. The default tool
   surface is unchanged (24 tools); with every toolset there are 56.
+- **`sabor-pantry` skill** (#144): a portable Agent Skill that tells the agent to offer the
+  pantry flows proactively (fill it from a receipt it reads, record what was bought or used,
+  answer what is at home, mention items expiring soon when planning), always previewing
+  before confirming with the `preview_digest`. Linked from `llms-install.md`.
 
 ## [0.4.0] - 2026-11-14
 
