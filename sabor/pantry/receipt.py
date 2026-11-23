@@ -18,7 +18,7 @@ _NOT_FOOD = {'total', 'subtotal', 'iva', 'dto', 'descuento', 'tarjeta', 'efectiv
              'cambio', 'entregado', 'ahorro', 'cupon', 'promocion', 'redondeo', 'importe'}
 _NOT_FOOD_PHRASE = re.compile(
     r'^(?:bolsas?(?:$|\s+(?:plastico|papel|compra|reutilizable|reciclada|tela)\b)'
-    r'|base\s+imponible\b)')
+    r'|base(?:$|\s+imponible\b))')
 # Abbreviation -> word, for receipts of the main Spanish supermarkets.
 _ABBREVIATIONS = {
     'aceit': 'aceite', 'oliv': 'oliva', 'virg': 'virgen', 'ext': 'extra', 'semi': 'semidesnatada',
@@ -70,6 +70,8 @@ def parse_receipt_line(line: str) -> ReceiptLine:
         count, text = int(match[1]), text[match.end():]
     # Classified after the count, so «1 BOLSA PLASTICO» is still not food.
     key = food_key(text)
+    if not key:
+        return _ignored(raw, 'empty')
     if key.split()[0].strip('.:') in _NOT_FOOD or _NOT_FOOD_PHRASE.match(key):
         return _ignored(raw, 'not_food')
     size = None

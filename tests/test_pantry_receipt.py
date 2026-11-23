@@ -42,6 +42,10 @@ def test_line_without_a_size_keeps_quantity_unknown():
     ('1 BOLSA PLASTICO 0,15', 'not_food'),
     ('2 BOLSA 0,30', 'not_food'),
     ('BASE IMPONIBLE 21,30', 'not_food'),
+    # CodeRabbit on #146: «BASE» alone is still the tax base.
+    ('BASE 21,30', 'not_food'),
+    # A lone combining accent normalizes to an empty key: empty, never an IndexError.
+    ('1 \u0301 0,15', 'empty'),
     ('TARJETA BANCARIA 23,45', 'not_food'),
     ('', 'empty'),
     ('   1,25  ', 'empty'),
