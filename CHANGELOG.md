@@ -12,6 +12,12 @@
   food merge only when their units share a dimension (`1 l` + `500 ml`); «1 paquete» is never
   turned into grams by guesswork, and subtracting never goes below zero (the shortfall is
   reported). No MCP tools yet: they come in a later step.
+- **Receipt-line normalizer for the pantry** (#144): a supermarket receipt line drops its
+  prices, keeps pack sizes, multipacks («6X125G»), weights («0,756 kg x 2,49 €/kg») and counts,
+  expands common Spanish receipt abbreviations («ACEIT OLIV» → «aceite oliva») and ignores
+  non-food lines (totals, VAT, discounts, bags, payment). Unknown abbreviations are kept as
+  written, and a line without a size keeps its quantity unknown. The client agent reads the
+  receipt (photo or text); Sabor calls no AI provider.
 
 ## [0.4.0] - 2026-11-14
 
