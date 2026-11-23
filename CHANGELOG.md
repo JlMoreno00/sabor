@@ -3,6 +3,17 @@
 ## [Unreleased]
 
 ### Added
+- **`consume_from_pantry`** (#144 phase 2, `pantry` toolset): subtracts what cooked recipes
+  used, for `recipe_slugs` or a meal plan range (`mealplan_start`/`mealplan_end`, up to 32
+  days), scaled by `servings_multiplier`. Each ingredient is matched to the pantry item of
+  the same food (singular or plural) and base unit; the preview reports per ingredient
+  whether it is subtracted or why not (`not_in_pantry`, `not_measured`, `incompatible_unit`,
+  `pantry_amount_unknown`), and nothing goes below zero. Confirming needs the preview's
+  `preview_digest`. Meal plan entries are recorded in the same transaction, so a week is
+  never subtracted twice: entries already used are listed as `already_consumed`. With every
+  toolset there are now 57 tools.
+
+### Added
 - **Structured pantry storage, first step** (#144): a `pantry_items` table (name, food key,
   optional Mealie food ID, quantity and base unit, optional expiry date, source, note,
   `updated_at`). With the SQLite store it lives in the same database, added by schema

@@ -191,7 +191,7 @@ class PantryRegistrationTests(unittest.TestCase):
 
         names = {fn.__name__ for group, fn, requires in catalog if group == "pantry"}
         self.assertEqual(
-            names, {"get_pantry", "edit_pantry", "add_pantry_from_receipt"}
+            names, {"get_pantry", "edit_pantry", "add_pantry_from_receipt", "consume_from_pantry"}
         )
         with tempfile.TemporaryDirectory() as directory:
             for toolsets, expected in (("core", set()), ("core,pantry", names)):

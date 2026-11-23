@@ -6,10 +6,13 @@ digest, and a pantry that changed in between is rejected as a conflict. Receipts
 by the client agent; Sabor only normalizes the lines and calls no AI provider.
 """
 
+from datetime import date
+from decimal import Decimal
 from typing import Any
 
 from sabor.core.envelope import fail, ok
 from sabor.core.toolsets import current_context, tool
+from sabor.pantry.consume import plan_consumption
 from sabor.pantry.model import PantryItem, format_amount
 from sabor.pantry.receipt import parse_receipt_line
 from sabor.pantry.store import PantryConflict, PantryError, PantryStore, pantry_store_for
@@ -51,15 +54,15 @@ def _preview_or_apply(
     confirm: bool,
     preview_digest: str | None,
     extra: dict[str, Any],
+    entries: list[str] | None = None,
 ) -> dict:
     if type(confirm) is not bool:
         return fail("invalid_argument", "confirm must be true or false.")
     try:
         store = _store()
-        if not changes:
-            return ok({"preview": not confirm, "effects": [], **extra})
+        entries = entries or []
         if not confirm:
-            effects, digest = store.preview_with_digest(changes)
+            effects, digest = store.preview_with_digest(changes, entries)
             return ok(
                 {"preview": True, "effects": effects, "preview_digest": digest, **extra}
             )
@@ -69,9 +72,11 @@ def _preview_or_apply(
                 "Confirming needs the preview_digest returned by the preview.",
             )
         # Quick check first; apply() checks again inside its write transaction.
-        if preview_digest != store.digest(changes):
+        if preview_digest != store.digest(changes, entries):
             raise PantryConflict("stale preview")
-        effects = store.apply(changes, expected_digest=preview_digest)
+        # Nothing to write still needs a fresh preview: a stale one is a conflict above.
+        effects = (store.apply(changes, expected_digest=preview_digest, consumed_entries=entries)
+                   if changes or entries else [])
         return ok({"preview": False, "effects": effects, **extra})
     except PantryConflict:
         return fail(
@@ -155,3 +160,73 @@ def add_pantry_from_receipt(
     return _preview_or_apply(
         changes, confirm, preview_digest, {"items": items, "ignored": ignored}
     )
+
+
+def _consume_source(recipe_slugs, mealplan_start, mealplan_end, servings_multiplier) -> str | None:
+    """The validation error, or None for exactly one valid source and multiplier."""
+    if type(servings_multiplier) not in (int, float) or not 0 < servings_multiplier <= 20:
+        return "servings_multiplier must be greater than 0 and at most 20."
+    range_selected = mealplan_start is not None or mealplan_end is not None
+    if (recipe_slugs is not None) == range_selected:
+        return "Pass exactly one source: recipe_slugs, or mealplan_start and mealplan_end."
+    if recipe_slugs is not None:
+        if (not isinstance(recipe_slugs, list) or not 1 <= len(recipe_slugs) <= 50
+                or any(not isinstance(x, str) or not x.strip() for x in recipe_slugs)):
+            return "recipe_slugs must be a list of 1 to 50 recipe slugs."
+        return None
+    if not isinstance(mealplan_start, str) or not isinstance(mealplan_end, str):
+        return "mealplan_start and mealplan_end must be ISO dates (YYYY-MM-DD)."
+    try:
+        start, end = date.fromisoformat(mealplan_start), date.fromisoformat(mealplan_end)
+    except ValueError:
+        return "mealplan_start and mealplan_end must be ISO dates (YYYY-MM-DD)."
+    if start.isoformat() != mealplan_start or end.isoformat() != mealplan_end or start > end:
+        return "mealplan_start and mealplan_end must be ISO dates with start <= end."
+    if (end - start).days > 31:
+        return "The meal plan range can cover at most 32 days."
+    return None
+
+
+@tool("pantry", requires=_ready, uses_context=True)
+def consume_from_pantry(recipe_slugs: list[str] | None = None, mealplan_start: str | None = None,
+                        mealplan_end: str | None = None, servings_multiplier: float = 1.0,
+                        confirm: bool = False, preview_digest: str | None = None) -> dict:
+    """Preview subtracting cooked recipes or planned meals from the pantry; write only when confirmed with the preview's digest."""
+    from sabor.store import DateRange, StoreError, store_error_envelope
+
+    error = _consume_source(recipe_slugs, mealplan_start, mealplan_end, servings_multiplier)
+    if error:
+        return fail("invalid_argument", error)
+    ctx = current_context()
+    occurrences, skipped, entries = [], [], []
+    try:
+        if recipe_slugs is not None:
+            occurrences = [(None, slug) for slug in recipe_slugs]
+        else:
+            assert isinstance(mealplan_start, str) and isinstance(mealplan_end, str)
+            planned = list(ctx.store.get_mealplan(DateRange(mealplan_start, mealplan_end)))
+            done = _store().consumed_entries([e.id for e in planned if e.id])
+            for entry in planned:
+                slug = entry.recipe_slug or entry.recipe_id
+                if not slug:
+                    skipped.append({"entry": entry.id, "reason": "text_only_entry"})
+                elif entry.id in done:
+                    skipped.append({"entry": entry.id, "reason": "already_consumed"})
+                else:
+                    occurrences.append((entry.id, slug))
+        ingredients, recipes = [], []
+        for entry_id, slug in occurrences:
+            recipe = ctx.store.get_recipe(slug)
+            ingredients.extend(recipe.recipeIngredient or ())
+            recipes.append({"slug": recipe.slug, "name": recipe.name, "entry": entry_id})
+            if entry_id:
+                entries.append(entry_id)
+        changes, report = plan_consumption(
+            ingredients, Decimal(str(servings_multiplier)), _store().list_items())
+    except PantryError as exc:
+        return fail("invalid_argument", str(exc))
+    except StoreError as exc:
+        return store_error_envelope(exc)
+    extra = {"recipes": recipes, "ingredients": report, "skipped": skipped}
+    return _preview_or_apply(changes, confirm, preview_digest, extra, entries)
+

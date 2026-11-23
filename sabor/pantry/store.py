@@ -38,6 +38,9 @@ def ensure_schema(connection: sqlite3.Connection) -> None:
         "food TEXT NOT NULL, food_id TEXT, quantity TEXT, unit TEXT, expires_on TEXT, "
         "source TEXT NOT NULL, note TEXT, updated_at TEXT NOT NULL)")
     connection.execute("CREATE INDEX IF NOT EXISTS pantry_items_food ON pantry_items(food)")
+    # Meal plan entries already subtracted by consume_from_pantry, so a week is used once.
+    connection.execute("CREATE TABLE IF NOT EXISTS pantry_consumed_entries "
+                       "(entry_id TEXT PRIMARY KEY, consumed_at TEXT NOT NULL)")
 
 
 def pantry_store_for(settings, env=None) -> 'PantryStore | None':
@@ -137,24 +140,37 @@ class PantryStore:
             query += " WHERE " + " AND ".join(clauses)
         return [_row(r) for r in connection.execute(query + " ORDER BY food, unit, id", args)]
 
-    def _digest(self, connection, changes) -> str:
-        """Binds a preview to these changes and to the pantry as it is on this connection."""
+    def _digest(self, connection, changes, entries=()) -> str:
+        """Binds a preview to these changes and entries, and to the pantry as on this connection."""
         snapshot = [(i.id, i.food, i.quantity is not None and format_amount(i.quantity), i.unit,
                      i.expires_on, i.updated_at) for i in self._list(connection)]
-        payload = json.dumps([changes, snapshot], sort_keys=True, default=str, ensure_ascii=False)
+        consumed = sorted(self._consumed(connection, entries))
+        payload = json.dumps([changes, list(entries), consumed, snapshot], sort_keys=True,
+                             default=str, ensure_ascii=False)
         return hashlib.sha256(payload.encode()).hexdigest()
 
-    def preview_with_digest(self, changes: list[dict]) -> tuple[list[dict[str, Any]], str]:
+    @staticmethod
+    def _consumed(connection, entries) -> set[str]:
+        # One parameterized lookup per entry: a week has only a handful.
+        return {entry for entry in (str(e) for e in entries) if connection.execute(
+            "SELECT 1 FROM pantry_consumed_entries WHERE entry_id = ?", (entry,)).fetchone()}
+
+    def consumed_entries(self, entries) -> set[str]:
+        """Which of these meal plan entry IDs were already subtracted."""
+        with self._session() as connection:
+            return self._consumed(connection, entries)
+
+    def preview_with_digest(self, changes: list[dict], entries=()) -> tuple[list[dict[str, Any]], str]:
         """Effects and digest from one snapshot; nothing is written."""
         with self._session() as connection:
-            digest = self._digest(connection, changes)
-            effects, _ = self._plan(connection, changes)
+            digest = self._digest(connection, changes, entries)
+            effects = self._plan(connection, changes)[0] if changes else []
             connection.rollback()
             return effects, digest
 
-    def digest(self, changes: list[dict]) -> str:
+    def digest(self, changes: list[dict], entries=()) -> str:
         with self._session() as connection:
-            return self._digest(connection, changes)
+            return self._digest(connection, changes, entries)
 
     def preview(self, changes: list[dict]) -> list[dict[str, Any]]:
         """The effects apply() would have, computed without writing."""
@@ -163,19 +179,27 @@ class PantryStore:
             connection.rollback()
             return effects
 
-    def apply(self, changes: list[dict], expected_digest: str | None = None) -> list[dict[str, Any]]:
+    def apply(self, changes: list[dict], expected_digest: str | None = None,
+              consumed_entries=()) -> list[dict[str, Any]]:
         """Apply in one transaction. With expected_digest, the pantry must still match the preview.
 
         The digest is checked after BEGIN IMMEDIATE on the connection that plans and writes,
-        so two confirmations of one preview cannot both apply.
+        so two confirmations of one preview cannot both apply. consumed_entries are meal plan
+        entry IDs recorded in the same transaction; one already recorded is a conflict.
         """
+        entries = [str(e) for e in consumed_entries]
         with self._session() as connection:
             connection.execute("BEGIN IMMEDIATE")
-            if expected_digest is not None and self._digest(connection, changes) != expected_digest:
+            if expected_digest is not None and self._digest(connection, changes, entries) != expected_digest:
                 raise PantryConflict('The pantry changed since the preview.')
-            effects, writes = self._plan(connection, changes)
+            if self._consumed(connection, entries):
+                raise PantryConflict('These meal plan entries were already subtracted.')
+            effects, writes = self._plan(connection, changes) if changes or not entries else ([], [])
             for sql, args in writes:
                 connection.execute(sql, args)
+            now = datetime.now(timezone.utc).isoformat()
+            connection.executemany("INSERT INTO pantry_consumed_entries VALUES (?, ?)",
+                                   [(e, now) for e in entries])
             return effects
 
     def _plan(self, connection, changes) -> tuple[list[dict[str, Any]], list[tuple[str, tuple]]]:
