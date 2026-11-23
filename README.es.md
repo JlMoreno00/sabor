@@ -27,7 +27,7 @@ uvx --python ">=3.12" sabor-mcp
 
 Usa las skills portátiles [sabor-onboarding](https://github.com/JlMoreno00/sabor/blob/main/skills/sabor-onboarding/SKILL.md) y
 [sabor-import](https://github.com/JlMoreno00/sabor/blob/main/skills/sabor-import/SKILL.md). Sabor expone **24 tools por
-defecto, 53 con todos los toolsets** completamente configurados. Para guardar un perfil de cocina,
+defecto, 56 con todos los toolsets** completamente configurados. Para guardar un perfil de cocina,
 ejecuta `sabor-mcp setup` o incluye `preferences` en `SABOR_TOOLSETS`;
 los registros directos con uvx y con un clic no lo activan. Consulta la
 [configuración de toolsets](https://github.com/JlMoreno00/sabor/blob/main/docs/operations.md#toolset-and-provider-configuration-02).
@@ -313,10 +313,12 @@ el arranque.
 | `legacy_memory` | Activación opcional; `MEMORY_FILE` local |
 | `legacy_nutrition` | Activación opcional; las operaciones conservan `SABOR_NUTRITION_ENABLED` y los controles existentes |
 | `legacy_catalog` | Activación opcional + Mealie |
+| `preferences` | Activación opcional; la activa un `sabor-mcp setup` nuevo |
+| `pantry` | Activación opcional; almacén SQLite o Mealie; la activa un `sabor-mcp setup` nuevo |
 
 El arranque predeterminado con SQLite registra **24 tools**: 22 tools de core,
 `import_recipe` y `sabor_capabilities`. Con todos los toolsets completamente configurados,
-hay **53 tools**: 52 tools de aplicación seleccionables más la de descubrimiento.
+hay **56 tools**: 55 tools de aplicación seleccionables más la de descubrimiento.
 Los recuentos no son una comprobación de salud.
 
 `sabor_capabilities()` informa de la versión, los toolsets solicitados, los nombres realmente
@@ -706,6 +708,35 @@ Las respuestas incluyen preferencias, updated_at y source (`defaults`, `file` o 
 las actualizaciones también incluyen las diferencias de campos antes/después y el indicador de previsualización. La previsualización
 no cambia la marca de tiempo. La despensa también está disponible para precios y creación de listas
 sin activar este toolset; consulta [estimaciones según la despensa](#estimaciones-según-la-despensa).
+
+### pantry
+
+Despensa estructurada (#144): artículos con cantidad, unidad, fecha de caducidad opcional y
+origen. Actívala con `SABOR_TOOLSETS=core,import,shopping_sync,preferences,pantry`; un
+`sabor-mcp setup` nuevo la activa. Necesita el almacén SQLite (la despensa vive en su base de
+datos) o Mealie (un `<data dir>/pantry.db` local, porque la API de Mealie no guarda
+cantidades de despensa); Postgres aún no tiene despensa, así que ahí no se registran las tools.
+
+```python
+get_pantry(food: str | None=None, expiring_within_days: int | None=None)
+edit_pantry(changes: list[dict], confirm: bool=False, preview_digest: str | None=None)
+add_pantry_from_receipt(lines: list[str], confirm: bool=False, preview_digest: str | None=None)
+```
+
+- `get_pantry` lista los artículos, opcionalmente de un alimento o los que caducan en N días (de 0 a 3650).
+- `edit_pantry` recibe `changes` con `op` `add`, `set`, `subtract` o `remove`. Añadir y
+  restar usan `name`, `quantity` y `unit`; `set` y `remove` usan el `id` del artículo. Los
+  campos opcionales son `expires_on` (AAAA-MM-DD), `source` (`manual`, `receipt`, `cooked`,
+  `migration`) y `note`. Las cantidades se guardan en `g`, `ml` o `ud`. Los artículos del
+  mismo alimento solo se suman si sus unidades son de la misma dimensión; nada se convierte
+  a ojo, y restar nunca baja de cero (se informa de lo que falta).
+- `add_pantry_from_receipt` recibe las líneas del ticket del súper que has leído (foto o
+  texto; Sabor no llama a ningún proveedor de IA). La vista previa muestra los `items`
+  normalizados, las cantidades `uncertain` y las líneas `ignored` que no son comida.
+
+Las escrituras muestran primero una vista previa y devuelven un `preview_digest`. Tras la
+aprobación, repite con `confirm=True` y ese digest; si la despensa cambió entretanto, se
+rechaza con `conflict`. Una entrada no válida no escribe nada. El `update_pantry` heredado no cambia.
 
 ### legacy_memory
 

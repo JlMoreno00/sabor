@@ -59,6 +59,7 @@ TOOL_MODULES = (
     "sabor.integrations.spoonacular",
     "sabor.tools.memory",
     "sabor.tools.preferences",
+    "sabor.tools.pantry",
     "sabor.integrations.mercadona", "sabor.pricing.tools",
     "sabor.tools.nutrition",
 )

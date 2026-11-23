@@ -11,7 +11,8 @@ from .config_file import FILE_KEYS, SECRET_ENV
 REMOVED_SETTINGS = ('SABOR_LLM_BASE_URL', 'SABOR_LLM_MODEL', 'SABOR_LLM_API_KEY', 'GEMINI_API_KEY',
                     'VIDEO_RECIPE_GEMINI_MODEL', 'SABOR_VIDEO_PROVIDER')
 TOOLSETS = ('core', 'import', 'shopping_sync', 'pricing', 'legacy_spoonacular',
-            'legacy_pricing', 'legacy_memory', 'legacy_nutrition', 'legacy_catalog', 'preferences')
+            'legacy_pricing', 'legacy_memory', 'legacy_nutrition', 'legacy_catalog', 'preferences',
+            'pantry')
 
 
 class ConfigError(ValueError):

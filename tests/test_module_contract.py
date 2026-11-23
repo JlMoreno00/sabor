@@ -67,7 +67,10 @@ BASELINE_CONTRACT = {
     "nutrition_publish_recipe": "87b2b2b24f1bfd65ce444d47635bf3ac20d62611b620b50f427773926e566235",
     "nutrition_cookbook_readiness": "1a8c0d9aee7669ba85506eb7b31818d780cecf2641b5fe1c1da7fe2a90a41a3e",
     "nutrition_backfill_personal_recipes": "eabe5913f018c57b452fd14a1701ad6ce3a3e27e5ca5dec4eb570398f1326227",
-    "nutrition_unresolved_report": "ad0b03d64424b1552f70dfb1f545cac2377ca39c6e658666c4c14c26d72f1b54"
+    "nutrition_unresolved_report": "ad0b03d64424b1552f70dfb1f545cac2377ca39c6e658666c4c14c26d72f1b54",
+    "get_pantry": "3114515f99a772b5128bf2c66f4c6746ef07d2fc2bc1eea25d3a9990eeed50cf",
+    "edit_pantry": "a55ff979fed12dcda8a654658d49e82689bade352c347ca60bcf49b9e81da996",
+    "add_pantry_from_receipt": "88aad7bc788b38bd53709bd364dfecf5f31e8e6a5eeeba4db7f7cc8bdf6515a1"
 }
 
 
@@ -75,7 +78,7 @@ class ModuleContractTests(unittest.TestCase):
     def test_registered_tool_names_match_baseline(self):
         names = [fn.__name__ for group, fn, requires in catalog]
         self.assertEqual(set(names), set(BASELINE_CONTRACT))
-        self.assertEqual(len(names), 52)
+        self.assertEqual(len(names), 55)
         register_tools()
         self.assertEqual(
             [fn.__name__ for group, fn, requires in catalog], names,

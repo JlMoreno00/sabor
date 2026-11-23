@@ -29,7 +29,7 @@ uvx --python ">=3.12" sabor-mcp
 
 Use the portable [sabor-onboarding](https://github.com/JlMoreno00/sabor/blob/main/skills/sabor-onboarding/SKILL.md) and
 [sabor-import](https://github.com/JlMoreno00/sabor/blob/main/skills/sabor-import/SKILL.md) skills. Sabor exposes **24 tools by
-default, 53 with every toolset** fully configured. To persist a cooking profile,
+default, 56 with every toolset** fully configured. To persist a cooking profile,
 run `sabor-mcp setup` or include `preferences` in `SABOR_TOOLSETS`;
 direct uvx and one-click registrations do not enable it. See
 [toolset configuration](https://github.com/JlMoreno00/sabor/blob/main/docs/operations.md#toolset-and-provider-configuration-02).
@@ -307,10 +307,12 @@ is trimmed, duplicates collapse, and unknown names prevent startup.
 | `legacy_memory` | Opt-in; local `MEMORY_FILE` |
 | `legacy_nutrition` | Opt-in; operations retain `SABOR_NUTRITION_ENABLED` and existing gates |
 | `legacy_catalog` | Opt-in + Mealie |
+| `preferences` | Opt-in; enabled by a new `sabor-mcp setup` |
+| `pantry` | Opt-in; SQLite or Mealie store; enabled by a new `sabor-mcp setup` |
 
 Default startup with SQLite registers **24 tools**: 22 core tools,
 `import_recipe`, and `sabor_capabilities`. With every toolset fully configured,
-there are **53 tools**: 52 selectable application tools plus discovery.
+there are **56 tools**: 55 selectable application tools plus discovery.
 Counts are not a health check.
 
 `sabor_capabilities()` reports version, requested toolsets, actual registered
@@ -694,6 +696,35 @@ Responses include preferences, updated_at and source (`defaults`, `file`, or `po
 updates also include a before/after field diff and preview flag. Preview does
 not change the timestamp. Pantry is also available to pricing and list building
 without enabling this toolset; see [pantry-aware estimates](#pantry-aware-estimates).
+
+### pantry
+
+Structured pantry (#144): items with quantity, unit, optional expiry date and source.
+Opt in with `SABOR_TOOLSETS=core,import,shopping_sync,preferences,pantry`; a new
+`sabor-mcp setup` enables it. It needs the SQLite store (the pantry lives in its database)
+or Mealie (a local `<data dir>/pantry.db`, since Mealie's API keeps no pantry quantities);
+Postgres has no pantry yet, so the tools are not registered there.
+
+```python
+get_pantry(food: str | None=None, expiring_within_days: int | None=None)
+edit_pantry(changes: list[dict], confirm: bool=False, preview_digest: str | None=None)
+add_pantry_from_receipt(lines: list[str], confirm: bool=False, preview_digest: str | None=None)
+```
+
+- `get_pantry` lists items, optionally one food or those expiring within N days (0 to 3650).
+- `edit_pantry` takes `changes` with `op` `add`, `set`, `subtract` or `remove`. Add and
+  subtract use `name`, `quantity` and `unit`; set and remove use the item `id`. Optional
+  fields are `expires_on` (YYYY-MM-DD), `source` (`manual`, `receipt`, `cooked`,
+  `migration`) and `note`. Quantities are stored in `g`, `ml` or `ud`. Items of the same
+  food merge only when their units share a dimension; nothing is converted by guesswork,
+  and subtract never goes below zero (the shortfall is reported).
+- `add_pantry_from_receipt` takes the supermarket receipt lines you read (photo or
+  text; Sabor calls no AI provider). The preview lists normalized `items`, any
+  `uncertain` quantities and the `ignored` non-food lines.
+
+Writes preview first and return a `preview_digest`. Repeat with `confirm=True` and that
+digest after approval; a pantry that changed in between is rejected as `conflict`.
+Invalid input writes nothing. The legacy `update_pantry` is unchanged.
 
 ### legacy_memory
 

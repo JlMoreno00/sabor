@@ -5,6 +5,8 @@ With Mealie, whose API keeps no pantry quantities, it lives in `<data dir>/pantr
 Postgres has no pantry yet. Changes are validated as a whole, previewed by computing the
 same effects without writing, and applied in one transaction.
 """
+import hashlib
+import json
 import re
 import sqlite3
 import uuid
@@ -26,6 +28,10 @@ class PantryError(ValueError):
     """A change is invalid; nothing was written."""
 
 
+class PantryConflict(Exception):
+    """The pantry changed since the preview; nothing was written."""
+
+
 def ensure_schema(connection: sqlite3.Connection) -> None:
     connection.execute(
         "CREATE TABLE IF NOT EXISTS pantry_items (id TEXT PRIMARY KEY, name TEXT NOT NULL, "
@@ -34,13 +40,17 @@ def ensure_schema(connection: sqlite3.Connection) -> None:
     connection.execute("CREATE INDEX IF NOT EXISTS pantry_items_food ON pantry_items(food)")
 
 
-def pantry_store_for(settings, env) -> 'PantryStore | None':
-    """The pantry of this instance: SQLite store's database, a local file for Mealie, else None."""
-    from sabor.core.paths import data_dir
+def pantry_store_for(settings, env=None) -> 'PantryStore | None':
+    """The pantry of this instance: SQLite store's database, a local file for Mealie, else None.
+
+    The Mealie file follows this instance's own data dir (its frozen settings), never the
+    process environment, so instances with different SABOR_DATA_DIR keep separate pantries.
+    `env` is accepted for compatibility and not used.
+    """
     if settings.store == 'sqlite':
         return PantryStore(Path(settings.store_db))
     if settings.store == 'mealie':
-        return PantryStore(data_dir(env) / 'pantry.db')
+        return PantryStore(Path(settings.legacy_config.SABOR_DATA_DIR) / 'pantry.db')
     return None
 
 
@@ -127,6 +137,25 @@ class PantryStore:
             query += " WHERE " + " AND ".join(clauses)
         return [_row(r) for r in connection.execute(query + " ORDER BY food, unit, id", args)]
 
+    def _digest(self, connection, changes) -> str:
+        """Binds a preview to these changes and to the pantry as it is on this connection."""
+        snapshot = [(i.id, i.food, i.quantity is not None and format_amount(i.quantity), i.unit,
+                     i.expires_on, i.updated_at) for i in self._list(connection)]
+        payload = json.dumps([changes, snapshot], sort_keys=True, default=str, ensure_ascii=False)
+        return hashlib.sha256(payload.encode()).hexdigest()
+
+    def preview_with_digest(self, changes: list[dict]) -> tuple[list[dict[str, Any]], str]:
+        """Effects and digest from one snapshot; nothing is written."""
+        with self._session() as connection:
+            digest = self._digest(connection, changes)
+            effects, _ = self._plan(connection, changes)
+            connection.rollback()
+            return effects, digest
+
+    def digest(self, changes: list[dict]) -> str:
+        with self._session() as connection:
+            return self._digest(connection, changes)
+
     def preview(self, changes: list[dict]) -> list[dict[str, Any]]:
         """The effects apply() would have, computed without writing."""
         with self._session() as connection:
@@ -134,9 +163,16 @@ class PantryStore:
             connection.rollback()
             return effects
 
-    def apply(self, changes: list[dict]) -> list[dict[str, Any]]:
+    def apply(self, changes: list[dict], expected_digest: str | None = None) -> list[dict[str, Any]]:
+        """Apply in one transaction. With expected_digest, the pantry must still match the preview.
+
+        The digest is checked after BEGIN IMMEDIATE on the connection that plans and writes,
+        so two confirmations of one preview cannot both apply.
+        """
         with self._session() as connection:
             connection.execute("BEGIN IMMEDIATE")
+            if expected_digest is not None and self._digest(connection, changes) != expected_digest:
+                raise PantryConflict('The pantry changed since the preview.')
             effects, writes = self._plan(connection, changes)
             for sql, args in writes:
                 connection.execute(sql, args)
