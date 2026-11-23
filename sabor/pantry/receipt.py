@@ -11,9 +11,14 @@ from decimal import Decimal
 
 from .model import BaseUnit, food_key, to_base_quantity
 
-# Words a receipt uses for lines that are not food bought.
-_NOT_FOOD = {'total', 'subtotal', 'iva', 'dto', 'descuento', 'bolsa', 'tarjeta', 'efectivo',
-             'cambio', 'entregado', 'ahorro', 'cupon', 'promocion', 'redondeo', 'base', 'importe'}
+# Lines that are not food bought: these first words always mean totals, taxes, discounts or
+# payment. «bolsa» and «base» are food too («bolsa ensalada», «base pizza»), so they only
+# count with the words a receipt uses for a carrier bag or the tax base.
+_NOT_FOOD = {'total', 'subtotal', 'iva', 'dto', 'descuento', 'tarjeta', 'efectivo',
+             'cambio', 'entregado', 'ahorro', 'cupon', 'promocion', 'redondeo', 'importe'}
+_NOT_FOOD_PHRASE = re.compile(
+    r'^(?:bolsas?(?:$|\s+(?:plastico|papel|compra|reutilizable|reciclada|tela)\b)'
+    r'|base\s+imponible\b)')
 # Abbreviation -> word, for receipts of the main Spanish supermarkets.
 _ABBREVIATIONS = {
     'aceit': 'aceite', 'oliv': 'oliva', 'virg': 'virgen', 'ext': 'extra', 'semi': 'semidesnatada',
@@ -59,11 +64,14 @@ def parse_receipt_line(line: str) -> ReceiptLine:
         text = stripped.strip()
     if not text:
         return _ignored(raw, 'empty')
-    if food_key(text.split()[0]).strip('.:') in _NOT_FOOD:
-        return _ignored(raw, 'not_food')
     count = None
-    if match := _COUNT.match(text):
+    # A leading multipack («6 X 125G YOG») is read whole before the count can take its 6.
+    if not _MULTIPACK.match(text) and (match := _COUNT.match(text)):
         count, text = int(match[1]), text[match.end():]
+    # Classified after the count, so «1 BOLSA PLASTICO» is still not food.
+    key = food_key(text)
+    if key.split()[0].strip('.:') in _NOT_FOOD or _NOT_FOOD_PHRASE.match(key):
+        return _ignored(raw, 'not_food')
     size = None
     if match := _MULTIPACK.search(text):
         size = (_amount(match[1]) * _amount(match[2]), _UNITS[match[3].lower()])
