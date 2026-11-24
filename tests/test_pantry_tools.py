@@ -184,6 +184,37 @@ class PantryReviewRegressionTests(unittest.TestCase):
                          [('arroz bomba', '1000')])
 
 
+class PantryStoreErrorTests(unittest.TestCase):
+    """CodeRabbit on #152: store failures (a lost Postgres connection) become the error envelope."""
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        env = {"SABOR_DATA_DIR": tmp.name, "SABOR_TOOLSETS": "pantry"}
+        binding = use_context(build_context(load_settings(env)))
+        binding.__enter__()
+        self.addCleanup(binding.__exit__, None, None, None)
+
+    def test_reads_previews_and_confirmations_return_the_store_error_envelope(self):
+        from unittest.mock import patch
+        from sabor.pantry.store import PantryStore
+        from sabor.store import StoreError
+
+        def broken(*args, **kwargs):
+            raise StoreError("upstream_error", "postgres")
+
+        changes = [{"op": "add", "name": "sal"}]
+        digest = edit_pantry(changes)["data"]["preview_digest"]
+        for method, call in (("list_items", lambda: get_pantry()),
+                             ("preview_with_digest", lambda: edit_pantry(changes)),
+                             ("apply", lambda: edit_pantry(changes, confirm=True, preview_digest=digest)),
+                             ("preview_with_digest", lambda: add_pantry_from_receipt(["ARROZ 1KG 1,20"]))):
+            with self.subTest(method=method), patch.object(PantryStore, method, broken):
+                result = call()
+                self.assertFalse(result["ok"])
+                self.assertEqual(result["error"]["code"], "upstream_error")
+
+
 class PantryRegistrationTests(unittest.TestCase):
     def test_pantry_tools_are_an_opt_in_toolset(self):
         from mcp.server.fastmcp import FastMCP

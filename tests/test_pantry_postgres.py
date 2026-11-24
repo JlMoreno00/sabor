@@ -144,6 +144,28 @@ class PostgresPantryTests(unittest.TestCase):
             self.store.apply(changes, consumed_entries=["e1"])
         self.assertEqual(self.store.list_items()[0].quantity, Decimal("900"))
 
+    def test_a_preview_reads_one_snapshot(self):
+        # CodeRabbit on #152: a commit from another connection between the digest read and
+        # the plan read must not mix two states in one preview.
+        from unittest.mock import patch
+        from sabor.pantry.store import PantryStore
+        changes = [{"op": "add", "name": "sal", "quantity": "1", "unit": "kg"}]
+        empty_digest = self.store.digest(changes)
+        other = psycopg.connect(DSN, autocommit=True)
+        self.addCleanup(other.close)
+        real_plan = PantryStore._plan
+
+        def plan_after_a_concurrent_commit(store, connection, planned):
+            other.execute(sql.SQL(
+                "INSERT INTO {}.pantry_items VALUES ('x', 'sal', 'sal', NULL, '500', 'g', NULL, "
+                "'manual', NULL, 't')").format(sql.Identifier(self.schema)))
+            return real_plan(store, connection, planned)
+
+        with patch.object(PantryStore, "_plan", plan_after_a_concurrent_commit):
+            effects, digest = self.store.preview_with_digest(changes)
+        self.assertEqual(digest, empty_digest)
+        self.assertEqual(effects[0]["action"], "create")
+
     def test_the_pantry_tools_work_through_the_postgres_store(self):
         from sabor.core.context import build_context
         from sabor.core.toolsets import use_context

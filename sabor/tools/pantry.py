@@ -16,6 +16,7 @@ from sabor.pantry.consume import plan_consumption
 from sabor.pantry.model import PantryItem, format_amount
 from sabor.pantry.receipt import parse_receipt_line
 from sabor.pantry.store import PantryConflict, PantryError, PantryStore, pantry_store_for
+from sabor.store import StoreError, store_error_envelope
 
 _MAX_LINES = 200
 _MAX_LINE = 500
@@ -84,6 +85,9 @@ def _preview_or_apply(
             "conflict",
             "The pantry changed since the preview; preview again before confirming.",
         )
+    except StoreError as exc:
+        # A store failure (for example a lost Postgres connection) keeps the usual envelope.
+        return store_error_envelope(exc)
     except PantryError as error:
         return fail("invalid_argument", str(error))
 
@@ -106,6 +110,8 @@ def get_pantry(
         items = _store().list_items(
             food=food, expiring_within_days=expiring_within_days
         )
+    except StoreError as exc:
+        return store_error_envelope(exc)
     except PantryError as error:
         return fail("invalid_argument", str(error))
     return ok({"items": [_item(i) for i in items]})
@@ -199,7 +205,7 @@ def consume_from_pantry(recipe_slugs: list[str] | None = None, mealplan_start: s
                         mealplan_end: str | None = None, servings_multiplier: float = 1.0,
                         confirm: bool = False, preview_digest: str | None = None) -> dict:
     """Preview subtracting cooked recipes or planned meals from the pantry; write only when confirmed with the preview's digest."""
-    from sabor.store import DateRange, StoreError, store_error_envelope
+    from sabor.store import DateRange
 
     error = _consume_source(recipe_slugs, mealplan_start, mealplan_end, servings_multiplier)
     if error:

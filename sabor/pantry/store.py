@@ -130,6 +130,10 @@ class PantryStore:
         """Serialize writers before the digest check (SQLite: take the write lock now)."""
         connection.execute("BEGIN IMMEDIATE")
 
+    def _begin_read(self, connection) -> None:
+        """Read the preview's digest and plan from one snapshot (SQLite: one read transaction)."""
+        connection.execute("BEGIN")
+
     @staticmethod
     def _discard(connection) -> None:
         connection.rollback()
@@ -191,6 +195,7 @@ class PantryStore:
     def preview_with_digest(self, changes: list[dict], entries=()) -> tuple[list[dict[str, Any]], str]:
         """Effects and digest from one snapshot; nothing is written."""
         with self._session() as connection:
+            self._begin_read(connection)
             digest = self._digest(connection, changes, entries)
             effects = self._plan(connection, changes)[0] if changes else []
             self._discard(connection)
@@ -376,6 +381,11 @@ class PostgresPantryStore(PantryStore):
 
     def _begin_write(self, connection) -> None:
         connection.execute("SELECT pg_advisory_xact_lock(?)", (self._write_lock,))
+
+    def _begin_read(self, connection) -> None:
+        # The first statement of the transaction: digest and plan read one snapshot, so a
+        # commit from another connection between them cannot mix two states (#152 review).
+        connection.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ")
 
     @staticmethod
     def _discard(connection) -> None:
