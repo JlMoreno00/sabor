@@ -623,6 +623,13 @@ estimates fail with a sanitized `invalid_response`; estimates without it never
 read preferences. Shopping additions are not blocked by a corrupt file (see
 `pantry_warning` below). No pantry data is changed here.
 
+With `exclude_pantry: true` the [structured pantry](#pantry) counts too (#144). When every
+matching item is kept in the line's base unit (`g`, `ml`, `ud`), the line is excluded only
+if their stock covers the amount needed; too little stock keeps it priced, so the cost is
+never understated. If any matching item has no amount or another unit, the line is
+excluded by name, like a profile entry. Estimates only read the pantry: they never create
+its file, tables or rows. Shopping list hints still use the profile pantry only.
+
 Every `estimate_cost` source kind accepts optional `exclude_pantry: bool`:
 `estimate_cost(source={"kind":"recipe","slug":"rice","exclude_pantry":True})`.
 Absent/false leaves the full response unchanged and does not read preferences.

@@ -484,7 +484,10 @@ are null, never zero. No purchases occur; pantry exclusion is opt-in. See the
 
 All estimate source kinds accept `exclude_pantry: true` to exclude whole-name
 pantry matches from pricing, reported as `in_pantry` in excluded rows/coverage
-and `pantry: {"applied": true, "matched": N}`. Absent/false does not read the
+and `pantry: {"applied": true, "matched": N}`. The structured pantry (#144) is read
+too, without writing it: when every matching item is in the line's base unit, the line is
+excluded only if their stock covers the required amount (too little keeps it priced); if
+any matching item has no amount or another unit, it matches by name like profile entries. Absent/false does not read the
 preferences file and preserves existing responses. List additions never skip
 pantry items: a nonempty pantry adds `pantry_matches` based on source lines,
 without item IDs. Reread the list and approve removal separately. Missing

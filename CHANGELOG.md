@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+### Changed
+- **`estimate_cost(exclude_pantry=True)` reads the structured pantry** (#144, prices only):
+  besides the profile pantry names, structured items count. When every matching item is in
+  the line's base unit, the line is excluded only if their stock covers the required amount;
+  too little stock keeps it priced, so the cost is never understated. If any matching item
+  has no amount or another unit, it matches by name as before. Estimates only read the
+  pantry (read-only connection): no file, table or row is created. `add_to_shopping_list`
+  hints are unchanged.
+
 ### Added
 - **Structured pantry on Postgres/Supabase** (#144 phase 3, point 8): migration 4 adds
   `pantry_items` and `pantry_consumed_entries` to the store's schema, with row level
