@@ -487,7 +487,9 @@ pantry matches from pricing, reported as `in_pantry` in excluded rows/coverage
 and `pantry: {"applied": true, "matched": N}`. Absent/false does not read the
 preferences file and preserves existing responses. List additions never skip
 pantry items: a nonempty pantry adds `pantry_matches` based on source lines,
-without item IDs. Reread the list and approve removal separately. Missing
+without item IDs. With the structured pantry and `subtract_pantry` (true by default),
+items the pantry covers in full are then marked as bought and partial ones report the
+amount `missing` in `pantry_coverage` (#144). Reread the list and approve removal separately. Missing
 preferences mean empty pantry; corrupt preferences block only pantry-aware
 estimates (`Unable to read preferences safely.`). List additions still write and
 return `pantry_warning` (`preferences_unreadable` or `pantry_matching_failed`)

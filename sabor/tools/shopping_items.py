@@ -63,12 +63,60 @@ def _run(ctx, operation, *args):
 def add_to_shopping_list(list_id: str, items: list[str] | None = None,
                          recipe_slugs: list[str] | None = None,
                          mealplan_start: str | None = None, mealplan_end: str | None = None,
-                         servings_multiplier: float = 1.0) -> dict:
+                         servings_multiplier: float = 1.0, subtract_pantry: bool = True) -> dict:
     """Add exactly one source to a list. The client must get user approval before calling.
 
     Items remain unparsed notes; recipe scaling uses the explicit servings multiplier.
+    With subtract_pantry, items the structured pantry covers in full are marked as bought.
     """
-    return _run(current_context(), _add_to_shopping_list, list_id, items, recipe_slugs, mealplan_start, mealplan_end, servings_multiplier)
+    if type(subtract_pantry) is not bool:
+        return _invalid("subtract_pantry must be true or false.")
+    ctx = current_context()
+    before = _pantry_snapshot(ctx, list_id) if subtract_pantry else None
+    result = _run(ctx, _add_to_shopping_list, list_id, items, recipe_slugs, mealplan_start, mealplan_end, servings_multiplier)
+    if before is not None and result.get('ok'):
+        _apply_pantry_coverage(ctx, result['data'], before)
+    return result
+
+
+def _pantry_snapshot(ctx, list_id):
+    """The list before adding, when there is a structured pantry to compare with; else None.
+
+    A pantry file that does not exist yet means no pantry: nothing is created here.
+    """
+    from sabor.pantry.store import pantry_store_for
+    settings = getattr(ctx, 'settings', None)
+    store = pantry_store_for(settings) if settings is not None else None
+    if store is None or not store.path.exists():
+        return None
+    try:
+        snapshot = ctx.store.get_shopping_items(ctx.store.validate_shopping_list_id(list_id, adding=True))
+    except Exception:
+        return None
+    return store, {i.id: i.quantity for i in snapshot.items}
+
+
+def _apply_pantry_coverage(ctx, data, before):
+    """José's decision (#144, question 1): what the pantry covers in full is marked as bought
+    and stays on the list; what it covers in part stays unchecked with the amount missing.
+
+    Only unchecked items this call created or increased are looked at. The pantry itself is
+    not changed. A failure here never undoes the write: it is reported as pantry_warning.
+    """
+    from sabor.pantry.shopping import cover_items
+    store, quantities = before
+    try:
+        list_id = data['list_id']
+        touched = [i for i in ctx.store.get_shopping_items(list_id).items
+                   if not i.checked and (i.id not in quantities or i.quantity != quantities[i.id])]
+        rows = cover_items(touched, store.list_items())
+        covered = [r['item'] for r in rows if r['status'] == 'covered']
+        if covered:
+            ctx.store.check_shopping_items(list_id, covered, True)
+        data['pantry_coverage'] = {'checked': covered, 'items': rows}
+    except Exception:
+        data['pantry_warning'] = 'pantry_coverage_failed'
+
 
 
 def _add_to_shopping_list(ctx, list_id: str, items: list[str] | None = None,

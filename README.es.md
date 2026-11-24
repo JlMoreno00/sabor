@@ -605,7 +605,7 @@ create_shopping_list(name: str)
 delete_shopping_list(list_id: str, confirm: bool=False)
 clear_shopping_list(list_id: str, confirm: bool=False)
 get_or_create_shopping_list(name: str)
-add_to_shopping_list(list_id: str, items: list[str] | None=None, recipe_slugs: list[str] | None=None, mealplan_start: str | None=None, mealplan_end: str | None=None, servings_multiplier: float=1.0)
+add_to_shopping_list(list_id: str, items: list[str] | None=None, recipe_slugs: list[str] | None=None, mealplan_start: str | None=None, mealplan_end: str | None=None, servings_multiplier: float=1.0, subtract_pantry: bool=True)
 get_shopping_list_items(list_id: str, checked: bool | None=None, page: int=1, per_page: int=100)
 check_shopping_list_items(list_id: str, item_ids: list[str], checked: bool=True)
 remove_shopping_list_items(list_id: str, item_ids: list[str], confirm: bool=False)
@@ -662,6 +662,18 @@ las líneas de origen: texto de artículos en línea o ingredientes de receta de
 antes de escribir. Los IDs se omiten deliberadamente porque los almacenes pueden fusionar líneas;
 vuelve a leer `get_shopping_list_items` para identificar los IDs, pide aprobación y usa
 `remove_shopping_list_items` si lo deseas. No se elimina ni omite nada automáticamente.
+
+Con la [despensa estructurada](#pantry) (`subtract_pantry`, activado por defecto), las líneas
+que añade o aumenta esta llamada se comparan con la despensa después de escribir. Un artículo
+que la despensa cubre del todo se marca como comprado, así que sigue en la lista tachado y se ve
+lo que se ha tomado de casa; uno cubierto en parte queda sin marcar y su fila en
+`pantry_coverage.items` lleva la cantidad que aún falta (`missing`). Cada fila tiene un `status`:
+`covered`, `partial`, `not_in_pantry`, `not_measured`, `pantry_amount_unknown` o
+`incompatible_unit`; solo se marcan los `covered` (`pantry_coverage.checked` lista sus IDs). No se
+inventa nada, la despensa no cambia y los artículos que ya estaban en la lista no se tocan. Sin
+archivo de despensa el campo no aparece y no se crea nada. Solo usa las operaciones de artículos
+del propio almacén, así que SQLite y Mealie se comportan igual. `subtract_pantry=False` mantiene
+el comportamiento anterior.
 
 ### pricing
 
