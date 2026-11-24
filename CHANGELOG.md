@@ -4,11 +4,12 @@
 
 ### Changed
 - **`estimate_cost(exclude_pantry=True)` reads the structured pantry** (#144, prices only):
-  besides the profile pantry names, structured items count. An item kept in the line's base
-  unit excludes the line only when its stock covers the required amount; too little stock
-  keeps the line priced, so the cost is never understated. Items without an amount, or in
-  another unit, match by name as before. Nothing is created for a Mealie instance without a
-  pantry file. `add_to_shopping_list` hints are unchanged.
+  besides the profile pantry names, structured items count. When every matching item is in
+  the line's base unit, the line is excluded only if their stock covers the required amount;
+  too little stock keeps it priced, so the cost is never understated. If any matching item
+  has no amount or another unit, it matches by name as before. Estimates only read the
+  pantry (read-only connection): no file, table or row is created. `add_to_shopping_list`
+  hints are unchanged.
 
 ### Added
 - **`consume_from_pantry`** (#144 phase 2, `pantry` toolset): subtracts what cooked recipes

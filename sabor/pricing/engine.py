@@ -310,8 +310,9 @@ def _in_pantry(name, pantry, q, required) -> bool:
     """Whether a line is at home, so exclude_pantry leaves it out of the cost.
 
     Profile entries (names) and structured items without a comparable amount count by
-    name, as before. A structured item kept in the line's base unit excludes it only when
-    the stock covers the required amount; too little stock keeps the line priced.
+    name, as before. When every matching structured item is kept in the line's base unit,
+    the line is excluded only if their stock covers the required amount; too little stock
+    keeps it priced.
     """
     if match_pantry(name, [p for p in pantry if isinstance(p, str)]) is not None:
         return True
@@ -321,10 +322,10 @@ def _in_pantry(name, pantry, q, required) -> bool:
     need = to_base(replace(q, amount=required)) if required is not None else None
     if need is None or need.amount is None or need.unit is None:
         return True
-    comparable = [p for p in matching if p.unit == need.unit and p.quantity is not None]
-    if not comparable:
+    if any(p.unit != need.unit or p.quantity is None for p in matching):
+        # One matching item without a comparable amount keeps the by-name rule.
         return True
-    return sum((p.quantity or Decimal(0) for p in comparable), Decimal(0)) >= need.amount
+    return sum((p.quantity or Decimal(0) for p in matching), Decimal(0)) >= need.amount
 
 
 def _estimate(source, store_ctx, rows, pricing, product_overrides, match_policy, pantry):
