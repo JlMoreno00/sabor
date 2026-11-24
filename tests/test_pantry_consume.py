@@ -105,6 +105,32 @@ class PlanConsumptionTests(unittest.TestCase):
         )
         self.assertEqual((changes, report[0]["status"]), ([], "pantry_amount_unknown"))
 
+    def test_z_plurals_match_their_singular(self):
+        # CodeRabbit on #149: «nueces» is the plural of «nuez» (and «huevos» of «huevo»).
+        changes, report = plan_consumption(
+            [_ing("50 g de nueces", 50, "g", "nueces"), _ing("2 huevos", 2, None, "huevos")],
+            Decimal(1), [_item("nuez", "200", "g"), _item("huevo", "6", "ud")])
+        self.assertEqual(changes, [
+            {"op": "subtract", "name": "nuez", "quantity": "50", "unit": "g"},
+            {"op": "subtract", "name": "huevo", "quantity": "2", "unit": "ud"}])
+        self.assertEqual([r["status"] for r in report], ["subtract", "subtract"])
+
+    def test_demand_is_spread_over_equivalent_pantry_foods(self):
+        # CodeRabbit on #149: 1 ud of «huevo» and 5 ud of «huevos» are 6 eggs in stock.
+        changes, report = plan_consumption(
+            [_ing("2 huevos", 2, None, "huevos"), _ing("1 huevo", 1, None, "huevo")],
+            Decimal(1), [_item("huevo", "1", "ud"), _item("huevos", "5", "ud")])
+        self.assertEqual(changes, [
+            {"op": "subtract", "name": "huevo", "quantity": "1", "unit": "ud"},
+            {"op": "subtract", "name": "huevos", "quantity": "2", "unit": "ud"}])
+        self.assertEqual([r["status"] for r in report], ["subtract", "subtract"])
+        # Not enough in total: everything compatible is used and the rest is the shortfall.
+        changes, _ = plan_consumption([_ing("8 huevos", 8, None, "huevos")], Decimal(1),
+                                      [_item("huevo", "1", "ud"), _item("huevos", "5", "ud")])
+        self.assertEqual(changes, [
+            {"op": "subtract", "name": "huevo", "quantity": "1", "unit": "ud"},
+            {"op": "subtract", "name": "huevos", "quantity": "7", "unit": "ud"}])
+
 
 class ConsumeToolTests(unittest.TestCase):
     def setUp(self):
@@ -216,6 +242,23 @@ class ConsumeToolTests(unittest.TestCase):
         self.assertTrue(first["ok"])
         self.assertEqual(second["error"]["code"], "conflict")
         self.assertEqual(self.stock(), {"arroz": "800", "huevo": "4"})
+
+    def test_plan_entries_without_an_id_are_skipped_and_not_subtracted(self):
+        # CodeRabbit on #149: Mealie may return an entry with no usable id; it could not be
+        # remembered, so subtracting it would happen again on every call.
+        from unittest.mock import patch
+        from sabor.store import MealEntry
+        entries = [MealEntry("2026-11-23", "lunch", "Arroz con huevo", self.slug, id="", recipe_id="r1"),
+                   MealEntry("2026-11-24", "lunch", "Arroz con huevo", self.slug, id=cast(Any, None),
+                             recipe_id="r1")]
+        week: dict[str, Any] = {"mealplan_start": "2026-11-23", "mealplan_end": "2026-11-29"}
+        with patch.object(self.store, "get_mealplan", return_value=entries):
+            preview = consume_from_pantry(**week)
+            self.assertEqual([s["reason"] for s in preview["data"]["skipped"]],
+                             ["missing_entry_id", "missing_entry_id"])
+            self.assertEqual((preview["data"]["effects"], preview["data"]["recipes"]), ([], []))
+            self.confirm(**week)
+        self.assertEqual(self.stock(), {"arroz": "1000", "huevo": "6"})
 
     def test_invalid_sources_write_nothing(self):
         for source in (

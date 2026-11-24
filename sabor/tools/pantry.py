@@ -162,6 +162,12 @@ def add_pantry_from_receipt(
     )
 
 
+def _entry_id(entry) -> str | None:
+    """The plan entry's id when it is a non-empty text, else None."""
+    entry_id = getattr(entry, "id", None)
+    return entry_id if isinstance(entry_id, str) and entry_id.strip() else None
+
+
 def _consume_source(recipe_slugs, mealplan_start, mealplan_end, servings_multiplier) -> str | None:
     """The validation error, or None for exactly one valid source and multiplier."""
     if type(servings_multiplier) not in (int, float) or not 0 < servings_multiplier <= 20:
@@ -205,11 +211,15 @@ def consume_from_pantry(recipe_slugs: list[str] | None = None, mealplan_start: s
         else:
             assert isinstance(mealplan_start, str) and isinstance(mealplan_end, str)
             planned = list(ctx.store.get_mealplan(DateRange(mealplan_start, mealplan_end)))
-            done = _store().consumed_entries([e.id for e in planned if e.id])
+            done = _store().consumed_entries([e.id for e in planned if _entry_id(e)])
             for entry in planned:
                 slug = entry.recipe_slug or entry.recipe_id
                 if not slug:
                     skipped.append({"entry": entry.id, "reason": "text_only_entry"})
+                elif not _entry_id(entry):
+                    # Without an id the entry could not be remembered and would be subtracted
+                    # again on every call (Mealie may return one); it is skipped instead.
+                    skipped.append({"entry": entry.id, "reason": "missing_entry_id"})
                 elif entry.id in done:
                     skipped.append({"entry": entry.id, "reason": "already_consumed"})
                 else:

@@ -18,11 +18,13 @@ from .model import PantryItem, food_key, format_amount
 
 
 def _forms(food: str) -> set[str]:
-    """«huevos» and «huevo», «tomates» and «tomate» are the same food."""
+    """«huevos» and «huevo», «tomates» and «tomate», «nueces» and «nuez» are the same food."""
     forms = {food}
     for suffix in ("es", "s"):
         if food.endswith(suffix) and len(food) > len(suffix) + 1:
             forms.add(food[: -len(suffix)])
+    if food.endswith("ces") and len(food) > 4:
+        forms.add(food[:-3] + "z")  # «nueces» -> «nuez», «perdices» -> «perdiz»
     return forms
 
 
@@ -53,8 +55,9 @@ def plan_consumption(
     The report has one row per ingredient with `status`: `subtract`, `not_measured`,
     `not_in_pantry`, `incompatible_unit` or `pantry_amount_unknown`.
     """
-    needed: dict[tuple[str, str], Decimal] = {}
-    names: dict[tuple[str, str], str] = {}
+    # Demand per group of equivalent pantry foods kept in one base unit: «huevo» and «huevos»
+    # rows are one stock of eggs.
+    needed: dict[tuple[tuple[str, ...], str], Decimal] = {}
     report: list[dict[str, Any]] = []
     for ingredient in ingredients:
         text = _text(ingredient)
@@ -81,22 +84,33 @@ def plan_consumption(
             row["status"] = "not_measured"
             continue
         amount, unit = base[0] * multiplier, base[1]
-        target = next((i for i in candidates if i.unit == unit), None)
-        if target is None:
+        targets = tuple(sorted({i.food for i in candidates if i.unit == unit}))
+        if not targets:
             known = [i for i in candidates if i.unit is not None]
             row["status"] = "incompatible_unit" if known else "pantry_amount_unknown"
             continue
-        key = (target.food, unit)
+        key = (targets, unit)
         needed[key] = needed.get(key, Decimal(0)) + amount
-        names[key] = target.name
         row.update(status="subtract", quantity=format_amount(amount), unit=unit)
-    changes = [
-        {
-            "op": "subtract",
-            "name": names[key],
-            "quantity": format_amount(amount),
-            "unit": key[1],
-        }
-        for key, amount in needed.items()
-    ]
-    return changes, report
+    return _spread(needed, items), report
+
+
+def _spread(needed, items: list[PantryItem]) -> list[dict[str, Any]]:
+    """Subtract changes that draw each demand from every equivalent food in stock.
+
+    Foods are used in name order; when the stock is not enough, the rest goes to the last
+    one, where the pantry store reports it as a shortfall.
+    """
+    changes: list[dict[str, Any]] = []
+    for (foods, unit), demand in needed.items():
+        for index, food in enumerate(foods):
+            matching = [i for i in items if i.food == food and i.unit == unit]
+            stock = sum((i.quantity or Decimal(0) for i in matching), Decimal(0))
+            take = demand if index == len(foods) - 1 else min(demand, stock)
+            if take > 0:
+                changes.append({"op": "subtract", "name": matching[0].name,
+                                "quantity": format_amount(take), "unit": unit})
+            demand -= take
+            if demand <= 0:
+                break
+    return changes
