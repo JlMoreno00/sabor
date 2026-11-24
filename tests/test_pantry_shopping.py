@@ -47,6 +47,26 @@ class CoverItemsTests(unittest.TestCase):
             [_pantry('sal', '1000', 'g'), _pantry('queso', None, None), _pantry('leche', '500', 'g')])
         self.assertEqual([r['status'] for r in rows], ['not_measured', 'pantry_amount_unknown', 'incompatible_unit'])
 
+    def test_an_explicit_unit_is_used_even_without_a_food(self):
+        # CodeRabbit on #153: note='arroz' with quantity 300 and unit g is 300 g, while a free
+        # note with no unit (technical quantity 1) is still read from its own text.
+        rows = cover_items([_item('1', note='arroz', quantity=300, unit='g'),
+                            _item('2', note='200 g de pasta', quantity=1)],
+                           [_pantry('arroz', '1000', 'g'), _pantry('pasta', '500', 'g')])
+        self.assertEqual([r['status'] for r in rows], ['covered', 'covered'])
+
+    def test_stock_is_shared_between_lines_of_the_same_food(self):
+        # CodeRabbit on #153: 1000 g of rice cannot cover both 300 g and 800 g.
+        rows = cover_items([_item('1', quantity=300, unit='g', food='arroz'),
+                            _item('2', quantity=800, unit='g', food='arroz')],
+                           [_pantry('arroz', '1000', 'g')])
+        self.assertEqual([r['status'] for r in rows], ['covered', 'partial'])
+        self.assertEqual(rows[1]['missing'], {'quantity': '100', 'unit': 'g'})
+        # The pantry objects themselves are not changed.
+        pantry = [_pantry('arroz', '1000', 'g')]
+        cover_items([_item('1', quantity=300, unit='g', food='arroz')], pantry)
+        self.assertEqual(pantry[0].quantity, Decimal('1000'))
+
 
 class ShoppingPantryToolTests(unittest.TestCase):
     setUp = _base.PantryTests.setUp

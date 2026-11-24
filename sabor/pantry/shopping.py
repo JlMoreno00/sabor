@@ -20,8 +20,9 @@ def _need(item: ShoppingItem, name: str):
     """(amount, base unit) the list item asks for, or None when it has no measurable amount."""
     text = item.note or item.display or ''
     unit = item.unit.name if item.unit and item.unit.name else None
-    if item.food and item.food.name and item.quantity:
-        # Structured item (Mealie, recipe lines): a bare count is pieces.
+    if item.quantity and (unit or (item.food and item.food.name)):
+        # Structured amount (Mealie, recipe lines), even without a food: an explicit unit
+        # is used as is; a food with a bare count is pieces.
         q = to_base(from_structured(item.quantity, unit or 'ud', name, text))
     else:
         # Free-text note («300 g arroz», «6 huevos»): read its own leading amount.
@@ -35,6 +36,9 @@ def cover_items(items: Iterable[ShoppingItem], pantry: list[PantryItem]) -> list
     """One row per list item: `covered`, `partial` (with `missing`), `not_in_pantry`,
     `not_measured`, `pantry_amount_unknown` or `incompatible_unit`."""
     rows: list[dict[str, Any]] = []
+    # Stock left per pantry item while lines are compared, so two lines of one food share it.
+    # Local only: the persisted pantry is never changed here.
+    left = {p.id: p.quantity for p in pantry}
     for item in items:
         text = item.note or item.display or ''
         name = item.food.name if item.food and item.food.name else ingredient_name(text)
@@ -56,9 +60,14 @@ def cover_items(items: Iterable[ShoppingItem], pantry: list[PantryItem]) -> list
         if not comparable:
             row['status'] = 'incompatible_unit'
             continue
-        stock = sum((p.quantity or Decimal(0) for p in comparable), Decimal(0))
+        stock = sum((left[p.id] or Decimal(0) for p in comparable), Decimal(0))
         if stock >= amount:
             row['status'] = 'covered'
         else:
             row.update(status='partial', missing={'quantity': format_amount(amount - stock), 'unit': unit})
+        need = min(amount, stock)
+        for p in comparable:
+            take = min(need, left[p.id] or Decimal(0))
+            left[p.id] = (left[p.id] or Decimal(0)) - take
+            need -= take
     return rows
