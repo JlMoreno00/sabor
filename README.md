@@ -29,7 +29,7 @@ uvx --python ">=3.12" sabor-mcp
 
 Use the portable [sabor-onboarding](https://github.com/JlMoreno00/sabor/blob/main/skills/sabor-onboarding/SKILL.md) and
 [sabor-import](https://github.com/JlMoreno00/sabor/blob/main/skills/sabor-import/SKILL.md) skills. Sabor exposes **24 tools by
-default, 56 with every toolset** fully configured. To persist a cooking profile,
+default, 57 with every toolset** fully configured. To persist a cooking profile,
 run `sabor-mcp setup` or include `preferences` in `SABOR_TOOLSETS`;
 direct uvx and one-click registrations do not enable it. See
 [toolset configuration](https://github.com/JlMoreno00/sabor/blob/main/docs/operations.md#toolset-and-provider-configuration-02).
@@ -312,7 +312,7 @@ is trimmed, duplicates collapse, and unknown names prevent startup.
 
 Default startup with SQLite registers **24 tools**: 22 core tools,
 `import_recipe`, and `sabor_capabilities`. With every toolset fully configured,
-there are **56 tools**: 55 selectable application tools plus discovery.
+there are **57 tools**: 56 selectable application tools plus discovery.
 Counts are not a health check.
 
 `sabor_capabilities()` reports version, requested toolsets, actual registered
@@ -709,6 +709,7 @@ Postgres has no pantry yet, so the tools are not registered there.
 get_pantry(food: str | None=None, expiring_within_days: int | None=None)
 edit_pantry(changes: list[dict], confirm: bool=False, preview_digest: str | None=None)
 add_pantry_from_receipt(lines: list[str], confirm: bool=False, preview_digest: str | None=None)
+consume_from_pantry(recipe_slugs: list[str] | None=None, mealplan_start: str | None=None, mealplan_end: str | None=None, servings_multiplier: float=1.0, confirm: bool=False, preview_digest: str | None=None)
 ```
 
 - `get_pantry` lists items, optionally one food or those expiring within N days (0 to 3650).
@@ -721,7 +722,14 @@ add_pantry_from_receipt(lines: list[str], confirm: bool=False, preview_digest: s
 - `add_pantry_from_receipt` takes the supermarket receipt lines you read (photo or
   text; Sabor calls no AI provider). The preview lists normalized `items`, any
   `uncertain` quantities and the `ignored` non-food lines.
-
+- `consume_from_pantry` subtracts what cooked recipes used: pass `recipe_slugs` (one or
+  more recipes cooked now) or `mealplan_start`/`mealplan_end` (the planned meals of up to
+  32 days), plus `servings_multiplier` (default 1). Each ingredient's amount is scaled and
+  subtracted from the pantry item of the same food and unit; the preview's `ingredients`
+  report says, per ingredient, whether it is subtracted or why not (`not_in_pantry`,
+  `not_measured`, `incompatible_unit`, `pantry_amount_unknown`). Nothing goes below zero
+  (a `shortfall` is reported). Meal plan entries are remembered once confirmed, so the same
+  week is never subtracted twice (`skipped` lists them as `already_consumed`).
 Writes preview first and return a `preview_digest`. Repeat with `confirm=True` and that
 digest after approval; a pantry that changed in between is rejected as `conflict`.
 Invalid input writes nothing. The legacy `update_pantry` is unchanged.

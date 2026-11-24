@@ -27,7 +27,7 @@ uvx --python ">=3.12" sabor-mcp
 
 Usa las skills portátiles [sabor-onboarding](https://github.com/JlMoreno00/sabor/blob/main/skills/sabor-onboarding/SKILL.md) y
 [sabor-import](https://github.com/JlMoreno00/sabor/blob/main/skills/sabor-import/SKILL.md). Sabor expone **24 tools por
-defecto, 56 con todos los toolsets** completamente configurados. Para guardar un perfil de cocina,
+defecto, 57 con todos los toolsets** completamente configurados. Para guardar un perfil de cocina,
 ejecuta `sabor-mcp setup` o incluye `preferences` en `SABOR_TOOLSETS`;
 los registros directos con uvx y con un clic no lo activan. Consulta la
 [configuración de toolsets](https://github.com/JlMoreno00/sabor/blob/main/docs/operations.md#toolset-and-provider-configuration-02).
@@ -318,7 +318,7 @@ el arranque.
 
 El arranque predeterminado con SQLite registra **24 tools**: 22 tools de core,
 `import_recipe` y `sabor_capabilities`. Con todos los toolsets completamente configurados,
-hay **56 tools**: 55 tools de aplicación seleccionables más la de descubrimiento.
+hay **57 tools**: 56 tools de aplicación seleccionables más la de descubrimiento.
 Los recuentos no son una comprobación de salud.
 
 `sabor_capabilities()` informa de la versión, los toolsets solicitados, los nombres realmente
@@ -721,6 +721,7 @@ cantidades de despensa); Postgres aún no tiene despensa, así que ahí no se re
 get_pantry(food: str | None=None, expiring_within_days: int | None=None)
 edit_pantry(changes: list[dict], confirm: bool=False, preview_digest: str | None=None)
 add_pantry_from_receipt(lines: list[str], confirm: bool=False, preview_digest: str | None=None)
+consume_from_pantry(recipe_slugs: list[str] | None=None, mealplan_start: str | None=None, mealplan_end: str | None=None, servings_multiplier: float=1.0, confirm: bool=False, preview_digest: str | None=None)
 ```
 
 - `get_pantry` lista los artículos, opcionalmente de un alimento o los que caducan en N días (de 0 a 3650).
@@ -733,7 +734,14 @@ add_pantry_from_receipt(lines: list[str], confirm: bool=False, preview_digest: s
 - `add_pantry_from_receipt` recibe las líneas del ticket del súper que has leído (foto o
   texto; Sabor no llama a ningún proveedor de IA). La vista previa muestra los `items`
   normalizados, las cantidades `uncertain` y las líneas `ignored` que no son comida.
-
+- `consume_from_pantry` resta lo que han usado las recetas cocinadas: pasa `recipe_slugs`
+  (una o más recetas cocinadas ahora) o `mealplan_start`/`mealplan_end` (las comidas del plan
+  de hasta 32 días), más `servings_multiplier` (1 por defecto). La cantidad de cada ingrediente
+  se escala y se resta del artículo de la despensa del mismo alimento y unidad; el informe
+  `ingredients` de la vista previa dice, por ingrediente, si se resta o por qué no
+  (`not_in_pantry`, `not_measured`, `incompatible_unit`, `pantry_amount_unknown`). Nada baja de
+  cero (se informa del `shortfall`). Las entradas del plan se recuerdan al confirmar, así que la
+  misma semana nunca se resta dos veces (`skipped` las lista como `already_consumed`).
 Las escrituras muestran primero una vista previa y devuelven un `preview_digest`. Tras la
 aprobación, repite con `confirm=True` y ese digest; si la despensa cambió entretanto, se
 rechaza con `conflict`. Una entrada no válida no escribe nada. El `update_pantry` heredado no cambia.
