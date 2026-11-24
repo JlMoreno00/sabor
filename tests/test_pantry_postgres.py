@@ -156,9 +156,10 @@ class PostgresPantryTests(unittest.TestCase):
         real_plan = PantryStore._plan
 
         def plan_after_a_concurrent_commit(store, connection, planned):
-            other.execute(sql.SQL(
-                "INSERT INTO {}.pantry_items VALUES ('x', 'sal', 'sal', NULL, '500', 'g', NULL, "
-                "'manual', NULL, 't')").format(sql.Identifier(self.schema)))
+            other.execute(
+                sql.SQL("INSERT INTO {}.pantry_items VALUES (%s, %s, %s, NULL, %s, %s, NULL, %s, NULL, %s)")
+                .format(sql.Identifier(self.schema)),
+                ("x", "sal", "sal", "500", "g", "manual", "t"))
             return real_plan(store, connection, planned)
 
         with patch.object(PantryStore, "_plan", plan_after_a_concurrent_commit):
