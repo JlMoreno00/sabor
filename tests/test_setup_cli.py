@@ -304,6 +304,8 @@ class SetupHelpTests(unittest.TestCase):
 class SetupPreferencesToolsetTests(unittest.TestCase):
     setUp = SetupTests.setUp
     run_setup = SetupTests.run_setup
+    # Set by the borrowed SetupTests.setUp.
+    path: Path
 
     def test_new_setup_enables_preferences_and_respects_custom_lists(self):
         code, result = self.run_setup('--non-interactive', '--json', '--lang', 'es')
