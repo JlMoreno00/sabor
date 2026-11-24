@@ -21,7 +21,15 @@
   transaction on the store's connection; writes take a transaction advisory lock and check
   the preview digest inside it, as on SQLite. Upserts use the standard
   `INSERT … ON CONFLICT (id) DO UPDATE` on both backends.
-
+- **Shopping lists check what the pantry covers** (#144, José's decision): `add_to_shopping_list`
+  gains `subtract_pantry: bool = True`. After writing, the unchecked lines this call added
+  or increased are compared with the structured pantry: an item covered in full is marked
+  as bought (it stays on the list, crossed out); one covered in part stays unchecked and
+  `pantry_coverage` reports the amount still `missing`. Nothing is guessed (statuses
+  `not_in_pantry`, `not_measured`, `pantry_amount_unknown`, `incompatible_unit`), the pantry
+  is not changed, items already on the list are left alone, and without a pantry file
+  nothing is read or created. It uses only the store's item calls, so SQLite and Mealie
+  behave the same; `subtract_pantry=False` keeps the previous behaviour.
 - **`consume_from_pantry`** (#144 phase 2, `pantry` toolset): subtracts what cooked recipes
   used, for `recipe_slugs` or a meal plan range (`mealplan_start`/`mealplan_end`, up to 32
   days), scaled by `servings_multiplier`. Each ingredient is matched to the pantry item of
