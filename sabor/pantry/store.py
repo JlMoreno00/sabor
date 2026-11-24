@@ -121,6 +121,21 @@ class PantryStore:
         finally:
             connection.close()
 
+    def read_items(self) -> list[PantryItem]:
+        """Read-only listing for pricing: never creates the file, the schema or any row.
+
+        A missing file or a file without pantry tables is an empty pantry.
+        """
+        if not self.path.exists():
+            return []
+        connection = sqlite3.connect(self.path.resolve().as_uri() + '?mode=ro', uri=True)
+        try:
+            return [_row(r) for r in connection.execute("SELECT * FROM pantry_items ORDER BY food, unit, id")]
+        except sqlite3.OperationalError:
+            return []
+        finally:
+            connection.close()
+
     def list_items(self, food: str | None = None, expiring_within_days: int | None = None,
              today: str | None = None) -> list[PantryItem]:
         with self._session() as connection:

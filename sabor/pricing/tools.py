@@ -13,7 +13,7 @@ from sabor.store import StoreError, store_error_envelope
 from .mercadona import CatalogWarming
 from .provider import RetailContext, ProductQuery
 from .engine import estimate, present_money
-from .pantry import load_pantry
+from .pantry import load_pantry, load_stock
 
 
 def pricing_ready(settings):
@@ -63,6 +63,8 @@ def _run(ctx, store, operation, argument, overrides=None, match_policy='cheapest
                 pantry, error = load_pantry(ctx)
                 if error:
                     return error
+                # The structured pantry (#144) counts too, with its amounts.
+                pantry = [*pantry, *load_stock(ctx)]
             result = estimate(argument, retail, ctx.store, pricing, overrides, match_policy, pantry)
             data = _public(result)
             if isinstance(argument, dict) and argument.get('exclude_pantry') is True:
