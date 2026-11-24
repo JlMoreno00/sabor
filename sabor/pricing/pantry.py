@@ -1,5 +1,7 @@
 """Read-only instance pantry and conservative whole-name matching."""
 import unicodedata
+from dataclasses import dataclass
+from decimal import Decimal
 
 from sabor.preferences import preferences_call
 from .quantities import ingredient_name
@@ -35,3 +37,25 @@ def match_pantry(name, pantry):
 def item_name(item):
     return item.food.name if item.food else ingredient_name(
         getattr(item, 'originalText', None) or item.note or item.display or '')
+
+
+@dataclass(frozen=True)
+class PantryStock:
+    """One structured pantry item (#144) as pricing sees it: name and base-unit amount."""
+    name: str
+    quantity: Decimal | None
+    unit: str | None
+
+
+def load_stock(context) -> list[PantryStock]:
+    """The structured pantry for exclude_pantry; empty when the store has none.
+
+    Read-only: a Mealie instance that never used the pantry has no pantry file, and none is
+    created here.
+    """
+    from sabor.pantry.store import pantry_store_for
+    store = pantry_store_for(context.settings)
+    if store is None or not store.path.exists():
+        return []
+    return [PantryStock(i.name, i.quantity, i.unit) for i in store.list_items()]
+

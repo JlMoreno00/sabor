@@ -7,7 +7,7 @@ from .provider import RetailContext, ProductQuery, PriceQuote
 from .quantities import (LEADING_NUMBER, from_structured, ingredient_name, is_fraction, leading_prefix,
                          parse_text, to_base, written_digits)
 from .matching import carried, covers, processed, words
-from .pantry import match_pantry
+from .pantry import PantryStock, match_pantry
 from sabor.store import DateRange
 
 
@@ -306,6 +306,27 @@ def _is_amount(number, name, row, q):
     return value in (raw, q.amount)
 
 
+def _in_pantry(name, pantry, q, required) -> bool:
+    """Whether a line is at home, so exclude_pantry leaves it out of the cost.
+
+    Profile entries (names) and structured items without a comparable amount count by
+    name, as before. A structured item kept in the line's base unit excludes it only when
+    the stock covers the required amount; too little stock keeps the line priced.
+    """
+    if match_pantry(name, [p for p in pantry if isinstance(p, str)]) is not None:
+        return True
+    matching = [p for p in pantry if isinstance(p, PantryStock) and match_pantry(name, [p.name]) is not None]
+    if not matching:
+        return False
+    need = to_base(replace(q, amount=required)) if required is not None else None
+    if need is None or need.amount is None or need.unit is None:
+        return True
+    comparable = [p for p in matching if p.unit == need.unit and p.quantity is not None]
+    if not comparable:
+        return True
+    return sum((p.quantity or Decimal(0) for p in comparable), Decimal(0)) >= need.amount
+
+
 def _estimate(source, store_ctx, rows, pricing, product_overrides, match_policy, pantry):
     if match_policy not in ('cheapest', 'strict'):
         raise ValueError('invalid match policy')
@@ -331,7 +352,7 @@ def _estimate(source, store_ctx, rows, pricing, product_overrides, match_policy,
         reasons, evidence = list(q.ambiguity), [f'quantity:{q.source}']
         candidates, quote, cost = [], None, None
         comparable, alternatives = [], ()
-        if source.get('exclude_pantry') and match_pantry(row['name'], pantry) is not None:
+        if source.get('exclude_pantry') and _in_pantry(row['name'], pantry, q, required):
             lines.append(CostLine(key, row['name'], required, q.unit, None, None, (),
                                   Uncertainty('unknown', ('in_pantry',)), (key,), tuple(evidence)))
             continue

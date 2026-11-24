@@ -635,6 +635,14 @@ con `exclude_pantry: true` fallen con un `invalid_response` sanitizado; las esti
 nunca leen las preferencias. Un archivo corrupto no impide añadir a la lista de compra (consulta
 `pantry_warning` más abajo). Aquí no se modifican datos de la despensa.
 
+Con `exclude_pantry: true` también cuenta la [despensa estructurada](#pantry) (#144). Un artículo
+sin cantidad, o guardado en otra unidad que la línea, excluye la línea por nombre, como una
+entrada del perfil. Un artículo guardado en la unidad base de la línea (`g`, `ml`, `ud`) solo la
+excluye si sus existencias cubren la cantidad necesaria; si hay poco, la línea se sigue calculando,
+así que el coste nunca se subestima. Una instancia con Mealie que nunca usó la despensa no tiene
+archivo de despensa y no se crea ninguno. Las indicaciones de la lista de la compra siguen usando
+solo la despensa del perfil.
+
 Cada tipo de fuente de `estimate_cost` acepta el parámetro opcional `exclude_pantry: bool`:
 `estimate_cost(source={"kind":"recipe","slug":"rice","exclude_pantry":True})`.
 Si se omite o es false, la respuesta completa no cambia y no se leen las preferencias.

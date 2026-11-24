@@ -623,6 +623,13 @@ estimates fail with a sanitized `invalid_response`; estimates without it never
 read preferences. Shopping additions are not blocked by a corrupt file (see
 `pantry_warning` below). No pantry data is changed here.
 
+With `exclude_pantry: true` the [structured pantry](#pantry) counts too (#144). An item
+without an amount, or kept in another unit than the line, excludes the line by name, like
+a profile entry. An item kept in the line's base unit (`g`, `ml`, `ud`) excludes it only
+when its stock covers the amount needed; too little stock keeps the line priced, so the
+cost is never understated. A Mealie instance that never used the pantry has no pantry file,
+and none is created. Shopping list hints still use the profile pantry only.
+
 Every `estimate_cost` source kind accepts optional `exclude_pantry: bool`:
 `estimate_cost(source={"kind":"recipe","slug":"rice","exclude_pantry":True})`.
 Absent/false leaves the full response unchanged and does not read preferences.
