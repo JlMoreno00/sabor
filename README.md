@@ -593,7 +593,7 @@ create_shopping_list(name: str)
 delete_shopping_list(list_id: str, confirm: bool=False)
 clear_shopping_list(list_id: str, confirm: bool=False)
 get_or_create_shopping_list(name: str)
-add_to_shopping_list(list_id: str, items: list[str] | None=None, recipe_slugs: list[str] | None=None, mealplan_start: str | None=None, mealplan_end: str | None=None, servings_multiplier: float=1.0)
+add_to_shopping_list(list_id: str, items: list[str] | None=None, recipe_slugs: list[str] | None=None, mealplan_start: str | None=None, mealplan_end: str | None=None, servings_multiplier: float=1.0, subtract_pantry: bool=True)
 get_shopping_list_items(list_id: str, checked: bool | None=None, page: int=1, per_page: int=100)
 check_shopping_list_items(list_id: str, item_ids: list[str], checked: bool=True)
 remove_shopping_list_items(list_id: str, item_ids: list[str], confirm: bool=False)
@@ -657,6 +657,18 @@ source lines: inline item text, or each occurrence's recipe ingredients read
 before writing. IDs are deliberately omitted because stores can merge lines;
 reread `get_shopping_list_items` to identify IDs, then ask for approval and use
 `remove_shopping_list_items` if desired. No automatic removal or skipping occurs.
+
+With the [structured pantry](#pantry) (`subtract_pantry`, true by default), the lines
+this call adds or increases are compared with the pantry after writing. An item the
+pantry covers in full is marked as bought, so it stays on the list crossed out and you can
+see what was taken from home; one covered in part stays unchecked and its row in
+`pantry_coverage.items` carries the amount still `missing`. Each row has a `status`:
+`covered`, `partial`, `not_in_pantry`, `not_measured`, `pantry_amount_unknown` or
+`incompatible_unit`; only `covered` items are marked (`pantry_coverage.checked` lists
+their IDs). Nothing is guessed, the pantry itself is not changed, and items already on
+the list are left alone. Without a pantry file the field is absent and nothing is
+created. It uses only the store's own item calls, so SQLite and Mealie behave the same.
+`subtract_pantry=False` keeps the previous behaviour.
 
 ### pricing
 
