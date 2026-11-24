@@ -203,7 +203,8 @@ class PantryRegistrationTests(unittest.TestCase):
                 registered = {t.name for t in server._tool_manager.list_tools()}
                 self.assertEqual(registered & names, expected)
 
-    def test_postgres_store_does_not_register_pantry_tools(self):
+    def test_postgres_store_registers_pantry_tools(self):
+        # #144 point 8: the pantry lives in the Postgres schema too.
         from mcp.server.fastmcp import FastMCP
         from sabor.server import register_tools
 
@@ -219,7 +220,7 @@ class PantryRegistrationTests(unittest.TestCase):
                 },
                 store_factory=lambda settings: None,
             )
-            self.assertFalse(
+            self.assertTrue(
                 {t.name for t in server._tool_manager.list_tools()} & {"get_pantry"}
             )
 

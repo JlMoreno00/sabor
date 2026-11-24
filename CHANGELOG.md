@@ -3,6 +3,16 @@
 ## [Unreleased]
 
 ### Added
+- **Structured pantry on Postgres/Supabase** (#144 phase 3, point 8): migration 4 adds
+  `pantry_items` and `pantry_consumed_entries` to the store's schema, with row level
+  security on and no access for Supabase's `anon`/`authenticated` roles, like every table.
+  The `pantry` toolset (`get_pantry`, `edit_pantry`, `add_pantry_from_receipt`,
+  `consume_from_pantry`) is now ready with the Postgres store too, and `sabor_capabilities`
+  lists it as enabled there instead of `missing_configuration`. Each operation runs in one
+  transaction on the store's connection; writes take a transaction advisory lock and check
+  the preview digest inside it, as on SQLite. Upserts use the standard
+  `INSERT … ON CONFLICT (id) DO UPDATE` on both backends.
+
 - **`consume_from_pantry`** (#144 phase 2, `pantry` toolset): subtracts what cooked recipes
   used, for `recipe_slugs` or a meal plan range (`mealplan_start`/`mealplan_end`, up to 32
   days), scaled by `servings_multiplier`. Each ingredient is matched to the pantry item of

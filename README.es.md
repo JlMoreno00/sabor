@@ -713,9 +713,10 @@ sin activar este toolset; consulta [estimaciones según la despensa](#estimacion
 
 Despensa estructurada (#144): artículos con cantidad, unidad, fecha de caducidad opcional y
 origen. Actívala con `SABOR_TOOLSETS=core,import,shopping_sync,preferences,pantry`; un
-`sabor-mcp setup` nuevo la activa. Necesita el almacén SQLite (la despensa vive en su base de
-datos) o Mealie (un `<data dir>/pantry.db` local, porque la API de Mealie no guarda
-cantidades de despensa); Postgres aún no tiene despensa, así que ahí no se registran las tools.
+`sabor-mcp setup` nuevo la activa. Funciona con todos los almacenes: SQLite (la despensa vive en su
+base de datos), Mealie (un `<data dir>/pantry.db` local, porque la API de Mealie no guarda
+cantidades de despensa) y Postgres/Supabase (tablas en el esquema del almacén, migración 4, con
+seguridad a nivel de fila activada y sin acceso para los roles `anon`/`authenticated` de Supabase).
 
 ```python
 get_pantry(food: str | None=None, expiring_within_days: int | None=None)

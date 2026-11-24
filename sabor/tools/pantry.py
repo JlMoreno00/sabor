@@ -22,13 +22,14 @@ _MAX_LINE = 500
 
 
 def _ready(settings) -> bool:
-    # SQLite keeps the pantry in its database, Mealie in a local file; Postgres has none yet.
-    return settings.store in ("sqlite", "mealie")
+    # SQLite keeps the pantry in its database, Mealie in a local file, Postgres in its schema.
+    return settings.store in ("sqlite", "mealie", "postgres")
 
 
 def _store() -> PantryStore:
     # The instance's own settings decide where its pantry lives (#147 review).
-    store = pantry_store_for(current_context().settings)
+    context = current_context()
+    store = pantry_store_for(context.settings, recipe_store=context.store)
     if store is None:
         raise PantryError("This recipe store has no pantry yet.")
     return store

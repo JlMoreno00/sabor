@@ -1,0 +1,172 @@
+"""Structured pantry on Postgres/Supabase with RLS (#144 phase 3, point 8)."""
+
+import os
+import unittest
+from decimal import Decimal
+from uuid import uuid4
+
+from typing import Any, cast
+
+from sabor.core.config import load_settings
+from sabor.core.registry import Registry
+
+try:
+    import psycopg
+    from psycopg import sql
+except ImportError:  # the optional extra is not installed
+    psycopg = cast(Any, None)
+    sql = cast(Any, None)
+
+DSN = os.environ.get("SABOR_TEST_DATABASE_URL", "")
+PG_ENV = {
+    "SABOR_STORE": "postgres",
+    "SABOR_DATABASE_URL": "postgresql://u@localhost/db",
+    "SABOR_TOOLSETS": "core,pantry",
+}
+
+
+class PostgresPantryReadinessTests(unittest.TestCase):
+    """No database needed: readiness is decided from the settings."""
+
+    def test_the_pantry_toolset_is_ready_with_postgres(self):
+        registry = Registry(
+            load_settings(PG_ENV), store_factory=lambda settings: cast(Any, None)
+        )
+        self.assertIn("pantry", registry.enabled_toolsets)
+
+    def test_without_a_postgres_recipe_store_there_is_no_pantry(self):
+        from sabor.pantry.store import pantry_store_for
+
+        self.assertIsNone(pantry_store_for(load_settings(PG_ENV)))
+
+
+@unittest.skipUnless(DSN and psycopg, "requires SABOR_TEST_DATABASE_URL and psycopg")
+class PostgresPantryTests(unittest.TestCase):
+    def setUp(self):
+        from sabor.pantry.store import pantry_store_for
+        from sabor.store.postgres import PostgresRecipeStore
+
+        self.schema = "test_" + uuid4().hex
+        self.recipes = PostgresRecipeStore(DSN, schema=self.schema)
+        self.addCleanup(self.drop)
+        self.recipes.ensure_ready()
+        store = pantry_store_for(load_settings(PG_ENV), recipe_store=self.recipes)
+        assert store is not None
+        self.store = store
+
+    def drop(self):
+        self.recipes.close()
+        with psycopg.connect(DSN, autocommit=True) as connection:
+            connection.execute(
+                sql.SQL("DROP SCHEMA IF EXISTS {} CASCADE").format(
+                    sql.Identifier(self.schema)
+                )
+            )
+
+    def query(self, statement, args=()):
+        with psycopg.connect(DSN, autocommit=True) as connection:
+            return connection.execute(statement, args).fetchall()
+
+    def test_migration_4_creates_the_tables_with_row_level_security(self):
+        versions = [
+            r[0]
+            for r in self.query(
+                sql.SQL("SELECT version FROM {}.schema_version ORDER BY 1").format(
+                    sql.Identifier(self.schema)
+                )
+            )
+        ]
+        self.assertEqual(versions[-1], 4)
+        rows = dict(
+            self.query(
+                "SELECT c.relname, c.relrowsecurity FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace "
+                "WHERE n.nspname=%s AND c.relname IN ('pantry_items', 'pantry_consumed_entries')",
+                (self.schema,),
+            )
+        )
+        self.assertEqual(rows, {"pantry_items": True, "pantry_consumed_entries": True})
+
+    def test_add_merge_subtract_and_shortfall(self):
+        self.store.apply(
+            [
+                {
+                    "op": "add",
+                    "name": "Arroz",
+                    "quantity": "1",
+                    "unit": "kg",
+                    "source": "receipt",
+                }
+            ]
+        )
+        self.store.apply(
+            [{"op": "add", "name": "arroz", "quantity": "500", "unit": "g"}]
+        )
+        [item] = self.store.list_items()
+        self.assertEqual(
+            (item.food, item.quantity, item.unit, item.source),
+            ("arroz", Decimal("1500"), "g", "receipt"),
+        )
+        effects = self.store.apply(
+            [{"op": "subtract", "name": "arroz", "quantity": "2", "unit": "kg"}]
+        )
+        self.assertEqual(effects[0]["shortfall"], {"quantity": "500", "unit": "g"})
+        self.assertEqual(self.store.list_items(), [])
+
+    def test_preview_writes_nothing_and_a_stale_digest_is_a_conflict(self):
+        from sabor.pantry.store import PantryConflict
+
+        changes = [{"op": "add", "name": "sal", "quantity": "1", "unit": "kg"}]
+        effects, digest = self.store.preview_with_digest(changes)
+        self.assertEqual(effects[0]["action"], "create")
+        self.assertEqual(self.store.list_items(), [])
+        self.store.apply(changes, expected_digest=digest)
+        with self.assertRaises(PantryConflict):
+            self.store.apply(changes, expected_digest=digest)
+        self.assertEqual(self.store.list_items()[0].quantity, Decimal("1000"))
+
+    def test_invalid_changes_roll_back_the_whole_batch(self):
+        from sabor.pantry.store import PantryError
+
+        with self.assertRaises(PantryError):
+            self.store.apply([{"op": "add", "name": "pan"}, {"op": "explode"}])
+        self.assertEqual(self.store.list_items(), [])
+
+    def test_consumed_entries_are_remembered(self):
+        from sabor.pantry.store import PantryConflict
+
+        self.store.apply(
+            [{"op": "add", "name": "arroz", "quantity": "1", "unit": "kg"}]
+        )
+        changes = [{"op": "subtract", "name": "arroz", "quantity": "100", "unit": "g"}]
+        self.store.apply(changes, consumed_entries=["e1"])
+        self.assertEqual(self.store.consumed_entries(["e1", "e2"]), {"e1"})
+        with self.assertRaises(PantryConflict):
+            self.store.apply(changes, consumed_entries=["e1"])
+        self.assertEqual(self.store.list_items()[0].quantity, Decimal("900"))
+
+    def test_the_pantry_tools_work_through_the_postgres_store(self):
+        from sabor.core.context import build_context
+        from sabor.core.toolsets import use_context
+        from sabor.tools.pantry import edit_pantry, get_pantry
+
+        env = {**PG_ENV, "SABOR_DATABASE_URL": DSN}
+        context = build_context(
+            load_settings(env), store_factory=lambda settings: self.recipes
+        )
+        with use_context(context):
+            changes = [{"op": "add", "name": "leche", "quantity": 1, "unit": "l"}]
+            digest = edit_pantry(changes)["data"]["preview_digest"]
+            self.assertTrue(
+                edit_pantry(changes, confirm=True, preview_digest=digest)["ok"]
+            )
+            self.assertEqual(
+                [
+                    (i["food"], i["quantity"], i["unit"])
+                    for i in get_pantry()["data"]["items"]
+                ],
+                [("leche", "1000", "ml")],
+            )
+
+
+if __name__ == "__main__":
+    unittest.main()

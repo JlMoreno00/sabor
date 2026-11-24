@@ -701,9 +701,10 @@ without enabling this toolset; see [pantry-aware estimates](#pantry-aware-estima
 
 Structured pantry (#144): items with quantity, unit, optional expiry date and source.
 Opt in with `SABOR_TOOLSETS=core,import,shopping_sync,preferences,pantry`; a new
-`sabor-mcp setup` enables it. It needs the SQLite store (the pantry lives in its database)
-or Mealie (a local `<data dir>/pantry.db`, since Mealie's API keeps no pantry quantities);
-Postgres has no pantry yet, so the tools are not registered there.
+`sabor-mcp setup` enables it. It works with every store: SQLite (the pantry lives in its
+database), Mealie (a local `<data dir>/pantry.db`, since Mealie's API keeps no pantry
+quantities) and Postgres/Supabase (tables in the store's schema, migration 4, with row
+level security on and no access for Supabase's `anon`/`authenticated` roles).
 
 ```python
 get_pantry(food: str | None=None, expiring_within_days: int | None=None)
