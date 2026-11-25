@@ -87,6 +87,17 @@ class AgentSkillTests(unittest.TestCase):
         install = (ROOT / 'llms-install.md').read_text(encoding='utf-8')
         self.assertIn('[skills/sabor-pantry/SKILL.md](skills/sabor-pantry/SKILL.md)', install)
 
+    def test_pantry_skill_offers_deduction_and_shopping_flows(self):
+        # #144 point 6: after a meal, offer to subtract it; before a list or an estimate,
+        # the pantry is taken into account, and the agent says what that did.
+        text = (ROOT / 'skills' / 'sabor-pantry' / 'SKILL.md').read_text(encoding='utf-8')
+        for words in ('consume_from_pantry(', 'recipe_slugs', 'mealplan_start', 'mealplan_end',
+                      'servings_multiplier', 'already_consumed', 'not_in_pantry', 'shortfall',
+                      'add_to_shopping_list(', 'subtract_pantry', 'pantry_coverage', 'partial',
+                      'estimate_cost(', 'exclude_pantry'):
+            self.assertIn(words, text)
+        self.assertNotIn('subtract_pantry=False', text.split('## Units')[0].split('After a meal')[0])
+
     def test_recipe_table_skill_teaches_tabular_recipe_notation(self):
         path = ROOT / 'skills' / 'sabor-recipe-table' / 'SKILL.md'
         self.assertIn(path, SKILLS)

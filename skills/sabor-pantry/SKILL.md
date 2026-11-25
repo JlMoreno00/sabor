@@ -58,6 +58,26 @@ an item without a quantity means "there is some".
   `sabor_capabilities()` lists `mealie`) it needs Mealie food IDs: pass each item's
   `food_id` from `get_pantry(...)`. If an item's `food_id` is null, never send the name
   as an ID; tell the user that food cannot be used for suggestions yet.
+- **After a meal.** When the user says they cooked or ate something («ya hemos cenado la
+  lasaña», «hoy tocaba el pollo»), offer to subtract its ingredients. For recipes cooked
+  now call `consume_from_pantry(recipe_slugs=[...])`; for planned meals that are over call
+  `consume_from_pantry(mealplan_start=..., mealplan_end=...)` with ISO dates. If they cooked
+  more or fewer servings than the recipe, pass `servings_multiplier` (2 for double, 0.5 for
+  half). In the preview, say what will be subtracted and, from the `ingredients` report,
+  what will not and why (`not_in_pantry`, `not_measured`, `incompatible_unit`,
+  `pantry_amount_unknown`), plus any `shortfall`. Meals already subtracted appear in
+  `skipped` as `already_consumed`: tell the user they were counted before, never subtract
+  them again by hand. Offer this once per meal; do not ask after every message.
+- **Before a shopping list.** `add_to_shopping_list(...)` compares what it adds with the
+  pantry by default (`subtract_pantry`). Items the pantry covers in full are added already
+  marked as bought; after the call, read `pantry_coverage` and tell the user what was
+  taken from home and what is `partial` (the `missing` amount still has to be bought).
+  The pantry itself is not changed: once the user has shopped, offer to add the purchase
+  (a receipt or `edit_pantry`). Turn the comparison off only if the user asks.
+- **Before an estimate.** When the user asks what a recipe, list or week will cost them,
+  offer `estimate_cost(source={..., "exclude_pantry": True})` so what is at home is not
+  counted. Say that an item with too little stock stays priced, so the estimate is never
+  too low.
 
 ## Units
 
