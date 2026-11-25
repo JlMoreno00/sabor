@@ -1,8 +1,9 @@
-"""Structured pantry storage on SQLite (#144).
+"""Structured pantry storage (#144).
 
 With the SQLite recipe store the pantry lives in the same database (schema version 5).
 With Mealie, whose API keeps no pantry quantities, it lives in `<data dir>/pantry.db`.
-Postgres has no pantry yet. Changes are validated as a whole, previewed by computing the
+With Postgres/Supabase it lives in the store's schema (migration 4, row level security on).
+Changes are validated as a whole, previewed by computing the
 same effects without writing, and applied in one transaction.
 """
 import hashlib
@@ -43,17 +44,21 @@ def ensure_schema(connection: sqlite3.Connection) -> None:
                        "(entry_id TEXT PRIMARY KEY, consumed_at TEXT NOT NULL)")
 
 
-def pantry_store_for(settings, env=None) -> 'PantryStore | None':
-    """The pantry of this instance: SQLite store's database, a local file for Mealie, else None.
+def pantry_store_for(settings, env=None, recipe_store=None) -> 'PantryStore | None':
+    """The pantry of this instance: SQLite store's database, a local file for Mealie, or the
+    Postgres recipe store's schema (#144 point 8); None when there is none.
 
     The Mealie file follows this instance's own data dir (its frozen settings), never the
     process environment, so instances with different SABOR_DATA_DIR keep separate pantries.
+    Postgres needs the instance's recipe store, whose connection and lock it shares.
     `env` is accepted for compatibility and not used.
     """
     if settings.store == 'sqlite':
         return PantryStore(Path(settings.store_db))
     if settings.store == 'mealie':
         return PantryStore(Path(settings.legacy_config.SABOR_DATA_DIR) / 'pantry.db')
+    if settings.store == 'postgres' and getattr(recipe_store, 'id', None) == 'postgres':
+        return PostgresPantryStore(recipe_store)
     return None
 
 
@@ -110,7 +115,7 @@ class PantryStore:
         self.path = Path(path)
 
     @contextmanager
-    def _session(self) -> Iterator[sqlite3.Connection]:
+    def _session(self) -> Iterator[Any]:
         """One connection per operation, always closed; `with connection` commits or rolls back."""
         self.path.parent.mkdir(parents=True, exist_ok=True)
         connection = sqlite3.connect(self.path)
@@ -120,6 +125,18 @@ class PantryStore:
                 yield connection
         finally:
             connection.close()
+
+    def _begin_write(self, connection) -> None:
+        """Serialize writers before the digest check (SQLite: take the write lock now)."""
+        connection.execute("BEGIN IMMEDIATE")
+
+    def _begin_read(self, connection) -> None:
+        """Read the preview's digest and plan from one snapshot (SQLite: one read transaction)."""
+        connection.execute("BEGIN")
+
+    @staticmethod
+    def _discard(connection) -> None:
+        connection.rollback()
 
     def read_items(self) -> list[PantryItem]:
         """Read-only listing for pricing: never creates the file, the schema or any row.
@@ -178,9 +195,10 @@ class PantryStore:
     def preview_with_digest(self, changes: list[dict], entries=()) -> tuple[list[dict[str, Any]], str]:
         """Effects and digest from one snapshot; nothing is written."""
         with self._session() as connection:
+            self._begin_read(connection)
             digest = self._digest(connection, changes, entries)
             effects = self._plan(connection, changes)[0] if changes else []
-            connection.rollback()
+            self._discard(connection)
             return effects, digest
 
     def digest(self, changes: list[dict], entries=()) -> str:
@@ -191,7 +209,7 @@ class PantryStore:
         """The effects apply() would have, computed without writing."""
         with self._session() as connection:
             effects, _ = self._plan(connection, changes)
-            connection.rollback()
+            self._discard(connection)
             return effects
 
     def apply(self, changes: list[dict], expected_digest: str | None = None,
@@ -204,7 +222,7 @@ class PantryStore:
         """
         entries = [str(e) for e in consumed_entries]
         with self._session() as connection:
-            connection.execute("BEGIN IMMEDIATE")
+            self._begin_write(connection)
             if expected_digest is not None and self._digest(connection, changes, entries) != expected_digest:
                 raise PantryConflict('The pantry changed since the preview.')
             if self._consumed(connection, entries):
@@ -213,8 +231,8 @@ class PantryStore:
             for sql, args in writes:
                 connection.execute(sql, args)
             now = datetime.now(timezone.utc).isoformat()
-            connection.executemany("INSERT INTO pantry_consumed_entries VALUES (?, ?)",
-                                   [(e, now) for e in entries])
+            for entry in entries:
+                connection.execute("INSERT INTO pantry_consumed_entries VALUES (?, ?)", (entry, now))
             return effects
 
     def _plan(self, connection, changes) -> tuple[list[dict[str, Any]], list[tuple[str, tuple]]]:
@@ -307,6 +325,70 @@ class PantryStore:
     @staticmethod
     def _upsert(item: PantryItem) -> tuple[str, tuple]:
         quantity = format_amount(item.quantity) if item.quantity is not None else None
-        return ("INSERT OR REPLACE INTO pantry_items VALUES (?,?,?,?,?,?,?,?,?,?)",
+        # Standard upsert, the same on SQLite and Postgres.
+        return ("INSERT INTO pantry_items VALUES (?,?,?,?,?,?,?,?,?,?) ON CONFLICT (id) DO UPDATE SET "
+                "name=excluded.name, food=excluded.food, food_id=excluded.food_id, "
+                "quantity=excluded.quantity, unit=excluded.unit, expires_on=excluded.expires_on, "
+                "source=excluded.source, note=excluded.note, updated_at=excluded.updated_at",
                 (item.id, item.name, item.food, item.food_id, quantity, item.unit, item.expires_on,
                  item.source, item.note, item.updated_at))
+
+
+class _PostgresConnection:
+    """The few connection calls PantryStore makes, on psycopg: `?` placeholders become `%s`."""
+
+    def __init__(self, connection):
+        self._connection = connection
+
+    def execute(self, statement: str, args=()):
+        return self._connection.execute(statement.replace('?', '%s'), args)
+
+
+class PostgresPantryStore(PantryStore):
+    """The pantry in the Postgres recipe store's schema (#144 point 8).
+
+    The tables come from the store's migration 4 with row level security on and no access
+    for Supabase's anon/authenticated roles. Each operation runs in one transaction on the
+    store's connection, under its lock; writes also take a transaction advisory lock, so two
+    confirmations of one preview cannot both apply.
+    """
+
+    def __init__(self, recipe_store):
+        self._recipes = recipe_store
+        self.path = None
+        schema = recipe_store.schema
+        self._write_lock = int.from_bytes(hashlib.sha256(('sabor:pantry:' + schema).encode()).digest()[:8],
+                                          'big', signed=True)
+
+    @contextmanager
+    def _session(self) -> Iterator[Any]:
+        from sabor.store import StoreError
+        recipes = self._recipes
+        driver = recipes._driver
+        with recipes._lock:
+            try:
+                recipes._ensure_ready()
+                with recipes._connection.transaction():
+                    yield _PostgresConnection(recipes._connection)
+            except driver.OperationalError:
+                # A lost connection is reopened on the next operation, as the recipe store does.
+                if recipes._connection is not None:
+                    recipes._connection.close()
+                    recipes._connection = None
+                raise StoreError('upstream_error', 'postgres') from None
+            except driver.Error:
+                raise StoreError('upstream_error', 'postgres') from None
+
+    def _begin_write(self, connection) -> None:
+        connection.execute("SELECT pg_advisory_xact_lock(?)", (self._write_lock,))
+
+    def _begin_read(self, connection) -> None:
+        # The first statement of the transaction: digest and plan read one snapshot, so a
+        # commit from another connection between them cannot mix two states (#152 review).
+        connection.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ")
+
+    @staticmethod
+    def _discard(connection) -> None:
+        """Previews only read; the transaction ends without writing."""
+
+

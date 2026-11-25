@@ -314,7 +314,7 @@ el arranque.
 | `legacy_nutrition` | Activación opcional; las operaciones conservan `SABOR_NUTRITION_ENABLED` y los controles existentes |
 | `legacy_catalog` | Activación opcional + Mealie |
 | `preferences` | Activación opcional; la activa un `sabor-mcp setup` nuevo |
-| `pantry` | Activación opcional; almacén SQLite o Mealie; la activa un `sabor-mcp setup` nuevo |
+| `pantry` | Activación opcional; almacén SQLite, Mealie o Postgres; la activa un `sabor-mcp setup` nuevo |
 
 El arranque predeterminado con SQLite registra **24 tools**: 22 tools de core,
 `import_recipe` y `sabor_capabilities`. Con todos los toolsets completamente configurados,
@@ -640,8 +640,9 @@ artículos coincidentes están en la unidad base de la línea (`g`, `ml`, `ud`),
 cuando sus existencias cubren la cantidad necesaria; si hay poco, se sigue calculando, así que el
 coste nunca se subestima. Si algún artículo coincidente no tiene cantidad o está en otra unidad, la
 línea se excluye por nombre, como una entrada del perfil. Las estimaciones solo leen la despensa:
-nunca crean su archivo, sus tablas ni sus filas. Las indicaciones de la lista de la compra siguen
-usando solo la despensa del perfil.
+nunca crean su archivo, sus tablas ni sus filas. Con el almacén Postgres todavía no leen la
+despensa estructurada. Las indicaciones de la lista de la compra siguen usando solo la despensa
+del perfil.
 
 Cada tipo de fuente de `estimate_cost` acepta el parámetro opcional `exclude_pantry: bool`:
 `estimate_cost(source={"kind":"recipe","slug":"rice","exclude_pantry":True})`.
@@ -733,9 +734,10 @@ sin activar este toolset; consulta [estimaciones según la despensa](#estimacion
 
 Despensa estructurada (#144): artículos con cantidad, unidad, fecha de caducidad opcional y
 origen. Actívala con `SABOR_TOOLSETS=core,import,shopping_sync,preferences,pantry`; un
-`sabor-mcp setup` nuevo la activa. Necesita el almacén SQLite (la despensa vive en su base de
-datos) o Mealie (un `<data dir>/pantry.db` local, porque la API de Mealie no guarda
-cantidades de despensa); Postgres aún no tiene despensa, así que ahí no se registran las tools.
+`sabor-mcp setup` nuevo la activa. Funciona con todos los almacenes: SQLite (la despensa vive en su
+base de datos), Mealie (un `<data dir>/pantry.db` local, porque la API de Mealie no guarda
+cantidades de despensa) y Postgres/Supabase (tablas en el esquema del almacén, migración 4, con
+seguridad a nivel de fila activada y sin acceso para los roles `anon`/`authenticated` de Supabase).
 
 ```python
 get_pantry(food: str | None=None, expiring_within_days: int | None=None)

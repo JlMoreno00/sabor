@@ -51,7 +51,8 @@ def load_stock(context) -> list[PantryStock]:
     """The structured pantry for exclude_pantry; empty when the store has none.
 
     Read-only: estimates never create the pantry file, its tables or any row; a missing file
-    or a file without pantry tables is an empty pantry.
+    or a file without pantry tables is an empty pantry. The Postgres pantry is not read here:
+    reaching it runs the store's migrations, so with Postgres this is an empty pantry.
     """
     from sabor.pantry.store import pantry_store_for
     store = pantry_store_for(context.settings)
