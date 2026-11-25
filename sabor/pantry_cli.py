@@ -3,12 +3,16 @@
 Each bullet is read with the shared quantity parser («2 kg de patatas» is 2000 g of patatas).
 A bullet with an amount in g, ml or ud is imported with `source=migration`; one without (a
 bare «arroz», «un paquete de pasta») is only listed for the user, never guessed. Preview by
-default, `--apply` to write. MEMORY.md is read and never changed. A bullet whose food already
-has a migrated item is not imported again, so running it twice adds nothing.
+default, `--apply` to write; a preview creates nothing, not even an empty pantry. MEMORY.md is
+read and never changed. Every imported food is recorded in the pantry's consumed-entries table
+(`memory-import:<food>`) in the same transaction as the items, so a food is imported once even
+when it merged into an item of another source; a concurrent import is a `conflict`.
 """
 import argparse
 import json
 import os
+import sqlite3
+import tempfile
 from pathlib import Path
 
 from sabor.core.config import load_settings
@@ -17,18 +21,29 @@ from sabor.pantry.model import food_key, format_amount
 from sabor.pricing.quantities import from_structured, ingredient_name, to_base
 from sabor.preferences_cli import parse_memory
 
+ENTRY = 'memory-import:'
+
+
+def _measured(line: str):
+    """(name, amount, unit) for a bullet with an amount in g, ml or ud; None otherwise."""
+    q = to_base(from_structured(None, None, None, line))
+    name = ingredient_name(line).strip()
+    if q.amount is None or q.unit not in ('g', 'ml', 'ud') or not name:
+        return None
+    return name, q.amount, q.unit
+
 
 def plan(bullets: list[str], migrated: set[str]) -> dict:
     items, uncertain, already = [], [], []
     for line in bullets:
-        q = to_base(from_structured(None, None, None, line))
-        name = ingredient_name(line).strip()
-        if q.amount is None or q.unit not in ('g', 'ml', 'ud') or not name:
+        measured = _measured(line)
+        if measured is None:
             uncertain.append({'line': line, 'reason': 'quantity_unknown'})
-        elif food_key(name) in migrated:
+        elif food_key(measured[0]) in migrated:
             already.append(line)
         else:
-            items.append({'line': line, 'name': name, 'quantity': format_amount(q.amount), 'unit': q.unit})
+            name, amount, unit = measured
+            items.append({'line': line, 'name': name, 'quantity': format_amount(amount), 'unit': unit})
     return {'items': items, 'uncertain': uncertain, 'already_imported': already}
 
 
@@ -45,7 +60,7 @@ def main(argv=None):
         settings = load_settings(os.environ)
     except ValueError:
         return _print(fail('invalid_argument', 'Invalid Sabor configuration.'))
-    from sabor.pantry.store import PantryConflict, PantryError, pantry_store_for
+    from sabor.pantry.store import PantryConflict, PantryError, PantryStore, pantry_store_for
     from sabor.store import StoreError
     # The same pantry as the `pantry` tools: SQLite, Mealie's local file or the Postgres schema,
     # which shares the recipe store's connection (only Postgres needs the recipe store).
@@ -61,18 +76,32 @@ def main(argv=None):
     except (OSError, UnicodeError):
         return _print(fail('invalid_response', 'Unable to read legacy memory safely.'))
     bullets = parse_memory(text)[0]['pantry']
+    local = getattr(store, 'path', None) is not None
     try:
-        migrated = {i.food for i in store.list_items() if i.source == 'migration'}
-        result = plan(bullets, migrated)
+        foods = {food_key(m[0]) for m in map(_measured, bullets) if m is not None}
+        ids = [ENTRY + food for food in sorted(foods)]
+        done = store.read_consumed_entries(ids) if local else store.consumed_entries(ids)
+        result = plan(bullets, {entry.removeprefix(ENTRY) for entry in done})
         changes = [{'op': 'add', 'name': i['name'], 'quantity': i['quantity'], 'unit': i['unit'],
                     'source': 'migration'} for i in result['items']]
+        entries = list(dict.fromkeys(ENTRY + food_key(i['name']) for i in result['items']))
         if args.apply:
-            effects = store.apply(changes) if changes else []
+            # The import record is checked inside the write transaction: a concurrent import
+            # that recorded one of these foods first makes this one a conflict.
+            effects = store.apply(changes, consumed_entries=entries) if changes else []
+        elif not changes:
+            effects = []
+        elif local and not store.has_tables():
+            # A preview creates nothing: plan against an empty pantry in a throwaway file.
+            with tempfile.TemporaryDirectory() as directory:
+                effects = PantryStore(Path(directory) / 'pantry.db').preview_with_digest(changes)[0]
         else:
-            effects = store.preview_with_digest(changes)[0] if changes else []
+            effects = store.preview_with_digest(changes)[0]
     except StoreError as exc:
         return _print(fail(exc.code, 'The recipe store could not be reached.', exc.provider))
-    except (PantryError, PantryConflict, OSError):
+    except PantryConflict:
+        return _print(fail('conflict', 'Another import changed the pantry meanwhile; run the command again.'))
+    except (PantryError, OSError, sqlite3.Error):
         return _print(fail('invalid_response', 'Unable to update the pantry safely.'))
     return _print(ok({'preview': not args.apply, 'effects': effects, **result, 'memory_kept': True}))
 

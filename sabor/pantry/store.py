@@ -153,6 +153,28 @@ class PantryStore:
         finally:
             connection.close()
 
+    def _read_only(self, query: str, args=()) -> list | None:
+        """Rows from a read-only connection; None when the file or the pantry tables are missing."""
+        if not self.path.exists():
+            return None
+        connection = sqlite3.connect(self.path.resolve().as_uri() + '?mode=ro', uri=True)
+        try:
+            return connection.execute(query, args).fetchall()
+        except sqlite3.OperationalError:
+            return None
+        finally:
+            connection.close()
+
+    def has_tables(self) -> bool:
+        """Whether the pantry tables exist, read without creating anything."""
+        return bool(self._read_only(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'pantry_consumed_entries'"))
+
+    def read_consumed_entries(self, entries) -> set[str]:
+        """consumed_entries() without creating the file, the schema or any row."""
+        return {entry for entry in (str(e) for e in entries)
+                if self._read_only("SELECT 1 FROM pantry_consumed_entries WHERE entry_id = ?", (entry,))}
+
     def list_items(self, food: str | None = None, expiring_within_days: int | None = None,
              today: str | None = None) -> list[PantryItem]:
         with self._session() as connection:
