@@ -80,7 +80,14 @@ def main(argv=None):
     try:
         foods = {food_key(m[0]) for m in map(_measured, bullets) if m is not None}
         ids = [ENTRY + food for food in sorted(foods)]
-        done = store.read_consumed_entries(ids) if local else store.consumed_entries(ids)
+        # A preview reads only what exists: no schema, tables or migrations are created.
+        ready = args.apply or store.pantry_ready()
+        if not ready:
+            done = set()
+        elif local:
+            done = store.read_consumed_entries(ids)
+        else:
+            done = store.consumed_entries(ids)
         result = plan(bullets, {entry.removeprefix(ENTRY) for entry in done})
         changes = [{'op': 'add', 'name': i['name'], 'quantity': i['quantity'], 'unit': i['unit'],
                     'source': 'migration'} for i in result['items']]
@@ -91,7 +98,7 @@ def main(argv=None):
             effects = store.apply(changes, consumed_entries=entries) if changes else []
         elif not changes:
             effects = []
-        elif local and not store.has_tables():
+        elif not ready:
             # A preview creates nothing: plan against an empty pantry in a throwaway file.
             with tempfile.TemporaryDirectory() as directory:
                 effects = PantryStore(Path(directory) / 'pantry.db').preview_with_digest(changes)[0]

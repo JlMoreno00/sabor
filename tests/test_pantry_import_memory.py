@@ -94,7 +94,7 @@ class PantryImportMemoryTests(unittest.TestCase):
         class Unreachable:
             def list_items(self, *args, **kwargs):
                 raise StoreError('upstream_error', 'postgres')
-            consumed_entries = apply = preview_with_digest = list_items
+            consumed_entries = apply = preview_with_digest = pantry_ready = list_items
 
         postgres = {**self.env, 'SABOR_STORE': 'postgres', 'SABOR_DATABASE_URL': 'postgresql://u@127.0.0.1:1/db'}
         with patch('sabor.core.context.assemble_context', return_value=SimpleNamespace(store=object())), \
@@ -133,6 +133,41 @@ class PantryImportMemoryTests(unittest.TestCase):
         with sqlite3.connect(self.root / 'sabor.db') as connection:
             tables = connection.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
         self.assertEqual(tables, [])
+
+    def test_a_postgres_preview_never_migrates(self):
+        # CodeRabbit on #156: without the pantry tables, the preview reads the schema version
+        # read-only and plans against an empty pantry; only --apply initializes the schema.
+        import threading
+        from types import SimpleNamespace
+
+        class Recipes:
+            id, schema, _lock, _driver = 'postgres', 'sabor', threading.Lock(), None
+            probes = 0
+
+            def probe_schema_version(self):
+                Recipes.probes += 1
+                return None
+
+            def _ensure_ready(self):
+                raise AssertionError('a preview ran the migrations')
+
+        postgres = {**self.env, 'SABOR_STORE': 'postgres', 'SABOR_DATABASE_URL': 'postgresql://u@127.0.0.1:1/db'}
+        with patch('sabor.core.context.assemble_context', return_value=SimpleNamespace(store=Recipes())):
+            code, result = self.run_cli('import-memory', env=postgres)
+        self.assertEqual(code, 0, result)
+        self.assertEqual((len(result['data']['effects']), result['data']['already_imported']), (3, []))
+        self.assertEqual(Recipes.probes, 1)
+
+    def test_a_locked_database_is_an_error_not_an_empty_pantry(self):
+        # CodeRabbit on #156: only a missing table means "no pantry"; a lock is an error.
+        import sqlite3
+        from unittest.mock import Mock
+        sqlite3.connect(self.root / 'sabor.db').close()
+        locked = Mock()
+        locked.execute.side_effect = sqlite3.OperationalError('database is locked')
+        with patch('sabor.pantry.store.sqlite3.connect', return_value=locked):
+            code, result = self.run_cli('import-memory')
+        self.assertEqual((code, result['ok'], result['error']['code']), (1, False, 'invalid_response'))
 
     def test_a_merged_bullet_is_still_imported_once(self):
         # CodeRabbit on #156: merged into a manual item, the source stays `manual`; the

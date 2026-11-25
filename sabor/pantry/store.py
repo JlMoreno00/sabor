@@ -160,10 +160,17 @@ class PantryStore:
         connection = sqlite3.connect(self.path.resolve().as_uri() + '?mode=ro', uri=True)
         try:
             return connection.execute(query, args).fetchall()
-        except sqlite3.OperationalError:
-            return None
+        except sqlite3.OperationalError as exc:
+            # Only a missing table means "no pantry"; a lock or I/O error is raised.
+            if str(exc).startswith('no such table'):
+                return None
+            raise
         finally:
             connection.close()
+
+    def pantry_ready(self) -> bool:
+        """Whether the pantry can be read without creating or migrating anything."""
+        return self.has_tables()
 
     def has_tables(self) -> bool:
         """Whether the pantry tables exist, read without creating anything."""
@@ -400,6 +407,12 @@ class PostgresPantryStore(PantryStore):
                 raise StoreError('upstream_error', 'postgres') from None
             except driver.Error:
                 raise StoreError('upstream_error', 'postgres') from None
+
+    def pantry_ready(self) -> bool:
+        """Whether the schema is fully migrated, read without creating or migrating it."""
+        from sabor.store.postgres_schema import MIGRATIONS
+        version = self._recipes.probe_schema_version()
+        return version is not None and version >= MIGRATIONS[-1][0]
 
     def _begin_write(self, connection) -> None:
         connection.execute("SELECT pg_advisory_xact_lock(?)", (self._write_lock,))
