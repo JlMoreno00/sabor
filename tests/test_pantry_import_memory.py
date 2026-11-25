@@ -8,13 +8,14 @@ import unittest
 from decimal import Decimal
 from pathlib import Path
 from unittest.mock import patch
+from typing import Any, cast
 from uuid import uuid4
 
 DSN = os.environ.get('SABOR_TEST_DATABASE_URL', '')
 try:
     import psycopg
 except ImportError:  # the optional extra is not installed
-    psycopg = None
+    psycopg = cast(Any, None)
 
 MEMORY = """# Memoria
 
