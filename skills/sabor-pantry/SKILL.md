@@ -13,7 +13,7 @@ them and pass the lines. Nothing is written until the user has seen a preview an
 
 Call `sabor_capabilities()` and use only tools in `data.registered_tools`. The pantry tools
 belong to the opt-in `pantry` toolset: a new `sabor-mcp setup` enables it, or add `pantry`
-to `SABOR_TOOLSETS`. They work with the SQLite store and with Mealie, not yet with Postgres.
+to `SABOR_TOOLSETS`. They work with every store: SQLite, Mealie and Postgres/Supabase.
 If they are missing, say so in one line and how to enable them; do not fall back to editing
 memory notes.
 

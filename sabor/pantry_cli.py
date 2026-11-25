@@ -46,16 +46,23 @@ def main(argv=None):
     except ValueError:
         return _print(fail('invalid_argument', 'Invalid Sabor configuration.'))
     from sabor.pantry.store import PantryConflict, PantryError, pantry_store_for
-    store = pantry_store_for(settings)
+    from sabor.store import StoreError
+    # The same pantry as the `pantry` tools: SQLite, Mealie's local file or the Postgres schema,
+    # which shares the recipe store's connection (only Postgres needs the recipe store).
+    recipes = None
+    if settings.store == 'postgres':
+        from sabor.core.context import assemble_context
+        recipes = assemble_context(settings).store
+    store = pantry_store_for(settings, recipe_store=recipes)
     if store is None:
-        return _print(fail('unsupported_operation', 'This store has no pantry here; use the SQLite or Mealie store.'))
+        return _print(fail('unsupported_operation', 'This recipe store has no pantry.'))
     try:
         text = Path(settings.memory_file).read_text(encoding='utf-8')
     except (OSError, UnicodeError):
         return _print(fail('invalid_response', 'Unable to read legacy memory safely.'))
     bullets = parse_memory(text)[0]['pantry']
     try:
-        migrated = {i.food for i in store.read_items() if i.source == 'migration'}
+        migrated = {i.food for i in store.list_items() if i.source == 'migration'}
         result = plan(bullets, migrated)
         changes = [{'op': 'add', 'name': i['name'], 'quantity': i['quantity'], 'unit': i['unit'],
                     'source': 'migration'} for i in result['items']]
@@ -63,6 +70,8 @@ def main(argv=None):
             effects = store.apply(changes) if changes else []
         else:
             effects = store.preview_with_digest(changes)[0] if changes else []
+    except StoreError as exc:
+        return _print(fail(exc.code, 'The recipe store could not be reached.', exc.provider))
     except (PantryError, PantryConflict, OSError):
         return _print(fail('invalid_response', 'Unable to update the pantry safely.'))
     return _print(ok({'preview': not args.apply, 'effects': effects, **result, 'memory_kept': True}))

@@ -2,11 +2,19 @@
 import contextlib
 import io
 import json
+import os
 import tempfile
 import unittest
 from decimal import Decimal
 from pathlib import Path
 from unittest.mock import patch
+from uuid import uuid4
+
+DSN = os.environ.get('SABOR_TEST_DATABASE_URL', '')
+try:
+    import psycopg
+except ImportError:  # the optional extra is not installed
+    psycopg = None
 
 MEMORY = """# Memoria
 
@@ -77,12 +85,39 @@ class PantryImportMemoryTests(unittest.TestCase):
     def test_errors(self):
         code, result = self.run_cli('import-memory', env={**self.env, 'MEMORY_FILE': str(self.root / 'none')})
         self.assertEqual((code, result['error']['code']), (1, 'invalid_response'))
-        postgres = {**self.env, 'SABOR_STORE': 'postgres', 'SABOR_DATABASE_URL': 'postgresql://u@localhost/db'}
+        # Postgres has a pantry since #152; an unreachable database is a store error, not a crash.
+        postgres = {**self.env, 'SABOR_STORE': 'postgres', 'SABOR_DATABASE_URL': 'postgresql://u@127.0.0.1:1/db'}
         code, result = self.run_cli('import-memory', env=postgres)
-        self.assertEqual((code, result['error']['code']), (1, 'unsupported_operation'))
+        self.assertEqual((code, result['error']['code']), (1, 'upstream_error'))
         from sabor.pantry_cli import main
         with contextlib.redirect_stderr(io.StringIO()):
             self.assertEqual(main(['unknown']), 2)
+
+    @unittest.skipUnless(DSN and psycopg, 'requires SABOR_TEST_DATABASE_URL and psycopg')
+    def test_postgres_store_gets_the_same_pantry_as_the_tools(self):
+        from types import SimpleNamespace
+        from psycopg import sql
+        from sabor.pantry.store import pantry_store_for
+        from sabor.core.config import load_settings
+        from sabor.store.postgres import PostgresRecipeStore
+        schema = 'test_' + uuid4().hex
+        recipes = PostgresRecipeStore(DSN, schema=schema)
+
+        def drop():
+            recipes.close()
+            with psycopg.connect(DSN, autocommit=True) as connection:
+                connection.execute(sql.SQL('DROP SCHEMA IF EXISTS {} CASCADE').format(sql.Identifier(schema)))
+        self.addCleanup(drop)
+        env = {**self.env, 'SABOR_STORE': 'postgres', 'SABOR_DATABASE_URL': DSN}
+        with patch('sabor.core.context.assemble_context', return_value=SimpleNamespace(store=recipes)):
+            code, result = self.run_cli('import-memory', '--apply', env=env)
+            self.assertEqual(code, 0, result)
+            code, again = self.run_cli('import-memory', '--apply', env=env)
+        self.assertEqual(again['data']['items'], [])
+        pantry = pantry_store_for(load_settings(env), recipe_store=recipes)
+        assert pantry is not None
+        self.assertEqual(sorted((i.food, i.source) for i in pantry.list_items()),
+                         [('huevos', 'migration'), ('leche', 'migration'), ('patatas', 'migration')])
 
     def test_the_installed_command_dispatches_it(self):
         from sabor.server import cli

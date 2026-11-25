@@ -67,7 +67,27 @@ def _image_schema(connection, schema):
                 sql.Identifier(schema, 'recipe_images'), sql.Identifier(role)))
 
 
-MIGRATIONS = ((1, _base_schema), (2, _preferences_schema), (3, _image_schema))
+def _pantry_schema(connection, schema):
+    # Structured pantry (#144 point 8): the same tables as SQLite, with RLS on and no access
+    # for Supabase's anon/authenticated roles, like every table.
+    from psycopg import sql
+    connection.execute('CREATE TABLE pantry_items (id text PRIMARY KEY, name text NOT NULL, '
+                       'food text NOT NULL, food_id text, quantity text, unit text, expires_on text, '
+                       'source text NOT NULL, note text, updated_at text NOT NULL)')
+    connection.execute('CREATE INDEX pantry_items_food ON pantry_items(food)')
+    # Meal plan entries already subtracted by consume_from_pantry, so a week is used once.
+    connection.execute('CREATE TABLE pantry_consumed_entries (entry_id text PRIMARY KEY, '
+                       'consumed_at text NOT NULL)')
+    for table in ('pantry_items', 'pantry_consumed_entries'):
+        connection.execute(sql.SQL('ALTER TABLE {} ENABLE ROW LEVEL SECURITY').format(sql.Identifier(table)))
+        connection.execute(sql.SQL('REVOKE ALL ON {} FROM PUBLIC').format(sql.Identifier(table)))
+        for role in ('anon', 'authenticated'):
+            if connection.execute('SELECT 1 FROM pg_roles WHERE rolname=%s', (role,)).fetchone():
+                connection.execute(sql.SQL('REVOKE ALL ON {} FROM {}').format(
+                    sql.Identifier(schema, table), sql.Identifier(role)))
+
+
+MIGRATIONS = ((1, _base_schema), (2, _preferences_schema), (3, _image_schema), (4, _pantry_schema))
 
 
 def migrate(connection, schema):
