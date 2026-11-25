@@ -308,7 +308,7 @@ is trimmed, duplicates collapse, and unknown names prevent startup.
 | `legacy_nutrition` | Opt-in; operations retain `SABOR_NUTRITION_ENABLED` and existing gates |
 | `legacy_catalog` | Opt-in + Mealie |
 | `preferences` | Opt-in; enabled by a new `sabor-mcp setup` |
-| `pantry` | Opt-in; SQLite or Mealie store; enabled by a new `sabor-mcp setup` |
+| `pantry` | Opt-in; SQLite, Mealie or Postgres store; enabled by a new `sabor-mcp setup` |
 
 Default startup with SQLite registers **24 tools**: 22 core tools,
 `import_recipe`, and `sabor_capabilities`. With every toolset fully configured,
@@ -628,7 +628,8 @@ matching item is kept in the line's base unit (`g`, `ml`, `ud`), the line is exc
 if their stock covers the amount needed; too little stock keeps it priced, so the cost is
 never understated. If any matching item has no amount or another unit, the line is
 excluded by name, like a profile entry. Estimates only read the pantry: they never create
-its file, tables or rows. Shopping list hints still use the profile pantry only.
+its file, tables or rows. With the Postgres store they do not read the structured pantry yet.
+Shopping list hints still use the profile pantry only.
 
 Every `estimate_cost` source kind accepts optional `exclude_pantry: bool`:
 `estimate_cost(source={"kind":"recipe","slug":"rice","exclude_pantry":True})`.

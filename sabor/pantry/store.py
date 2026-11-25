@@ -391,7 +391,4 @@ class PostgresPantryStore(PantryStore):
     def _discard(connection) -> None:
         """Previews only read; the transaction ends without writing."""
 
-    def read_items(self) -> list[PantryItem]:
-        """Read-only listing for pricing: one SELECT in the store's schema, no writes."""
-        return self.list_items()
 

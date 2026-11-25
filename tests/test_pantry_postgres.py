@@ -39,6 +39,18 @@ class PostgresPantryReadinessTests(unittest.TestCase):
 
         self.assertIsNone(pantry_store_for(load_settings(PG_ENV)))
 
+    def test_estimates_do_not_read_the_postgres_pantry(self):
+        # CodeRabbit on #152: estimates only read; the Postgres pantry read would run the
+        # store's migrations and turn a lost connection into a failed estimate.
+        from types import SimpleNamespace
+        from unittest.mock import Mock
+        from sabor.pricing.pantry import load_stock
+
+        recipes = Mock(id="postgres")
+        context = SimpleNamespace(settings=load_settings(PG_ENV), store=recipes)
+        self.assertEqual(load_stock(context), [])
+        self.assertEqual(recipes.mock_calls, [])
+
 
 @unittest.skipUnless(DSN and psycopg, "requires SABOR_TEST_DATABASE_URL and psycopg")
 class PostgresPantryTests(unittest.TestCase):
@@ -166,6 +178,20 @@ class PostgresPantryTests(unittest.TestCase):
             effects, digest = self.store.preview_with_digest(changes)
         self.assertEqual(digest, empty_digest)
         self.assertEqual(effects[0]["action"], "create")
+
+    def test_a_lost_connection_is_upstream_error_and_the_next_call_reconnects(self):
+        # CodeRabbit on #152: _session closes a broken shared connection and reopens it later.
+        from sabor.store import StoreError
+
+        self.store.apply([{"op": "add", "name": "arroz", "quantity": "1", "unit": "kg"}])
+        backend = self.recipes._connection.info.backend_pid
+        self.query("SELECT pg_terminate_backend(%s)", (backend,))
+        with self.assertRaises(StoreError) as caught:
+            self.store.list_items()
+        self.assertEqual(caught.exception.code, "upstream_error")
+        [item] = self.store.list_items()
+        self.assertEqual((item.food, item.quantity), ("arroz", Decimal("1000")))
+        self.assertNotEqual(self.recipes._connection.info.backend_pid, backend)
 
     def test_the_pantry_tools_work_through_the_postgres_store(self):
         from sabor.core.context import build_context
