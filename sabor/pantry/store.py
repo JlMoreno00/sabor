@@ -379,6 +379,38 @@ class PostgresPantryStore(PantryStore):
             except driver.Error:
                 raise StoreError('upstream_error', 'postgres') from None
 
+    def read_items(self) -> list[PantryItem]:
+        """Read-only listing for pricing: never creates the schema nor runs migrations.
+
+        Like the store's probe_schema_version, a lost connection is reopened once; a schema
+        without pantry tables is an empty pantry.
+        """
+        from psycopg import sql
+        from sabor.store import StoreError
+        recipes = self._recipes
+        table = sql.Identifier(recipes.schema, 'pantry_items')
+        with recipes._lock:
+            for attempt in range(2):
+                try:
+                    if recipes._connection is None or recipes._connection.closed:
+                        recipes._open()
+                    connection = recipes._connection
+                    if connection.execute('SELECT to_regclass(%s)', (table.as_string(connection),)).fetchone()[0] is None:
+                        return []
+                    rows = connection.execute(
+                        sql.SQL('SELECT * FROM {} ORDER BY food, unit, id').format(table)).fetchall()
+                    return [_row(r) for r in rows]
+                except recipes._driver.OperationalError:
+                    if recipes._connection is not None:
+                        recipes._connection.close()
+                        recipes._connection = None
+                    if attempt == 0:
+                        continue
+                    raise StoreError('upstream_error', 'postgres') from None
+                except recipes._driver.Error:
+                    raise StoreError('upstream_error', 'postgres') from None
+        return []
+
     def _begin_write(self, connection) -> None:
         connection.execute("SELECT pg_advisory_xact_lock(?)", (self._write_lock,))
 
