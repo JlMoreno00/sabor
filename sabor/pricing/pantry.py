@@ -53,7 +53,8 @@ def load_stock(context) -> list[PantryStock]:
     Read-only: estimates never create the pantry file, its tables or any row; a missing file
     or a file without pantry tables is an empty pantry. With Postgres the pantry lives in the
     recipe store's schema and is read without migrations; an unreachable database raises
-    StoreError, which the estimate reports as upstream_error.
+    StoreError. In estimate_cost the profile pantry is read first, so an unreachable Postgres
+    usually fails there, as invalid_response.
     """
     from sabor.pantry.store import pantry_store_for
     store = pantry_store_for(context.settings, recipe_store=getattr(context, 'store', None))
