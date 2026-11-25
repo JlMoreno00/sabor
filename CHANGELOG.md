@@ -12,6 +12,10 @@
   hints are unchanged.
 
 ### Added
+- **`sabor-mcp pantry import-memory`** (#144 point 7): moves the «Despensa Conversacional»
+  bullets of `MEMORY.md` into the structured pantry. Preview by default, `--apply` to write.
+  Bullets with an amount are added with `source: migration`; bullets without one are listed
+  as `uncertain`, never guessed; already migrated foods are skipped. `MEMORY.md` is kept.
 - **Shopping lists check what the pantry covers** (#144, José's decision): `add_to_shopping_list`
   gains `subtract_pantry: bool = True`. After writing, the unchecked lines this call added
   or increased are compared with the structured pantry: an item covered in full is marked

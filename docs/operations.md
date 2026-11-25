@@ -260,6 +260,13 @@ through both `sabor-mcp` and `python -m sabor`.
 | Feedback Historial, Top Recetas Favoritas, Blacklist Recetas, other sections | Not migrated; section counts reported in not_migrated |
 
 Repeated imports do not duplicate values; preference annotations remain verbatim.
+
+For the structured pantry (#144), `sabor-mcp pantry import-memory` (add `--apply` to write)
+reads the same «Despensa Conversacional» bullets with the shared quantity parser. Measured
+bullets become pantry items with `source: migration`; unmeasured ones are reported in
+`uncertain`; foods already migrated are reported in `already_imported` and skipped. It needs
+the SQLite or Mealie store (`unsupported_operation` otherwise) and never modifies MEMORY.md.
+Exit codes: 0 success, 1 read/store error, 2 usage error.
 Migration does not infer diet, dislikes or household size. `save_feedback` stays
 unchanged; existing ratings/favorites/comments are not redirected.
 
