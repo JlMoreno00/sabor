@@ -96,7 +96,12 @@ class AgentSkillTests(unittest.TestCase):
                       'add_to_shopping_list(', 'subtract_pantry', 'pantry_coverage', 'partial',
                       'estimate_cost(', 'exclude_pantry'):
             self.assertIn(words, text)
-        self.assertNotIn('subtract_pantry=False', text.split('## Units')[0].split('After a meal')[0])
+        self.assertNotIn('subtract_pantry=False', text.split('## Units')[0])
+        # CodeRabbit on #155: a pantry item in another unit or without an amount excludes the
+        # line by name, so the agent must not promise an estimate that is never too low.
+        self.assertNotIn('never too low', text)
+        for words in ('excludes its line by name', 'lower than the real cost', 'complete'):
+            self.assertIn(words, text)
 
     def test_recipe_table_skill_teaches_tabular_recipe_notation(self):
         path = ROOT / 'skills' / 'sabor-recipe-table' / 'SKILL.md'

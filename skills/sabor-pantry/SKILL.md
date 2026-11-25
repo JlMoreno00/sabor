@@ -76,8 +76,10 @@ an item without a quantity means "there is some".
   (a receipt or `edit_pantry`). Turn the comparison off only if the user asks.
 - **Before an estimate.** When the user asks what a recipe, list or week will cost them,
   offer `estimate_cost(source={..., "exclude_pantry": True})` so what is at home is not
-  counted. Say that an item with too little stock stays priced, so the estimate is never
-  too low.
+  counted. An item kept in the line's unit with too little stock stays priced. But a pantry
+  item in another unit or without an amount excludes its line by name, so the estimate can be
+  lower than the real cost: say so when the answer lists such lines, and mention when the
+  estimate is not `complete` (some lines have no price).
 
 ## Units
 
