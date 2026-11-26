@@ -3,6 +3,14 @@
 ## [Unreleased]
 
 ### Changed
+- **`estimate_cost(exclude_pantry=True)` reads the Postgres pantry too** (#144 point 5): with
+  the Postgres store, estimates now count the structured pantry as on SQLite and Mealie. That
+  read is read-only: it never creates the schema nor runs migrations, a schema without pantry
+  tables is an empty pantry, and a lost connection is reopened once. The profile pantry, read
+  first, still goes through the store (the first operation on a new schema initializes it,
+  pantry tables included), so an unreachable database usually fails the estimate with
+  `invalid_response` from that read; if it stops answering just after, the structured read
+  fails with `upstream_error`.
 - **`estimate_cost(exclude_pantry=True)` reads the structured pantry** (#144, prices only):
   besides the profile pantry names, structured items count. When every matching item is in
   the line's base unit, the line is excluded only if their stock covers the required amount;

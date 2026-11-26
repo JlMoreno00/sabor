@@ -39,18 +39,12 @@ class PostgresPantryReadinessTests(unittest.TestCase):
 
         self.assertIsNone(pantry_store_for(load_settings(PG_ENV)))
 
-    def test_estimates_do_not_read_the_postgres_pantry(self):
-        # CodeRabbit on #152: estimates only read; the Postgres pantry read would run the
-        # store's migrations and turn a lost connection into a failed estimate.
+    def test_without_a_postgres_recipe_store_estimates_see_no_pantry(self):
         from types import SimpleNamespace
-        from unittest.mock import Mock
         from sabor.pricing.pantry import load_stock
 
-        recipes = Mock(id="postgres")
-        context = SimpleNamespace(settings=load_settings(PG_ENV), store=recipes)
+        context = SimpleNamespace(settings=load_settings(PG_ENV), store=None)
         self.assertEqual(load_stock(context), [])
-        self.assertEqual(recipes.mock_calls, [])
-
 
 @unittest.skipUnless(DSN and psycopg, "requires SABOR_TEST_DATABASE_URL and psycopg")
 class PostgresPantryTests(unittest.TestCase):
@@ -192,6 +186,39 @@ class PostgresPantryTests(unittest.TestCase):
         [item] = self.store.list_items()
         self.assertEqual((item.food, item.quantity), ("arroz", Decimal("1000")))
         self.assertNotEqual(self.recipes._connection.info.backend_pid, backend)
+
+    def stock(self, recipes):
+        from types import SimpleNamespace
+        from sabor.pricing.pantry import load_stock
+
+        context = SimpleNamespace(settings=load_settings({**PG_ENV, "SABOR_DATABASE_URL": DSN}), store=recipes)
+        return [(s.name, s.quantity, s.unit) for s in load_stock(context)]
+
+    def test_estimates_read_the_postgres_pantry(self):
+        # #144 point 5 on Postgres: exclude_pantry counts the structured pantry here too.
+        self.store.apply([{"op": "add", "name": "arroz", "quantity": "1", "unit": "kg"}])
+        self.assertEqual(self.stock(self.recipes), [("arroz", Decimal("1000"), "g")])
+
+    def test_estimates_never_create_or_migrate_the_schema(self):
+        # CodeRabbit on #152: the estimate read is read-only, so no migrations run.
+        from sabor.store.postgres import PostgresRecipeStore
+
+        schema = "test_" + uuid4().hex
+        fresh = PostgresRecipeStore(DSN, schema=schema)
+        self.addCleanup(fresh.close)
+        self.assertEqual(self.stock(fresh), [])
+        self.assertEqual(self.query("SELECT 1 FROM pg_namespace WHERE nspname=%s", (schema,)), [])
+
+    def test_a_lost_connection_is_reopened_for_the_estimate_read(self):
+        from sabor.store import StoreError
+
+        self.store.apply([{"op": "add", "name": "sal", "quantity": "1", "unit": "kg"}])
+        self.query("SELECT pg_terminate_backend(%s)", (self.recipes._connection.info.backend_pid,))
+        self.assertEqual(self.stock(self.recipes), [("sal", Decimal("1000"), "g")])
+        broken = type(self.recipes)("postgresql://u@127.0.0.1:1/db", schema=self.schema)
+        with self.assertRaises(StoreError) as caught:
+            self.stock(broken)
+        self.assertEqual(caught.exception.code, "upstream_error")
 
     def test_the_pantry_tools_work_through_the_postgres_store(self):
         from sabor.core.context import build_context

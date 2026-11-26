@@ -94,7 +94,7 @@ class PantryImportMemoryTests(unittest.TestCase):
         class Unreachable:
             def list_items(self, *args, **kwargs):
                 raise StoreError('upstream_error', 'postgres')
-            consumed_entries = apply = preview_with_digest = pantry_ready = list_items
+            consumed_entries = apply = snapshot = read_consumed_entries = list_items
 
         postgres = {**self.env, 'SABOR_STORE': 'postgres', 'SABOR_DATABASE_URL': 'postgresql://u@127.0.0.1:1/db'}
         with patch('sabor.core.context.assemble_context', return_value=SimpleNamespace(store=object())), \
@@ -134,29 +134,22 @@ class PantryImportMemoryTests(unittest.TestCase):
             tables = connection.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
         self.assertEqual(tables, [])
 
-    def test_a_postgres_preview_never_migrates(self):
-        # CodeRabbit on #156: without the pantry tables, the preview reads the schema version
-        # read-only and plans against an empty pantry; only --apply initializes the schema.
-        import threading
-        from types import SimpleNamespace
+    def test_a_sqlite_preview_never_opens_a_session_on_the_pantry(self):
+        # CodeRabbit on #156: with the pantry tables already there, a preview still only
+        # reads; it never enters _session (ensure_schema) on the real database.
+        from sabor.pantry.store import PantryStore
+        self.assertEqual(self.run_cli('import-memory', '--apply')[0], 0)
+        real, session = self.root / 'sabor.db', PantryStore._session
 
-        class Recipes:
-            id, schema, _lock, _driver = 'postgres', 'sabor', threading.Lock(), None
-            probes = 0
+        def guarded(store):
+            if store.path == real:
+                raise AssertionError('the preview opened a session on the real pantry')
+            return session(store)
 
-            def probe_schema_version(self):
-                Recipes.probes += 1
-                return None
-
-            def _ensure_ready(self):
-                raise AssertionError('a preview ran the migrations')
-
-        postgres = {**self.env, 'SABOR_STORE': 'postgres', 'SABOR_DATABASE_URL': 'postgresql://u@127.0.0.1:1/db'}
-        with patch('sabor.core.context.assemble_context', return_value=SimpleNamespace(store=Recipes())):
-            code, result = self.run_cli('import-memory', env=postgres)
+        with patch.object(PantryStore, '_session', guarded):
+            code, result = self.run_cli('import-memory')
         self.assertEqual(code, 0, result)
-        self.assertEqual((len(result['data']['effects']), result['data']['already_imported']), (3, []))
-        self.assertEqual(Recipes.probes, 1)
+        self.assertEqual(result['data']['already_imported'], ['2 kg de patatas', '6 huevos', '1 l de leche'])
 
     def test_a_locked_database_is_an_error_not_an_empty_pantry(self):
         # CodeRabbit on #156: only a missing table means "no pantry"; a lock is an error.
@@ -196,6 +189,40 @@ class PantryImportMemoryTests(unittest.TestCase):
             code, result = self.run_cli('import-memory', '--apply')
         self.assertEqual((code, result['error']['code']), (1, 'conflict'))
         self.assertEqual(self.items(), [])
+
+    def postgres(self, schema):
+        from psycopg import sql
+        from sabor.store.postgres import PostgresRecipeStore
+        recipes = PostgresRecipeStore(DSN, schema=schema)
+
+        def drop():
+            recipes.close()
+            with psycopg.connect(DSN, autocommit=True) as connection:
+                connection.execute(sql.SQL('DROP SCHEMA IF EXISTS {} CASCADE').format(sql.Identifier(schema)))
+        self.addCleanup(drop)
+        return recipes
+
+    def run_postgres(self, recipes, *args):
+        from types import SimpleNamespace
+        env = {**self.env, 'SABOR_STORE': 'postgres', 'SABOR_DATABASE_URL': DSN}
+        with patch('sabor.core.context.assemble_context', return_value=SimpleNamespace(store=recipes)):
+            return self.run_cli(*args, env=env)
+
+    @unittest.skipUnless(DSN and psycopg, 'requires SABOR_TEST_DATABASE_URL and psycopg')
+    def test_a_postgres_preview_never_migrates(self):
+        # CodeRabbit on #156: neither a new schema nor an existing one is touched by a
+        # preview: no CREATE SCHEMA, and _ensure_ready (migrate) is never called.
+        schema = 'test_' + uuid4().hex
+        code, result = self.run_postgres(self.postgres(schema), 'import-memory')
+        self.assertEqual((code, len(result['data']['effects'])), (0, 3), result)
+        with psycopg.connect(DSN, autocommit=True) as connection:
+            self.assertIsNone(connection.execute('SELECT 1 FROM pg_namespace WHERE nspname=%s', (schema,)).fetchone())
+        self.assertEqual(self.run_postgres(self.postgres(schema), 'import-memory', '--apply')[0], 0)
+        existing = self.postgres(schema)
+        with patch.object(existing, '_ensure_ready', side_effect=AssertionError('a preview migrated')):
+            code, result = self.run_postgres(existing, 'import-memory')
+        self.assertEqual(code, 0, result)
+        self.assertEqual(result['data']['already_imported'], ['2 kg de patatas', '6 huevos', '1 l de leche'])
 
     @unittest.skipUnless(DSN and psycopg, 'requires SABOR_TEST_DATABASE_URL and psycopg')
     def test_postgres_store_gets_the_same_pantry_as_the_tools(self):

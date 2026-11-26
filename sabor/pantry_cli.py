@@ -60,7 +60,7 @@ def main(argv=None):
         settings = load_settings(os.environ)
     except ValueError:
         return _print(fail('invalid_argument', 'Invalid Sabor configuration.'))
-    from sabor.pantry.store import PantryConflict, PantryError, PantryStore, pantry_store_for
+    from sabor.pantry.store import PantryConflict, PantryError, pantry_store_for
     from sabor.store import StoreError
     # The same pantry as the `pantry` tools: SQLite, Mealie's local file or the Postgres schema,
     # which shares the recipe store's connection (only Postgres needs the recipe store).
@@ -76,18 +76,12 @@ def main(argv=None):
     except (OSError, UnicodeError):
         return _print(fail('invalid_response', 'Unable to read legacy memory safely.'))
     bullets = parse_memory(text)[0]['pantry']
-    local = getattr(store, 'path', None) is not None
     try:
         foods = {food_key(m[0]) for m in map(_measured, bullets) if m is not None}
         ids = [ENTRY + food for food in sorted(foods)]
-        # A preview reads only what exists: no schema, tables or migrations are created.
-        ready = args.apply or store.pantry_ready()
-        if not ready:
-            done = set()
-        elif local:
-            done = store.read_consumed_entries(ids)
-        else:
-            done = store.consumed_entries(ids)
+        # A preview only reads, with no session: nothing is created and no migration runs,
+        # even when the schema already exists (CodeRabbit on #156).
+        done = store.consumed_entries(ids) if args.apply else store.read_consumed_entries(ids)
         result = plan(bullets, {entry.removeprefix(ENTRY) for entry in done})
         changes = [{'op': 'add', 'name': i['name'], 'quantity': i['quantity'], 'unit': i['unit'],
                     'source': 'migration'} for i in result['items']]
@@ -96,14 +90,8 @@ def main(argv=None):
             # The import record is checked inside the write transaction: a concurrent import
             # that recorded one of these foods first makes this one a conflict.
             effects = store.apply(changes, consumed_entries=entries) if changes else []
-        elif not changes:
-            effects = []
-        elif not ready:
-            # A preview creates nothing: plan against an empty pantry in a throwaway file.
-            with tempfile.TemporaryDirectory() as directory:
-                effects = PantryStore(Path(directory) / 'pantry.db').preview_with_digest(changes)[0]
         else:
-            effects = store.preview_with_digest(changes)[0]
+            effects = _preview(store.snapshot(), changes) if changes else []
     except StoreError as exc:
         return _print(fail(exc.code, 'The recipe store could not be reached.', exc.provider))
     except PantryConflict:
@@ -111,6 +99,25 @@ def main(argv=None):
     except (PantryError, OSError, sqlite3.Error):
         return _print(fail('invalid_response', 'Unable to update the pantry safely.'))
     return _print(ok({'preview': not args.apply, 'effects': effects, **result, 'memory_kept': True}))
+
+
+def _preview(items, changes) -> list:
+    """The effects of `changes` planned on a throwaway copy of the pantry's items."""
+    from sabor.pantry.store import PantryStore, ensure_schema
+    with tempfile.TemporaryDirectory() as directory:
+        path = Path(directory) / 'pantry.db'
+        connection = sqlite3.connect(path)
+        try:
+            with connection:
+                ensure_schema(connection)
+                connection.executemany(
+                    'INSERT INTO pantry_items VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                    [(i.id, i.name, i.food, i.food_id,
+                      format_amount(i.quantity) if i.quantity is not None else None, i.unit,
+                      i.expires_on, i.source, i.note, i.updated_at) for i in items])
+        finally:
+            connection.close()
+        return PantryStore(path).preview_with_digest(changes)[0]
 
 
 def _print(result) -> int:
