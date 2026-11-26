@@ -627,8 +627,13 @@ With `exclude_pantry: true` the [structured pantry](#pantry) counts too (#144). 
 matching item is kept in the line's base unit (`g`, `ml`, `ud`), the line is excluded only
 if their stock covers the amount needed; too little stock keeps it priced, so the cost is
 never understated. If any matching item has no amount or another unit, the line is
-excluded by name, like a profile entry. Estimates only read the pantry: they never create
-its file, tables or rows. With the Postgres store they do not read the structured pantry yet.
+excluded by name, like a profile entry. Estimates only read the pantry: with SQLite, Mealie
+or an already initialized Postgres schema they never create its file, tables or rows. With
+Postgres the profile pantry is read first, through the store, so the first operation on a new
+schema initializes it, pantry tables included; the structured pantry read itself never runs
+migrations. If Postgres is unreachable the estimate usually fails with `invalid_response` from
+the profile read; if it stops answering just after, the structured read retries once and fails
+with `upstream_error`.
 Shopping list hints still use the profile pantry only.
 
 Every `estimate_cost` source kind accepts optional `exclude_pantry: bool`:

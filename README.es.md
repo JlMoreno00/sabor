@@ -640,8 +640,12 @@ artículos coincidentes están en la unidad base de la línea (`g`, `ml`, `ud`),
 cuando sus existencias cubren la cantidad necesaria; si hay poco, se sigue calculando, así que el
 coste nunca se subestima. Si algún artículo coincidente no tiene cantidad o está en otra unidad, la
 línea se excluye por nombre, como una entrada del perfil. Las estimaciones solo leen la despensa:
-nunca crean su archivo, sus tablas ni sus filas. Con el almacén Postgres todavía no leen la
-despensa estructurada. Las indicaciones de la lista de la compra siguen usando solo la despensa
+con SQLite, Mealie o un esquema Postgres ya inicializado, nunca crean su archivo, sus tablas ni sus
+filas. Con Postgres, la despensa del perfil se lee antes y pasa por el almacén: la primera operación
+sobre un esquema nuevo lo inicializa, tabla de despensa incluida. La lectura de la despensa
+estructurada, en cambio, nunca ejecuta migraciones. Si Postgres no responde, la estimación suele
+fallar con `invalid_response` en la lectura del perfil; si deja de responder justo después, la
+lectura estructurada reintenta una vez y falla con `upstream_error`. Las indicaciones de la lista de la compra siguen usando solo la despensa
 del perfil.
 
 Cada tipo de fuente de `estimate_cost` acepta el parámetro opcional `exclude_pantry: bool`:
