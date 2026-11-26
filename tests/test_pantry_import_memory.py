@@ -151,6 +151,49 @@ class PantryImportMemoryTests(unittest.TestCase):
         self.assertEqual(code, 0, result)
         self.assertEqual(result['data']['already_imported'], ['2 kg de patatas', '6 huevos', '1 l de leche'])
 
+    def test_a_postgres_preview_on_an_existing_schema_never_migrates(self):
+        # CodeRabbit on #156, without a database: the schema already has the pantry tables
+        # and a migrated food; the preview reads them through _read_table and never calls
+        # the store's _ensure_ready (migrate).
+        import threading
+        from datetime import datetime, timezone
+        from types import SimpleNamespace
+        from sabor.pantry.store import PostgresPantryStore
+
+        class Recipes:
+            id, schema, _lock = 'postgres', 'sabor', threading.Lock()
+
+            def _ensure_ready(self):
+                raise AssertionError('a preview ran the migrations')
+
+        now = datetime.now(timezone.utc).isoformat()
+        tables = {
+            'pantry_items': [('1', 'patatas', 'patatas', None, '2000', 'g', None, 'migration', None, now)],
+            'pantry_consumed_entries': [('memory-import:patatas', now)]}
+        reads = []
+
+        def read_table(store, name, query, args=()):
+            reads.append(name)
+            rows = tables[name]
+            return [r for r in rows if r[0] == args[0]] if args else rows
+
+        postgres = {**self.env, 'SABOR_STORE': 'postgres', 'SABOR_DATABASE_URL': 'postgresql://u@127.0.0.1:1/db'}
+        with patch('sabor.core.context.assemble_context', return_value=SimpleNamespace(store=Recipes())), \
+                patch.object(PostgresPantryStore, '_read_table', read_table):
+            code, result = self.run_cli('import-memory', env=postgres)
+        self.assertEqual(code, 0, result)
+        self.assertEqual(result['data']['already_imported'], ['2 kg de patatas'])
+        self.assertEqual([i['name'] for i in result['data']['items']], ['huevos', 'leche'])
+        self.assertEqual(set(reads), {'pantry_items', 'pantry_consumed_entries'})
+
+    def test_postgres_without_the_extra_is_a_json_error(self):
+        # CodeRabbit on #156: a missing psycopg extra is the JSON envelope, not a traceback.
+        from sabor.core.config import ConfigError
+        postgres = {**self.env, 'SABOR_STORE': 'postgres', 'SABOR_DATABASE_URL': 'postgresql://u@127.0.0.1:1/db'}
+        with patch('sabor.core.context.assemble_context', side_effect=ConfigError('install sabor-mcp[postgres]')):
+            code, result = self.run_cli('import-memory', env=postgres)
+        self.assertEqual((code, result['error']['code']), (1, 'provider_unconfigured'))
+
     def test_a_locked_database_is_an_error_not_an_empty_pantry(self):
         # CodeRabbit on #156: only a missing table means "no pantry"; a lock is an error.
         import sqlite3

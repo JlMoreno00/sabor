@@ -66,8 +66,14 @@ def main(argv=None):
     # which shares the recipe store's connection (only Postgres needs the recipe store).
     recipes = None
     if settings.store == 'postgres':
+        from sabor.core.config import ConfigError
         from sabor.core.context import assemble_context
-        recipes = assemble_context(settings).store
+        try:
+            recipes = assemble_context(settings).store
+        except ConfigError:
+            # The Postgres store needs the optional extra: sabor-mcp[postgres].
+            return _print(fail('provider_unconfigured',
+                               'The Postgres store is not available; install sabor-mcp[postgres].', 'postgres'))
     store = pantry_store_for(settings, recipe_store=recipes)
     if store is None:
         return _print(fail('unsupported_operation', 'This recipe store has no pantry.'))
