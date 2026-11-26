@@ -30,7 +30,8 @@ class RegistrationTests(unittest.TestCase):
         env = {**MEALIE, **GEMINI, **BRING, 'SPOONACULAR_API_KEY': 'secret-spoon',
                'SABOR_MERCADONA_ENABLED': 'true', 'SABOR_TOOLSETS': ','.join(TOOLSETS)}
         tools, discovery = self.register(env)
-        self.assertEqual(len(tools), 57)
+        # 58 with sync_pantry_on_hand (#144 point 9), registered because the store is Mealie.
+        self.assertEqual(len(tools), 58)
         encoded = json.dumps(discovery)
         for key in (*MEALIE, *GEMINI, *BRING, 'SPOONACULAR_API_KEY'):
             self.assertNotIn(env[key], encoded)

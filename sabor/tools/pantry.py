@@ -27,6 +27,11 @@ def _ready(settings) -> bool:
     return settings.store in ("sqlite", "mealie", "postgres")
 
 
+def _mealie_ready(settings) -> bool:
+    # Only Mealie has foods to mark "on hand"; with other stores the sync is not registered.
+    return settings.store == "mealie"
+
+
 def _store() -> PantryStore:
     # The instance's own settings decide where its pantry lives (#147 review).
     context = current_context()
@@ -247,3 +252,33 @@ def consume_from_pantry(recipe_slugs: list[str] | None = None, mealplan_start: s
     extra = {"recipes": recipes, "ingredients": report, "skipped": skipped}
     return _preview_or_apply(changes, confirm, preview_digest, extra, entries)
 
+
+
+@tool("pantry", requires=_mealie_ready, uses_context=True)
+def sync_pantry_on_hand(confirm: bool = False, preview_digest: str | None = None) -> dict:
+    """Preview marking the pantry's foods "on hand" in Mealie, and unmarking the ones Sabor marked that left the pantry; write only when confirmed with the preview's digest."""
+    from sabor.pantry import on_hand
+
+    if type(confirm) is not bool:
+        return fail("invalid_argument", "confirm must be true or false.")
+    recipes = current_context().store
+    done: dict[str, list[str]] = {"marked": [], "unmarked": []}
+    try:
+        household = recipes.household_slug()
+        result = on_hand.plan(_store().list_items(), recipes.list_foods(), household)
+        digest = on_hand.digest(result)
+        if not confirm:
+            return ok({"preview": True, **result, "preview_digest": digest})
+        if not isinstance(preview_digest, str) or not preview_digest:
+            return fail("invalid_argument", "Confirming needs the preview_digest returned by the preview.")
+        if preview_digest != digest:
+            return fail("conflict", "The pantry or Mealie changed since the preview; preview again before confirming.")
+        on_hand.apply(recipes, result, done)
+        return ok({"preview": False, **result, **done})
+    except StoreError as exc:
+        if done["marked"] or done["unmarked"]:
+            return fail(exc.code, "Mealie rejected a change; the ones before it were written. Preview again.",
+                        exc.provider, data=done)
+        return store_error_envelope(exc)
+    except PantryError as error:
+        return fail("invalid_argument", str(error))

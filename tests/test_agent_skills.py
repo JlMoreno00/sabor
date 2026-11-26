@@ -103,6 +103,13 @@ class AgentSkillTests(unittest.TestCase):
         for words in ('excludes its line by name', 'lower than the real cost', 'complete'):
             self.assertIn(words, text)
 
+    def test_pantry_skill_offers_the_mealie_on_hand_sync(self):
+        # #144 point 9: with Mealie, offer to mark the pantry's foods "on hand".
+        text = (ROOT / 'skills' / 'sabor-pantry' / 'SKILL.md').read_text(encoding='utf-8')
+        for words in ('sync_pantry_on_hand()', 'on hand', 'unmatched', 'only with the Mealie store',
+                      'never unmarks foods the user marked by hand'):
+            self.assertIn(words, text)
+
     def test_recipe_table_skill_teaches_tabular_recipe_notation(self):
         path = ROOT / 'skills' / 'sabor-recipe-table' / 'SKILL.md'
         self.assertIn(path, SKILLS)

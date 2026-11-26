@@ -1,5 +1,6 @@
 """Instance-owned Mealie transport, mapping and legacy response compatibility."""
 import re
+from urllib.parse import quote
 import unicodedata
 import requests
 from typing import Any, cast
@@ -555,6 +556,45 @@ class MealieRecipeStore(MealieShoppingItemsMixin, MealieShoppingListsMixin):
             raise
         return _CreatedRecipe(slug=slug, result={
             "ok": True, "status": response.status_code, "body": response.text[:2000], "slug": slug})
+
+    # Foods "on hand" (#144 point 9): read and write Mealie foods for the pantry sync.
+    def _api(self, method, path, **kwargs):
+        try:
+            response = method(f"{self.base_url}/api{path}", headers=self._headers, timeout=30, **kwargs)
+            if not 200 <= response.status_code < 300:
+                raise StoreError(errors.from_http(response.status_code, self.id)["error"]["code"], self.id)
+            return _object(response.json())
+        except StoreError:
+            raise
+        except ValueError:
+            raise StoreError("invalid_response", self.id) from None
+        except Exception as exc:
+            raise StoreError(errors.from_exception(exc, self.id)["error"]["code"], self.id) from None
+
+    def household_slug(self) -> str:
+        slug = self._api(self.session.get, "/households/self").get("slug")
+        if not isinstance(slug, str) or not slug:
+            raise StoreError("invalid_response", self.id)
+        return slug
+
+    def list_foods(self) -> list[dict]:
+        foods = []
+        for page in range(1, 101):
+            data = self._api(self.session.get, "/foods", params={"page": page, "perPage": 100})
+            try:
+                foods.extend(row for row in _items(data) if isinstance(row.get("id"), str))
+            except ValueError:
+                raise StoreError("invalid_response", self.id) from None
+            pages = data.get("total_pages", 1)
+            if type(pages) is not int or page >= pages:
+                return foods
+        raise StoreError("invalid_response", self.id)
+
+    def get_food(self, food_id: str) -> dict:
+        return self._api(self.session.get, f"/foods/{quote(food_id, safe='')}")
+
+    def put_food(self, food_id: str, body: dict) -> None:
+        self._api(self.session.put, f"/foods/{quote(food_id, safe='')}", json=body)
 
     def update_recipe(self, slug, patch):
         allowed = {"name", "description", "recipeYield", "recipeServings", "totalTime",

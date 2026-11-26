@@ -220,10 +220,10 @@ class PantryRegistrationTests(unittest.TestCase):
         from mcp.server.fastmcp import FastMCP
         from sabor.server import register_tools
 
-        names = {fn.__name__ for group, fn, requires in catalog if group == "pantry"}
-        self.assertEqual(
-            names, {"get_pantry", "edit_pantry", "add_pantry_from_receipt", "consume_from_pantry"}
-        )
+        names = {"get_pantry", "edit_pantry", "add_pantry_from_receipt", "consume_from_pantry"}
+        # sync_pantry_on_hand (#144 point 9) needs the Mealie store, so SQLite never gets it.
+        self.assertEqual({fn.__name__ for group, fn, requires in catalog if group == "pantry"},
+                         names | {"sync_pantry_on_hand"})
         with tempfile.TemporaryDirectory() as directory:
             for toolsets, expected in (("core", set()), ("core,pantry", names)):
                 server = FastMCP("t")
@@ -233,6 +233,7 @@ class PantryRegistrationTests(unittest.TestCase):
                 )
                 registered = {t.name for t in server._tool_manager.list_tools()}
                 self.assertEqual(registered & names, expected)
+                self.assertNotIn("sync_pantry_on_hand", registered)
 
     def test_postgres_store_registers_pantry_tools(self):
         # #144 point 8: the pantry lives in the Postgres schema too.
