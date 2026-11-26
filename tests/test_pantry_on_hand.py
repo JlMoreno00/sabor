@@ -88,6 +88,8 @@ class OnHandSyncTests(unittest.TestCase):
         self.assertEqual((egg["name"], egg["pluralName"], egg["description"], egg["labelId"]),
                          ("huevo", "huevos", "huevo desc", "label-1"))
         self.assertEqual(egg["extras"], {"sabor_on_hand": "family"})
+        # CodeRabbit on #158: every PUT carries the food's id, as Mealie requires.
+        self.assertTrue(all(body["id"] == food_id for food_id, body in self.api.food_puts))
         # Nothing left to do: a second sync writes nothing.
         before = len(self.api.food_puts)
         preview, _ = self.sync()
@@ -107,6 +109,33 @@ class OnHandSyncTests(unittest.TestCase):
         self.assertEqual(self.on_hand(), {"f-salt"})
         self.assertNotIn("sabor_on_hand", self.api.foods["f-egg"]["extras"])
         self.assertEqual(self.api.foods["f-salt"]["householdsWithIngredientFood"], ["family", "other"])
+
+    def test_each_household_keeps_its_own_mark(self):
+        # CodeRabbit on #158: marks for household A and then B; A's pantry drops the food,
+        # and B stays marked.
+        self.pantry([{"op": "add", "name": "huevos", "quantity": 6, "unit": "ud"}])
+        self.sync()
+        self.api.household = "work"
+        self.sync()
+        self.assertEqual(self.api.foods["f-egg"]["extras"], {"sabor_on_hand": "family,work"})
+        from sabor.tools.pantry import get_pantry
+        [item] = self.call(get_pantry)["data"]["items"]
+        self.pantry([{"op": "remove", "id": item["id"]}])
+        self.api.household = "family"
+        preview, _ = self.sync()
+        self.assertEqual([f["food_id"] for f in preview["data"]["unmark"]], ["f-egg"])
+        egg = self.api.foods["f-egg"]
+        self.assertEqual((egg["householdsWithIngredientFood"], egg["extras"]), (["work"], {"sabor_on_hand": "work"}))
+
+    def test_a_pantry_change_that_keeps_the_plan_is_still_a_conflict(self):
+        # CodeRabbit on #158: the digest covers the pantry, not only mark/unmark/unmatched.
+        from sabor.tools.pantry import sync_pantry_on_hand
+        self.pantry([{"op": "add", "name": "arroz", "quantity": 1, "unit": "kg"}])
+        digest = self.call(sync_pantry_on_hand)["data"]["preview_digest"]
+        self.pantry([{"op": "add", "name": "arroz", "quantity": 1, "unit": "kg"}])
+        result = self.call(sync_pantry_on_hand, confirm=True, preview_digest=digest)
+        self.assertEqual(result["error"]["code"], "conflict")
+        self.assertEqual(self.api.food_puts, [])
 
     def test_a_stale_preview_is_a_conflict(self):
         from sabor.tools.pantry import sync_pantry_on_hand

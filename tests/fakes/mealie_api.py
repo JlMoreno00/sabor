@@ -191,9 +191,12 @@ class MealieAPI:
             if food_id not in self.foods:
                 return Response({}, 404)
             body = deepcopy(kwargs["json"])
+            # Mealie 3.22 updates the model from the body: a missing or other id is rejected.
+            if body.get("id") != food_id:
+                return Response({"detail": "id"}, 422)
             self.food_puts.append((food_id, body))
             # PUT replaces the food: whatever the body leaves out is lost, as in Mealie.
-            self.foods[food_id] = {"id": food_id, **body}
+            self.foods[food_id] = body
             return Response(self.foods[food_id])
         if path.startswith("/api/recipes/") and path.endswith("/image"):
             slug = path.removeprefix("/api/recipes/").removesuffix("/image")

@@ -265,8 +265,9 @@ def sync_pantry_on_hand(confirm: bool = False, preview_digest: str | None = None
     done: dict[str, list[str]] = {"marked": [], "unmarked": []}
     try:
         household = recipes.household_slug()
-        result = on_hand.plan(_store().list_items(), recipes.list_foods(), household)
-        digest = on_hand.digest(result)
+        items = _store().list_items()
+        result = on_hand.plan(items, recipes.list_foods(), household)
+        digest = on_hand.digest(result, items)
         if not confirm:
             return ok({"preview": True, **result, "preview_digest": digest})
         if not isinstance(preview_digest, str) or not preview_digest:
