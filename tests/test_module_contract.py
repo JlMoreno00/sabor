@@ -71,7 +71,9 @@ BASELINE_CONTRACT = {
     "get_pantry": "3114515f99a772b5128bf2c66f4c6746ef07d2fc2bc1eea25d3a9990eeed50cf",
     "edit_pantry": "a55ff979fed12dcda8a654658d49e82689bade352c347ca60bcf49b9e81da996",
     "add_pantry_from_receipt": "88aad7bc788b38bd53709bd364dfecf5f31e8e6a5eeeba4db7f7cc8bdf6515a1",
-    "consume_from_pantry": "b33242b2e91575f44edec3deefc9070b5c9bf5edaa54381ab26330676bf7b8bf"
+    "consume_from_pantry": "b33242b2e91575f44edec3deefc9070b5c9bf5edaa54381ab26330676bf7b8bf",
+    # #144 point 9: registered only with the Mealie store.
+    "sync_pantry_on_hand": "99d1db00dd27a75f9b5179fcea052882fac117f498afbef590e9bcff74f8cc84"
 }
 
 
@@ -79,7 +81,7 @@ class ModuleContractTests(unittest.TestCase):
     def test_registered_tool_names_match_baseline(self):
         names = [fn.__name__ for group, fn, requires in catalog]
         self.assertEqual(set(names), set(BASELINE_CONTRACT))
-        self.assertEqual(len(names), 56)
+        self.assertEqual(len(names), 57)
         register_tools()
         self.assertEqual(
             [fn.__name__ for group, fn, requires in catalog], names,

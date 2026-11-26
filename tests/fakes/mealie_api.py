@@ -1,6 +1,6 @@
 """Stateful contract-test double, not a Mealie reimplementation.
 
-Supported Mealie v3.22.0 routes: recipe create (POST /api/recipes), GET/PATCH/DELETE
+Supported Mealie v3.22.0 routes: foods GET/PUT and households/self GET; recipe create (POST /api/recipes), GET/PATCH/DELETE
 and image upload (PUT),
 recipe search/suggestions, organizers/tags GET/POST, comments and timeline events
 POST, mealplans GET/POST/DELETE, shopping lists GET/POST/DELETE, shopping items
@@ -42,6 +42,11 @@ class MealieAPI:
         self.updated = {}
         self.made = {}
         self.clock = 0
+        # Foods as Mealie 3.22 returns them; "on hand" is the household slug in
+        # householdsWithIngredientFood (#144 point 9).
+        self.foods = {}
+        self.household = "family"
+        self.food_puts = []
 
     def set_rating(self, slug, rating):
         """Seed upstream ratings without adding a production write operation."""
@@ -64,6 +69,13 @@ class MealieAPI:
     def get(self, url, **kwargs):
         path = urlsplit(url).path
         params = kwargs.get("params", {})
+        if path == "/api/households/self":
+            return Response({"id": "h1", "name": "Family", "slug": self.household})
+        if path == "/api/foods":
+            return self.page(sorted(self.foods.values(), key=lambda f: f["name"]), params)
+        if path.startswith("/api/foods/"):
+            food = self.foods.get(path.removeprefix("/api/foods/"))
+            return Response(food) if food else Response({}, 404)
         if path == "/api/recipes":
             rows = [r for r in self.recipes.values()
                     if params.get("search", "").casefold() in r["name"].casefold()]
@@ -174,6 +186,18 @@ class MealieAPI:
 
     def put(self, url, **kwargs):
         path = urlsplit(url).path
+        if path.startswith("/api/foods/"):
+            food_id = path.removeprefix("/api/foods/")
+            if food_id not in self.foods:
+                return Response({}, 404)
+            body = deepcopy(kwargs["json"])
+            # Mealie 3.22 updates the model from the body: a missing or other id is rejected.
+            if body.get("id") != food_id:
+                return Response({"detail": "id"}, 422)
+            self.food_puts.append((food_id, body))
+            # PUT replaces the food: whatever the body leaves out is lost, as in Mealie.
+            self.foods[food_id] = body
+            return Response(self.foods[food_id])
         if path.startswith("/api/recipes/") and path.endswith("/image"):
             slug = path.removeprefix("/api/recipes/").removesuffix("/image")
             if slug not in self.recipes:

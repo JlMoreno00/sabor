@@ -58,6 +58,12 @@ an item without a quantity means "there is some".
   `sabor_capabilities()` lists `mealie`) it needs Mealie food IDs: pass each item's
   `food_id` from `get_pantry(...)`. If an item's `food_id` is null, never send the name
   as an ID; tell the user that food cannot be used for suggestions yet.
+- **Mealie "on hand".** With the Mealie store, `sync_pantry_on_hand()` marks the pantry's
+  foods "on hand" in the user's Mealie household, so Mealie's own suggestions use them. Offer
+  it after the pantry changed (a receipt, a purchase, a meal). Preview first and tell the user
+  what will be marked and unmarked and which items are `unmatched` (no single Mealie food with
+  that name); confirm only after they agree. It never unmarks foods the user marked by hand.
+  The tool exists only with the Mealie store; do not mention it otherwise.
 - **After a meal.** When the user says they cooked or ate something («ya hemos cenado la
   lasaña», «hoy tocaba el pollo»), offer to subtract its ingredients. For recipes cooked
   now call `consume_from_pantry(recipe_slugs=[...])`; for planned meals that are over call

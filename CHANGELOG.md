@@ -20,6 +20,13 @@
   hints are unchanged.
 
 ### Added
+- **`sync_pantry_on_hand`** (#144 point 9, José's decision; `pantry` toolset, Mealie store
+  only): marks the structured pantry's foods "on hand" for the Mealie household
+  (`householdsWithIngredientFood`), with the usual preview and `preview_digest` confirmation.
+  Items match a Mealie food by `food_id` or one exact name, plural or alias; the rest are
+  reported as `unmatched`. Only foods Sabor marked (`extras.sabor_on_hand`) are unmarked when
+  they leave the pantry. Each write sends the food's own fields back, since Mealie's PUT
+  replaces the food. With SQLite or Postgres the tool is not registered and nothing changes.
 - **`sabor-mcp pantry import-memory`** (#144 point 7): moves the «Despensa Conversacional»
   bullets of `MEMORY.md` into the structured pantry. Preview by default, `--apply` to write.
   Bullets with an amount are added with `source: migration`; bullets without one are listed

@@ -748,6 +748,7 @@ get_pantry(food: str | None=None, expiring_within_days: int | None=None)
 edit_pantry(changes: list[dict], confirm: bool=False, preview_digest: str | None=None)
 add_pantry_from_receipt(lines: list[str], confirm: bool=False, preview_digest: str | None=None)
 consume_from_pantry(recipe_slugs: list[str] | None=None, mealplan_start: str | None=None, mealplan_end: str | None=None, servings_multiplier: float=1.0, confirm: bool=False, preview_digest: str | None=None)
+sync_pantry_on_hand(confirm: bool=False, preview_digest: str | None=None)
 ```
 
 - `get_pantry` lista los artículos, opcionalmente de un alimento o los que caducan en N días (de 0 a 3650).
@@ -768,6 +769,14 @@ consume_from_pantry(recipe_slugs: list[str] | None=None, mealplan_start: str | N
   (`not_in_pantry`, `not_measured`, `incompatible_unit`, `pantry_amount_unknown`). Nada baja de
   cero (se informa del `shortfall`). Las entradas del plan se recuerdan al confirmar, así que la
   misma semana nunca se resta dos veces (`skipped` las lista como `already_consumed`).
+- `sync_pantry_on_hand` (solo con el almacén Mealie; con SQLite o Postgres no se registra)
+  marca «en casa» en tu hogar de Mealie los alimentos de la despensa, para que las sugerencias
+  de Mealie los tengan en cuenta. Cada artículo se asocia a un alimento de Mealie por su
+  `food_id` o, si no, por un único nombre, plural o alias exacto; los demás aparecen en
+  `unmatched` y nunca se adivinan. Solo desmarca los alimentos que marcó el propio Sabor
+  (anotados en los `extras` del alimento como `sabor_on_hand`) cuando salen de la despensa; los
+  marcados a mano en Mealie no se desmarcan nunca. La vista previa lista `mark`, `unmark` y
+  `unmatched`.
 Las escrituras muestran primero una vista previa y devuelven un `preview_digest`. Tras la
 aprobación, repite con `confirm=True` y ese digest; si la despensa cambió entretanto, se
 rechaza con `conflict`. Una entrada no válida no escribe nada. El `update_pantry` heredado no cambia.

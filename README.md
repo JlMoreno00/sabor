@@ -736,6 +736,7 @@ get_pantry(food: str | None=None, expiring_within_days: int | None=None)
 edit_pantry(changes: list[dict], confirm: bool=False, preview_digest: str | None=None)
 add_pantry_from_receipt(lines: list[str], confirm: bool=False, preview_digest: str | None=None)
 consume_from_pantry(recipe_slugs: list[str] | None=None, mealplan_start: str | None=None, mealplan_end: str | None=None, servings_multiplier: float=1.0, confirm: bool=False, preview_digest: str | None=None)
+sync_pantry_on_hand(confirm: bool=False, preview_digest: str | None=None)
 ```
 
 - `get_pantry` lists items, optionally one food or those expiring within N days (0 to 3650).
@@ -756,6 +757,13 @@ consume_from_pantry(recipe_slugs: list[str] | None=None, mealplan_start: str | N
   `not_measured`, `incompatible_unit`, `pantry_amount_unknown`). Nothing goes below zero
   (a `shortfall` is reported). Meal plan entries are remembered once confirmed, so the same
   week is never subtracted twice (`skipped` lists them as `already_consumed`).
+- `sync_pantry_on_hand` (Mealie store only; not registered with SQLite or Postgres) marks
+  the pantry's foods "on hand" for your Mealie household, so Mealie's suggestions count
+  them. Each item is matched to a Mealie food by its `food_id`, else by one exact name,
+  plural or alias; others are listed in `unmatched`, never guessed. It unmarks only foods
+  Sabor marked itself (recorded in the food's `extras` as `sabor_on_hand`) once they leave
+  the pantry; foods marked by hand in Mealie are never unmarked. The preview lists `mark`,
+  `unmark` and `unmatched`.
 Writes preview first and return a `preview_digest`. Repeat with `confirm=True` and that
 digest after approval; a pantry that changed in between is rejected as `conflict`.
 Invalid input writes nothing. The legacy `update_pantry` is unchanged.
