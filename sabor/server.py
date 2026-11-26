@@ -151,6 +151,7 @@ def _parser() -> argparse.ArgumentParser:
     catalog_parser.add_argument("action", choices=("status", "apply"))
     # Listed for discoverability; `preferences` is dispatched before parsing.
     commands.add_parser("preferences", help="Import the cooking profile: preferences {import-file,import-memory} [--apply]")
+    commands.add_parser("pantry", help="Import MEMORY.md pantry bullets: pantry import-memory [--apply]")
     return parser
 
 
@@ -171,6 +172,11 @@ def cli(argv=None) -> None:
         if not {"-h", "--help"} & set(arguments[1:]):
             _apply_config_or_exit(parser)
         raise SystemExit(preferences_main(arguments[1:]))
+    if arguments[:1] == ["pantry"]:
+        from sabor.pantry_cli import main as pantry_main
+        if not {"-h", "--help"} & set(arguments[1:]):
+            _apply_config_or_exit(parser)
+        raise SystemExit(pantry_main(arguments[1:]))
     # Parse first: --help and --version must work before any config file exists.
     args = parser.parse_args(arguments)
     config_source = _apply_config_or_exit(parser)

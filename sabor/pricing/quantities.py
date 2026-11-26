@@ -165,7 +165,7 @@ def parse_text(text: object) -> Quantity:
 
 
 _CONNECTORS = {'de', 'del', 'of'}
-_UNIT_WORDS = set('g gr gramo gramos kg kilo kilos kilogramo kilogramos ml cl l litro litros '
+_UNIT_WORDS = set('g gr gramo gramos kg kilo kilos kilogramo kilogramos ml cl centilitro centilitros l litro litros '
                   'mililitro mililitros ud uds unidad unidades u pieza piezas docena docenas '
                   # English unit words, stripped with every store, Mealie included (#49).
                   'gram grams kilogram kilograms liter liters litre litres milliliter milliliters '

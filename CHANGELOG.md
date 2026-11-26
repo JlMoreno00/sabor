@@ -20,6 +20,10 @@
   hints are unchanged.
 
 ### Added
+- **`sabor-mcp pantry import-memory`** (#144 point 7): moves the «Despensa Conversacional»
+  bullets of `MEMORY.md` into the structured pantry. Preview by default, `--apply` to write.
+  Bullets with an amount are added with `source: migration`; bullets without one are listed
+  as `uncertain`, never guessed; already migrated foods are skipped. `MEMORY.md` is kept.
 - **Structured pantry on Postgres/Supabase** (#144 phase 3, point 8): migration 4 adds
   `pantry_items` and `pantry_consumed_entries` to the store's schema, with row level
   security on and no access for Supabase's `anon`/`authenticated` roles, like every table.

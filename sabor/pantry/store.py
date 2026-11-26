@@ -17,7 +17,7 @@ from dataclasses import replace
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal, DecimalException
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, LiteralString, cast
 
 from .model import SOURCES, BaseUnit, PantryItem, food_key, format_amount, to_base_quantity
 
@@ -152,6 +152,31 @@ class PantryStore:
             return []
         finally:
             connection.close()
+
+    def _read_only(self, query: str, args=()) -> list | None:
+        """Rows from a read-only connection; None when the file or the pantry tables are missing."""
+        if not self.path.exists():
+            return None
+        connection = sqlite3.connect(self.path.resolve().as_uri() + '?mode=ro', uri=True)
+        try:
+            return connection.execute(query, args).fetchall()
+        except sqlite3.OperationalError as exc:
+            # Only a missing table means "no pantry"; a lock or I/O error is raised.
+            if str(exc).startswith('no such table'):
+                return None
+            raise
+        finally:
+            connection.close()
+
+    def snapshot(self) -> list[PantryItem]:
+        """The items read without creating anything; a lock or I/O error is raised, unlike
+        read_items(), which pricing uses and which treats any read error as an empty pantry."""
+        return [_row(r) for r in self._read_only("SELECT * FROM pantry_items ORDER BY food, unit, id") or []]
+
+    def read_consumed_entries(self, entries) -> set[str]:
+        """consumed_entries() without creating the file, the schema or any row."""
+        return {entry for entry in (str(e) for e in entries)
+                if self._read_only("SELECT 1 FROM pantry_consumed_entries WHERE entry_id = ?", (entry,))}
 
     def list_items(self, food: str | None = None, expiring_within_days: int | None = None,
              today: str | None = None) -> list[PantryItem]:
@@ -379,27 +404,27 @@ class PostgresPantryStore(PantryStore):
             except driver.Error:
                 raise StoreError('upstream_error', 'postgres') from None
 
-    def read_items(self) -> list[PantryItem]:
-        """Read-only listing for pricing: never creates the schema nor runs migrations.
+    def _read_table(self, name: str, query: LiteralString, args=()) -> list | None:
+        """One read on an existing pantry table: never creates the schema nor runs migrations.
 
-        Like the store's probe_schema_version, a lost connection is reopened once; a schema
-        without pantry tables is an empty pantry.
+        Like the store's probe_schema_version, a lost connection is reopened once. None when
+        the table does not exist yet.
         """
         from psycopg import sql
         from sabor.store import StoreError
         recipes = self._recipes
-        table = sql.Identifier(recipes.schema, 'pantry_items')
+        table = sql.Identifier(recipes.schema, name)
         with recipes._lock:
             for attempt in range(2):
                 try:
                     if recipes._connection is None or recipes._connection.closed:
                         recipes._open()
                     connection = recipes._connection
-                    if connection.execute('SELECT to_regclass(%s)', (table.as_string(connection),)).fetchone()[0] is None:
-                        return []
-                    rows = connection.execute(
-                        sql.SQL('SELECT * FROM {} ORDER BY food, unit, id').format(table)).fetchall()
-                    return [_row(r) for r in rows]
+                    found = connection.execute('SELECT to_regclass(%s)', (table.as_string(connection),)).fetchone()
+                    if found is None or found[0] is None:
+                        return None
+                    # `query` is one of this class's literals; the table is a quoted identifier.
+                    return connection.execute(sql.SQL(query).format(table), args).fetchall()
                 except recipes._driver.OperationalError:
                     if recipes._connection is not None:
                         recipes._connection.close()
@@ -409,7 +434,19 @@ class PostgresPantryStore(PantryStore):
                     raise StoreError('upstream_error', 'postgres') from None
                 except recipes._driver.Error:
                     raise StoreError('upstream_error', 'postgres') from None
-        return []
+        return None
+
+    def read_items(self) -> list[PantryItem]:
+        """Read-only listing for pricing and previews; a schema without the table is empty."""
+        return [_row(r) for r in self._read_table('pantry_items', 'SELECT * FROM {} ORDER BY food, unit, id') or []]
+
+    def snapshot(self) -> list[PantryItem]:
+        return self.read_items()
+
+    def read_consumed_entries(self, entries) -> set[str]:
+        """consumed_entries() without creating the schema nor running migrations."""
+        return {entry for entry in (str(e) for e in entries) if self._read_table(
+            'pantry_consumed_entries', 'SELECT 1 FROM {} WHERE entry_id = %s', (entry,))}
 
     def _begin_write(self, connection) -> None:
         connection.execute("SELECT pg_advisory_xact_lock(?)", (self._write_lock,))

@@ -772,6 +772,15 @@ Las escrituras muestran primero una vista previa y devuelven un `preview_digest`
 aprobación, repite con `confirm=True` y ese digest; si la despensa cambió entretanto, se
 rechaza con `conflict`. Una entrada no válida no escribe nada. El `update_pantry` heredado no cambia.
 
+Para pasar las viñetas de «Despensa Conversacional» de `MEMORY.md` a la despensa estructurada,
+ejecuta `sabor-mcp pantry import-memory` (una vista previa en JSON que no escribe nada) y después
+añade `--apply`. Las viñetas con cantidad (`2 kg de patatas`, `6 huevos`) se añaden con
+`source: migration`; las que no la tienen (`arroz`, `un paquete de pasta`) aparecen en `uncertain`
+para que las añadas a mano. Cada alimento importado queda registrado, así que una viñeta cuyo
+alimento ya se migró aparece en `already_imported` y ejecutarlo dos veces no añade nada, aunque se
+hubiera sumado a un artículo que añadiste tú. La vista previa no crea nada; dos importaciones a la
+vez terminan una con `conflict` (vuelve a ejecutarlo). `MEMORY.md` no se modifica nunca.
+
 ### legacy_memory
 
 Obsoleto en favor de `preferences`. Estas tools siguen usando MEMORY.md sin cambios,

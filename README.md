@@ -760,6 +760,15 @@ Writes preview first and return a `preview_digest`. Repeat with `confirm=True` a
 digest after approval; a pantry that changed in between is rejected as `conflict`.
 Invalid input writes nothing. The legacy `update_pantry` is unchanged.
 
+To move the «Despensa Conversacional» bullets of `MEMORY.md` into the structured pantry, run
+`sabor-mcp pantry import-memory` (a JSON preview, nothing written), then add `--apply`.
+Bullets with an amount (`2 kg de patatas`, `6 huevos`) are added with `source: migration`;
+bullets without one (`arroz`, `un paquete de pasta`) are listed under `uncertain` for you to
+add by hand. Each imported food is recorded, so a bullet whose food was already migrated is
+listed under `already_imported` and running it twice adds nothing, even when the import merged
+into an item you had added yourself. The preview creates nothing; two imports at once end with
+one `conflict` (run it again). `MEMORY.md` is never changed.
+
 ### legacy_memory
 
 Deprecated in favor of `preferences`. These tools still use MEMORY.md unchanged,
